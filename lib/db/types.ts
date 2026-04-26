@@ -31,9 +31,12 @@ export type TaskType =
   | "followup"
   | "patterns"
   | "deep_research"
-  | "apply";
+  | "apply"
+  | "contact_draft"
+  | "training_eval"
+  | "project_eval";
 
-export type ProviderType = "anthropic" | "openai" | "manual";
+export type ProviderType = "anthropic" | "openai" | "gemini" | "manual";
 
 // Row types (what you get back from SELECT) -------------------
 
@@ -47,6 +50,19 @@ export type ProfileRow = {
   comp_max: number | null;
   years_experience: number | null;
   base_cv: string | null;
+  // Extended fields (migration 005)
+  target_archetypes: string[] | null;
+  preferred_company_types: string[] | null;
+  work_mode: "remote" | "hybrid" | "onsite" | null;
+  current_comp: number | null;
+  seniority: "junior" | "mid" | "senior" | "staff" | "principal" | null;
+  languages: string[] | null;
+  // Extended fields (migration 006)
+  preferred_language: string | null;       // ISO 639-1, e.g. "en", "es", "fr"
+  eval_score_apply: number | null;         // custom apply threshold (default 3.5)
+  eval_score_watch: number | null;         // custom watch threshold (default 2.5)
+  custom_eval_focus: string | null;        // extra instructions injected into evaluate prompt
+  custom_archetypes: string[] | null;      // overrides default archetype list
   created_at: string;
   updated_at: string;
 };
@@ -147,6 +163,78 @@ export type TaskRunRow = {
   updated_at: string;
 };
 
+export type ScanSourceRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  url: string;
+  type: string;
+  is_active: boolean;
+  last_scanned_at: string | null;
+  total_discovered: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ScanRunRow = {
+  id: string;
+  user_id: string;
+  source_id: string;
+  status: "running" | "completed" | "failed";
+  discovered_count: number;
+  added_count: number;
+  duplicate_count: number;
+  error: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ScanDiscoveryRow = {
+  id: string;
+  user_id: string;
+  scan_run_id: string;
+  source_id: string | null;
+  job_id: string | null;
+  title: string;
+  company: string;
+  url: string | null;
+  location: string | null;
+  department: string | null;
+  description_snippet: string | null;
+  status: "new" | "added" | "duplicate" | "skipped";
+  created_at: string;
+};
+
+export type StoryBankEntryRow = {
+  id: string;
+  user_id: string;
+  job_id: string | null;
+  title: string;
+  situation: string;
+  task: string;
+  action: string;
+  result: string;
+  reflection: string;
+  tags: string[];
+  difficulty: "easy" | "medium" | "hard";
+  status: "draft" | "ready";
+  created_at: string;
+  updated_at: string;
+};
+
+export type InterviewPrepPackRow = {
+  id: string;
+  user_id: string;
+  job_id: string;
+  title: string;
+  content: Record<string, unknown>;
+  status: "draft" | "ready";
+  provider: string | null;
+  model: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 // Database generic (pass to createBrowserClient / createServerClient)
 // Must conform to GenericSchema from @supabase/supabase-js.
 // Each table requires Row, Insert, Update, and Relationships: [].
@@ -167,6 +255,17 @@ export type Database = {
           comp_max?: number | null;
           years_experience?: number | null;
           base_cv?: string | null;
+          target_archetypes?: string[] | null;
+          preferred_company_types?: string[] | null;
+          work_mode?: "remote" | "hybrid" | "onsite" | null;
+          current_comp?: number | null;
+          seniority?: "junior" | "mid" | "senior" | "staff" | "principal" | null;
+          languages?: string[] | null;
+          preferred_language?: string | null;
+          eval_score_apply?: number | null;
+          eval_score_watch?: number | null;
+          custom_eval_focus?: string | null;
+          custom_archetypes?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -180,6 +279,17 @@ export type Database = {
           comp_max?: number | null;
           years_experience?: number | null;
           base_cv?: string | null;
+          target_archetypes?: string[] | null;
+          preferred_company_types?: string[] | null;
+          work_mode?: "remote" | "hybrid" | "onsite" | null;
+          current_comp?: number | null;
+          seniority?: "junior" | "mid" | "senior" | "staff" | "principal" | null;
+          languages?: string[] | null;
+          preferred_language?: string | null;
+          eval_score_apply?: number | null;
+          eval_score_watch?: number | null;
+          custom_eval_focus?: string | null;
+          custom_archetypes?: string[] | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -372,6 +482,135 @@ export type Database = {
           output?: Record<string, unknown> | null;
           error?: string | null;
           progress_message?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      scan_sources: {
+        Row: ScanSourceRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          url: string;
+          type?: string;
+          is_active?: boolean;
+          last_scanned_at?: string | null;
+          total_discovered?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          url?: string;
+          type?: string;
+          is_active?: boolean;
+          last_scanned_at?: string | null;
+          total_discovered?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      scan_runs: {
+        Row: ScanRunRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          source_id: string;
+          status?: "running" | "completed" | "failed";
+          discovered_count?: number;
+          added_count?: number;
+          duplicate_count?: number;
+          error?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          status?: "running" | "completed" | "failed";
+          discovered_count?: number;
+          added_count?: number;
+          duplicate_count?: number;
+          error?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      scan_discoveries: {
+        Row: ScanDiscoveryRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          scan_run_id: string;
+          source_id?: string | null;
+          job_id?: string | null;
+          title: string;
+          company: string;
+          url?: string | null;
+          location?: string | null;
+          department?: string | null;
+          description_snippet?: string | null;
+          status?: "new" | "added" | "duplicate" | "skipped";
+          created_at?: string;
+        };
+        Update: {
+          job_id?: string | null;
+          status?: "new" | "added" | "duplicate" | "skipped";
+        };
+        Relationships: [];
+      };
+      story_bank_entries: {
+        Row: StoryBankEntryRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          job_id?: string | null;
+          title: string;
+          situation?: string;
+          task?: string;
+          action?: string;
+          result?: string;
+          reflection?: string;
+          tags?: string[];
+          difficulty?: "easy" | "medium" | "hard";
+          status?: "draft" | "ready";
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          job_id?: string | null;
+          title?: string;
+          situation?: string;
+          task?: string;
+          action?: string;
+          result?: string;
+          reflection?: string;
+          tags?: string[];
+          difficulty?: "easy" | "medium" | "hard";
+          status?: "draft" | "ready";
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      interview_prep_packs: {
+        Row: InterviewPrepPackRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          job_id: string;
+          title: string;
+          content?: Record<string, unknown>;
+          status?: "draft" | "ready";
+          provider?: string | null;
+          model?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          title?: string;
+          content?: Record<string, unknown>;
+          status?: "draft" | "ready";
+          provider?: string | null;
+          model?: string | null;
           updated_at?: string;
         };
         Relationships: [];

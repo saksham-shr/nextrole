@@ -154,6 +154,7 @@ export function Button({
   className,
   type,
   onClick,
+  disabled,
 }: {
   children: ReactNode;
   href?: string;
@@ -162,6 +163,7 @@ export function Button({
   className?: string;
   type?: "button" | "submit" | "reset";
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   const base =
     "inline-flex items-center justify-center rounded-full border px-4 py-2 text-sm font-bold transition hover:-translate-y-0.5";
@@ -191,7 +193,16 @@ export function Button({
     );
   }
 
-  return <button type={type} onClick={onClick} className={cx(base, tones[tone], className)}>{children}</button>;
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(base, tones[tone], disabled && "opacity-50 cursor-not-allowed", className)}
+    >
+      {children}
+    </button>
+  );
 }
 
 export function StatCard({
@@ -352,12 +363,16 @@ export function InputField({
   textarea = false,
   name,
   type = "text",
+  defaultValue,
+  rows = 5,
 }: {
   label: string;
   placeholder: string;
   textarea?: boolean;
   name?: string;
   type?: string;
+  defaultValue?: string | number;
+  rows?: number;
 }) {
   return (
     <label className="block">
@@ -365,8 +380,9 @@ export function InputField({
       {textarea ? (
         <textarea
           name={name}
-          rows={5}
+          rows={rows}
           placeholder={placeholder}
+          defaultValue={defaultValue}
           className="w-full rounded-[18px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
       ) : (
@@ -374,6 +390,7 @@ export function InputField({
           name={name}
           type={type}
           placeholder={placeholder}
+          defaultValue={defaultValue}
           className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
       )}

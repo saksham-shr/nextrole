@@ -2,13 +2,13 @@ import { notFound } from "next/navigation";
 import { DashboardRoutePage } from "@/components/nextrole/dashboard-pages";
 import { isKnownDashboardRoute, resolveDashboardRoute } from "@/lib/nextrole-data";
 
-export default async function DashboardPage({
+export default async function DashboardCatchAll({
   params,
 }: {
-  params: Promise<{ slug?: string[] }>;
+  params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
-  const route = resolveDashboardRoute(slug ?? []);
+  const route = resolveDashboardRoute(slug);
 
   if (!isKnownDashboardRoute(route.key)) {
     notFound();

@@ -14,7 +14,7 @@ export async function saveProviderKey(formData: FormData) {
     redirect(`/dashboard/providers?error=API+key+is+required`);
   }
 
-  if (!["anthropic", "openai"].includes(provider)) {
+  if (!["anthropic", "openai", "gemini"].includes(provider)) {
     redirect(`/dashboard/providers?error=Invalid+provider`);
   }
 
