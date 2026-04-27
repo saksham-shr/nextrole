@@ -12,6 +12,7 @@ import {
   Surface,
 } from "@/components/nextrole/ui";
 import { saveProfileStep } from "@/app/actions/profile";
+import { BrandMark } from "@/components/nextrole/brand";
 
 // ─── Step definitions ─────────────────────────────────────────────────────────
 
@@ -71,8 +72,8 @@ function StepWelcome({ onNext }: { onNext: () => void }) {
   return (
     <div className="space-y-6 text-center">
       <div>
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)] text-white">
-          <span className="font-[var(--font-caveat)] text-3xl font-bold">N</span>
+        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)]">
+          <BrandMark className="h-8 w-8" strokeClassName="text-white" />
         </div>
         <Display className="text-4xl sm:text-5xl">Welcome to NextRole</Display>
         <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">

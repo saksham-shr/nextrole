@@ -17,6 +17,7 @@ import {
   signUp,
   forgotPassword,
   resetPassword,
+  resendConfirmation,
 } from "@/app/actions/auth";
 
 function AuthSubmitButton({
@@ -107,10 +108,24 @@ function Alert({
 export function LoginPage({
   error,
   message,
+  resend,
+  email: prefillEmail,
 }: {
   error?: string;
   message?: string;
+  resend?: string;
+  email?: string;
 }) {
+  // Show the resend form when:
+  // 1. The ?resend=1 param is present (user clicked "Resend"), or
+  // 2. The error message is about email confirmation
+  const isConfirmationError =
+    error?.toLowerCase().includes("email not confirmed") ||
+    error?.toLowerCase().includes("confirm") ||
+    error?.toLowerCase().includes("not confirmed");
+
+  const showResendForm = resend === "1" || isConfirmationError;
+
   return (
     <AuthShell
       title="Welcome back"
@@ -118,8 +133,37 @@ export function LoginPage({
     >
       {error && <Alert tone="error" message={error} />}
       {message && <Alert tone="ok" message={message} />}
-      <form action={signIn}>
-        <div className="mt-8 space-y-4">
+
+      {/* ── Resend confirmation panel ── */}
+      {showResendForm && (
+        <div className="mt-6 rounded-[18px] border border-[var(--warn)] bg-[#fdf8ec] p-5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--warn)]">
+            Email not confirmed
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[var(--foreground)]">
+            Your account exists but the confirmation link may have been sent to
+            the wrong address or has expired. Enter your email below to get a
+            fresh link.
+          </p>
+          <form action={resendConfirmation} className="mt-4 space-y-3">
+            <InputField
+              label="Email"
+              name="email"
+              type="email"
+              placeholder="jane@example.com"
+              defaultValue={prefillEmail ?? ""}
+            />
+            <AuthSubmitButton
+              label="Resend confirmation email"
+              pendingLabel="Sending…"
+            />
+          </form>
+        </div>
+      )}
+
+      {/* ── Normal sign-in form ── */}
+      <form action={signIn} className="mt-6">
+        <div className="space-y-4">
           <InputField
             label="Email"
             name="email"
@@ -134,12 +178,22 @@ export function LoginPage({
           />
         </div>
         <div className="mt-4 flex items-center justify-between gap-4">
-          <Link
-            className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)]"
-            href="/forgot-password"
-          >
-            Forgot password
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)]"
+              href="/forgot-password"
+            >
+              Forgot password
+            </Link>
+            {!showResendForm && (
+              <Link
+                className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--accent)]"
+                href="/login?resend=1"
+              >
+                Resend confirmation
+              </Link>
+            )}
+          </div>
           <Badge tone="accent">Encrypted keys</Badge>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">

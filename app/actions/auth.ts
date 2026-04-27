@@ -6,11 +6,23 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function signIn(formData: FormData) {
   const supabase = await createClient();
+  const email = formData.get("email") as string;
   const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get("email") as string,
+    email,
     password: formData.get("password") as string,
   });
   if (error) {
+    // If the account exists but isn't confirmed, clear any stale session
+    // cookie and send them to the resend flow so they can get a fresh link.
+    if (
+      error.message.toLowerCase().includes("email not confirmed") ||
+      error.message.toLowerCase().includes("not confirmed")
+    ) {
+      await supabase.auth.signOut();
+      redirect(
+        `/login?resend=1&error=${encodeURIComponent(error.message)}&email=${encodeURIComponent(email)}`,
+      );
+    }
     redirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
   redirect("/dashboard");
@@ -83,4 +95,32 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+export async function resendConfirmation(formData: FormData) {
+  const email = formData.get("email") as string;
+  if (!email) {
+    redirect("/login?resend=1&error=Please+enter+your+email+address");
+  }
+
+  const supabase = await createClient();
+  const headersList = await headers();
+  const origin = getSiteOrigin(headersList.get("origin"));
+
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard/onboarding`,
+    },
+  });
+
+  if (error) {
+    redirect(
+      `/login?resend=1&error=${encodeURIComponent(error.message)}&email=${encodeURIComponent(email)}`,
+    );
+  }
+  redirect(
+    `/login?message=${encodeURIComponent("Confirmation email resent — check your inbox")}`,
+  );
 }

@@ -9,7 +9,7 @@ export default async function OnboardingPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect("/login");
 
-  const [{ data: providers }, { data: profile }] = await Promise.all([
+  const [{ data: providers }] = await Promise.all([
     supabase
       .from("provider_credentials")
       .select("id")
@@ -17,17 +17,14 @@ export default async function OnboardingPage() {
       .eq("is_active", true)
       .in("provider", ["anthropic", "openai", "gemini"])
       .limit(1),
+    // Mark onboarding as seen the moment the page loads.
+    // This is a fire-and-forget update — the dashboard will never
+    // redirect here again after this request completes.
     supabase
       .from("profiles")
-      .select("full_name, base_cv")
-      .eq("id", user.id)
-      .single(),
+      .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
+      .eq("id", user.id),
   ]);
-
-  // If the user has already completed setup (has a CV and a provider),
-  // they don't need onboarding — send them to the dashboard.
-  const alreadySetUp = Boolean(profile?.base_cv) && Boolean(providers?.length);
-  if (alreadySetUp) redirect("/dashboard");
 
   return <OnboardingPageContent hasProvider={Boolean(providers?.length)} />;
 }

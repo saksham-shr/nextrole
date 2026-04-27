@@ -17,7 +17,7 @@ export default async function DashboardPage() {
     { data: jobs },
     { data: recentRuns },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, base_cv").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, base_cv, onboarding_completed").eq("id", user.id).single(),
     supabase
       .from("provider_credentials")
       .select("id")
@@ -40,14 +40,10 @@ export default async function DashboardPage() {
 
   const allJobs = jobs ?? [];
 
-  // ── New-user detection ──────────────────────────────────────────────────────
-  // If a user has no jobs, no CV, and no providers they are brand new.
-  // Send them to onboarding so they get guided through setup.
-  const isNewUser =
-    allJobs.length === 0 &&
-    !profile?.base_cv &&
-    !(providerRows?.length);
-  if (isNewUser) redirect("/dashboard/onboarding");
+  // ── First-time onboarding redirect ─────────────────────────────────────────
+  // Only redirect once — the flag is set the moment they land on the
+  // onboarding page and never cleared, so this fires exactly one time.
+  if (!profile?.onboarding_completed) redirect("/dashboard/onboarding");
 
   // KPI counts
   const activeStatuses = ["evaluated", "applied", "interview", "offer"] as const;
