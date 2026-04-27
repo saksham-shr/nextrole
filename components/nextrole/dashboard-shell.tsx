@@ -2,21 +2,22 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { BrandWordmark } from "@/components/nextrole/brand";
 import { Badge, Button, Surface } from "@/components/nextrole/ui";
 import { navGroups, quickActions } from "@/lib/nextrole-data";
 import { signOut } from "@/app/actions/auth";
 import { useCommandLauncher } from "@/components/nextrole/command-launcher";
 
 function useDarkMode() {
-  const [dark, setDark] = useState(false);
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("nextrole-theme") === "dark";
+  });
 
   useEffect(() => {
-    const stored = localStorage.getItem("nextrole-theme");
-    const isDark = stored === "dark";
-    setDark(isDark);
-    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-  }, []);
+    document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+  }, [dark]);
 
   function toggle() {
     const next = !dark;
@@ -30,17 +31,11 @@ function useDarkMode() {
 
 function NavigationProgress() {
   const pathname = usePathname();
-  const [show, setShow] = useState(false);
-
-  useEffect(() => {
-    setShow(true);
-    const t = setTimeout(() => setShow(false), 700);
-    return () => clearTimeout(t);
-  }, [pathname]);
-
-  if (!show) return null;
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[2.5px] origin-left animate-[nav-progress_0.7s_ease-out_forwards] bg-[var(--accent)]" />
+    <div
+      key={pathname}
+      className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[2.5px] origin-left animate-[nav-progress_0.7s_ease-out_forwards] bg-[var(--accent)]"
+    />
   );
 }
 
@@ -52,37 +47,44 @@ function displayName(email: string) {
 export function DashboardShell({
   children,
   user,
+  isAdmin = false,
 }: {
   children: ReactNode;
   user: { email: string };
+  isAdmin?: boolean;
 }) {
   const pathname = usePathname();
   const { modal, triggerOpen } = useCommandLauncher();
   const { dark, toggle: toggleDark } = useDarkMode();
 
+  const allNavGroups = useMemo(() => {
+    if (!isAdmin) return navGroups;
+    return [
+      ...navGroups,
+      {
+        title: "Admin",
+        items: [{ label: "Analytics", href: "/dashboard/admin" }],
+      },
+    ];
+  }, [isAdmin]);
+
   return (
     <div className="min-h-screen p-3 sm:p-4">
       <NavigationProgress />
-      {/* Command launcher portal */}
       {modal}
 
       <Surface className="min-h-[calc(100vh-1.5rem)] overflow-hidden">
         <div className="flex min-h-[calc(100vh-1.5rem)]">
           <aside className="hidden w-72 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] lg:flex lg:flex-col">
             <div className="border-b border-[var(--line)] px-5 py-5">
-              <div className="flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-[var(--accent)]" />
-                <span className="font-[var(--font-caveat)] text-4xl font-bold leading-none">
-                  nextrole
-                </span>
-              </div>
+              <BrandWordmark labelClassName="text-4xl" />
               <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
                 Job search operating system with evaluate, tracker, scanner,
                 resumes, interview prep, and pattern loops in one place.
               </p>
             </div>
             <div className="flex-1 overflow-y-auto px-3 py-4">
-              {navGroups.map((group) => (
+              {allNavGroups.map((group) => (
                 <div key={group.title} className="mb-5">
                   <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground-2)]">
                     {group.title}
@@ -125,8 +127,8 @@ export function DashboardShell({
                   {user.email}
                 </p>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <Badge tone="accent">Anthropic API</Badge>
-                  <Badge>Manual mode ready</Badge>
+                  <Badge tone="accent">14-day free trial</Badge>
+                  {isAdmin ? <Badge tone="ok">Admin</Badge> : <Badge>Manual mode ready</Badge>}
                 </div>
                 <div className="mt-3 flex items-center justify-between">
                   <form action={signOut}>
@@ -153,13 +155,12 @@ export function DashboardShell({
             <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[rgba(247,243,236,0.94)] backdrop-blur">
               <div className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
                 <div className="min-w-0 flex-1">
-                  {/* ⌘K trigger pill — real button now */}
                   <button
                     type="button"
                     onClick={triggerOpen}
                     className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--foreground)]"
                   >
-                    <span className="hidden sm:inline">⌘K · </span>Search pages, actions, tools…
+                    <span className="hidden sm:inline">⌘K · </span>Search pages, actions, tools...
                   </button>
                 </div>
                 <Badge>2 tasks running</Badge>
@@ -180,7 +181,7 @@ export function DashboardShell({
 
             <div className="border-b border-[var(--line)] px-4 py-3 lg:hidden">
               <div className="flex gap-2 overflow-x-auto">
-                {navGroups.flatMap((group) => group.items).map((item) => {
+                {allNavGroups.flatMap((group) => group.items).map((item) => {
                   const active =
                     pathname === item.href ||
                     (item.href !== "/dashboard" && pathname.startsWith(item.href));

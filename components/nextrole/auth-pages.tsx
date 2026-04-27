@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
+import { BrandWordmark } from "@/components/nextrole/brand";
 import {
   Badge,
   Button,
@@ -40,6 +41,23 @@ function AuthSubmitButton({
   );
 }
 
+function TrialBanner() {
+  return (
+    <div className="mt-6 rounded-[22px] border border-[var(--accent)] bg-[#fcefe7] p-4">
+      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
+        14-day free trial
+      </p>
+      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
+        No credit card required.
+      </p>
+      <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+        Start with onboarding, connect a provider or use manual mode, and run
+        the full workflow before worrying about billing infrastructure.
+      </p>
+    </div>
+  );
+}
+
 function AuthShell({
   title,
   subtitle,
@@ -52,16 +70,12 @@ function AuthShell({
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-8">
       <Surface className="w-full max-w-xl p-6 sm:p-8">
-        <div className="flex items-center gap-3">
-          <div className="h-3 w-3 rounded-full bg-[var(--accent)]" />
-          <span className="font-[var(--font-caveat)] text-3xl font-bold">
-            nextrole
-          </span>
-        </div>
+        <BrandWordmark />
         <Display className="mt-6 text-4xl sm:text-5xl">{title}</Display>
         <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           {subtitle}
         </p>
+        <TrialBanner />
         {children}
       </Surface>
     </main>
@@ -114,7 +128,7 @@ export function LoginPage({
             label="Password"
             name="password"
             type="password"
-            placeholder="••••••••"
+            placeholder="Enter your password"
           />
         </div>
         <div className="mt-4 flex items-center justify-between gap-4">
@@ -127,7 +141,7 @@ export function LoginPage({
           <Badge tone="accent">Encrypted keys</Badge>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <AuthSubmitButton label="Sign in" pendingLabel="Signing in…" />
+          <AuthSubmitButton label="Sign in" pendingLabel="Signing in..." />
           <Button href="/signup" ghost>
             Create account
           </Button>
@@ -166,6 +180,26 @@ export function SignupPage({
             placeholder="8+ chars, one number"
           />
         </div>
+        <label className="mt-5 flex items-start gap-3 rounded-[18px] border border-[var(--line)] bg-[var(--surface-soft)] px-4 py-3">
+          <input
+            required
+            name="agreeToTerms"
+            type="checkbox"
+            value="yes"
+            className="mt-1 h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
+          />
+          <span className="text-sm leading-7 text-[var(--muted-foreground)]">
+            I agree to the{" "}
+            <Link href="/terms" className="font-bold text-[var(--accent)]">
+              Terms of Use
+            </Link>{" "}
+            and acknowledge the{" "}
+            <Link href="/privacy" className="font-bold text-[var(--accent)]">
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </label>
         <div className="mt-6 grid gap-4 sm:grid-cols-3">
           {[
             ["1", "Add your CV"],
@@ -181,7 +215,7 @@ export function SignupPage({
           ))}
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <AuthSubmitButton label="Create account" pendingLabel="Creating account…" />
+          <AuthSubmitButton label="Create account" pendingLabel="Creating account..." />
           <Button href="/login" ghost>
             I already have an account
           </Button>
@@ -215,7 +249,7 @@ export function ForgotPasswordPage({
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <AuthSubmitButton label="Send reset link" pendingLabel="Sending…" />
+          <AuthSubmitButton label="Send reset link" pendingLabel="Sending..." />
           <Button href="/login" ghost>
             Back to login
           </Button>
@@ -245,17 +279,17 @@ export function ResetPasswordPage({
             label="New password"
             name="password"
             type="password"
-            placeholder="••••••••"
+            placeholder="Enter a new password"
           />
           <InputField
             label="Confirm password"
             name="confirm"
             type="password"
-            placeholder="••••••••"
+            placeholder="Confirm your password"
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <AuthSubmitButton label="Save and sign in" pendingLabel="Saving…" />
+          <AuthSubmitButton label="Save and sign in" pendingLabel="Saving..." />
           <Button href="/login" ghost>
             Back to login
           </Button>

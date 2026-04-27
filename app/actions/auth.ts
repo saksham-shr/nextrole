@@ -17,6 +17,11 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
+  const agreedToTerms = formData.get("agreeToTerms") === "yes";
+  if (!agreedToTerms) {
+    redirect("/signup?error=You+must+agree+to+the+Terms+of+Use");
+  }
+
   const supabase = await createClient();
   const headersList = await headers();
   const origin = headersList.get("origin") ?? "http://localhost:3000";
