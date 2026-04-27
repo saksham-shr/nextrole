@@ -365,6 +365,7 @@ export function InputField({
   type = "text",
   defaultValue,
   rows = 5,
+  hint,
 }: {
   label: string;
   placeholder: string;
@@ -373,6 +374,7 @@ export function InputField({
   type?: string;
   defaultValue?: string | number;
   rows?: number;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -393,6 +395,9 @@ export function InputField({
           defaultValue={defaultValue}
           className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
+      )}
+      {hint && (
+        <p className="mt-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">{hint}</p>
       )}
     </label>
   );
