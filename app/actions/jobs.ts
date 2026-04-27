@@ -67,6 +67,32 @@ export async function updateJobStatus(formData: FormData) {
   revalidatePath("/dashboard/pipeline");
 }
 
+export async function markFollowupSent(formData: FormData) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const jobId = formData.get("job_id") as string;
+
+  // Reset updated_at — this is what the urgency clock runs from
+  await supabase
+    .from("jobs")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", jobId)
+    .eq("user_id", user.id);
+
+  await supabase.from("job_events").insert({
+    user_id: user.id,
+    job_id: jobId,
+    event_type: "followup_sent",
+    payload: { sent_at: new Date().toISOString() },
+  });
+
+  revalidatePath("/dashboard/followup");
+}
+
 export async function deleteJob(formData: FormData) {
   const supabase = await createClient();
   const {
