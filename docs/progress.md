@@ -1,5 +1,5 @@
 # NextRole Progress Report
-**Last updated:** 2026-04-26
+**Last updated:** 2026-04-27
 
 ---
 
@@ -9,61 +9,75 @@
 | Item | Status |
 |---|---|
 | Next.js 16.2.4 + React 19 + Tailwind 4 | ✅ Done |
-| Supabase SSR client helpers (browser/server/proxy) | ✅ Done |
-| Auth proxy — all `/dashboard/*` protected | ✅ Done |
+| Supabase SSR client helpers (browser/server/middleware) | ✅ Done |
+| Auth middleware — all `/dashboard/*` protected | ✅ Done |
 | Login / signup / forgot / reset password | ✅ Done |
 | Supabase auth callback route | ✅ Done |
 | AES-256-GCM provider key encryption | ✅ Done |
 | Database types (`lib/db/types.ts`) | ✅ Done |
 | SQL migrations 001–006 checked in | ✅ Done |
 
-### API routes (15 total — all wired)
+### API routes (17 total — all wired)
 | Route | Status |
 |---|---|
 | `POST /api/evaluate` — 7-block AI eval, archetype detection, manual mode | ✅ Done |
 | `POST /api/compare` — 2–8 job ranking | ✅ Done |
-| `POST /api/batch` — up to 20 jobs sequential | ✅ Done |
-| `POST /api/scan` — HTML fetch + AI extraction + dedup | ✅ Done |
+| `POST /api/batch` — parallel, up to 20 jobs, concurrency cap 5 | ✅ Done |
+| `POST /api/scan` — HTML fetch + AI extraction + URL + title/company dedup | ✅ Done |
 | `POST /api/resume` — tailored resume + ATS HTML | ✅ Done |
 | `GET  /api/resume/[id]/html` — print-ready HTML + PDF | ✅ Done |
 | `POST /api/story` — STAR story generation | ✅ Done |
 | `POST /api/interview-prep` — full prep pack | ✅ Done |
 | `POST /api/apply` — application question drafts | ✅ Done |
-| `POST /api/followup` — follow-up message drafts | ✅ Done |
+| `POST /api/followup` — follow-up message drafts (5 types) | ✅ Done |
 | `POST /api/deep` — company research dossier | ✅ Done |
 | `POST /api/contact` — outreach message drafts (5 types) | ✅ Done |
 | `POST /api/training` — course/cert ROI evaluation | ✅ Done |
 | `POST /api/project` — portfolio project evaluation | ✅ Done |
-| `POST /api/pipeline` — auto-orchestration (eval → status → deep) | ✅ Done |
+| `POST /api/pipeline` — auto-orchestration (eval → status → deep) | ✅ Done ⚠️ Gemini bug |
+| `POST /api/negotiate` — counter-offer, BATNA, email draft, geo rebuttal | ✅ Done |
+| `GET  /api/export` — CSV + JSON bulk export (jobs, evals, reports) | ✅ Done |
 
-### Dashboard pages (23 wired routes)
-All backed by real DB reads/writes. Every page has a dedicated `page.tsx` or wired catch-all.
+### Dashboard pages (28 dedicated routes — all wired)
+Every route has a real `page.tsx` backed by Supabase queries.
 
 | Route | Status |
 |---|---|
-| `/dashboard` | ✅ Wired |
-| `/dashboard/pipeline` | ✅ Wired |
-| `/dashboard/tracker` | ✅ Wired |
-| `/dashboard/evaluate` | ✅ Wired |
+| `/dashboard` | ✅ KPIs, kanban, attention items, activity feed |
+| `/dashboard/pipeline` | ✅ Pending triage queue, add job, status actions |
+| `/dashboard/tracker` | ✅ Table + kanban, detail drawer, 5 saved views |
+| `/dashboard/evaluate` | ✅ URL/JD input, 7-block results, score badge |
+| `/dashboard/compare` | ✅ Multi-job ranking, side-by-side output |
+| `/dashboard/batch` | ✅ CSV/manual input, parallel evaluation, progress |
+| `/dashboard/scanner` | ✅ My Sources + Job Boards + Companies (50+ each) |
+| `/dashboard/reports` + `[id]` | ✅ Report list + full detail view |
+| `/dashboard/resumes` + `[id]` | ✅ Resume library + detail + PDF download |
+| `/dashboard/providers` | ✅ Anthropic + OpenAI + Gemini + Manual mode |
+| `/dashboard/settings` | ✅ All profile fields + CV + AI customisation |
+| `/dashboard/profile` | ✅ Targeting profile, comp, eval behaviour, system impact panel |
+| `/dashboard/cv` | ✅ Dedicated CV editor, live analysis, section detector, proof-points |
+| `/dashboard/activity` | ✅ Task run log, export buttons, status badges |
+| `/dashboard/story-bank` | ✅ STAR stories CRUD + AI generation |
+| `/dashboard/interview-prep` | ✅ Round-by-round prep packs |
+| `/dashboard/apply` | ✅ Application question drafts (6 types) |
+| `/dashboard/followup` | ✅ Urgency queue (overdue/today/week/waiting) + draft generator |
+| `/dashboard/patterns` | ✅ Funnel, archetype breakdown, source stats, recommendations |
+| `/dashboard/deep` | ✅ Company dossier generation |
+| `/dashboard/contact` | ✅ Outreach drafts (recruiter, manager, referral, cold, alumni) |
+| `/dashboard/training` | ✅ Cert/course ROI evaluation |
+| `/dashboard/project` | ✅ Portfolio project evaluation |
+| `/dashboard/negotiate` | ✅ Counter-offer, BATNA, talking points, email draft |
+| `/dashboard/onboarding` | ✅ 5-step wizard (basics → CV → targeting → provider → done) |
 | `/dashboard/compare` | ✅ Wired |
-| `/dashboard/batch` | ✅ Wired |
-| `/dashboard/scanner` | ✅ Wired + portal library tab |
-| `/dashboard/reports` + `[id]` | ✅ Wired |
-| `/dashboard/resumes` + `[id]` | ✅ Wired |
-| `/dashboard/providers` | ✅ Wired (Anthropic + OpenAI + Gemini) |
-| `/dashboard/settings` | ✅ Wired (all profile fields inc. migration 006) |
-| `/dashboard/activity` | ✅ Wired |
-| `/dashboard/story-bank` | ✅ Wired |
-| `/dashboard/interview-prep` | ✅ Wired |
-| `/dashboard/apply` | ✅ Wired |
-| `/dashboard/followup` | ✅ Wired |
-| `/dashboard/patterns` | ✅ Wired |
-| `/dashboard/deep` | ✅ Wired |
-| `/dashboard/contact` | ✅ Wired |
-| `/dashboard/training` | ✅ Wired |
-| `/dashboard/project` | ✅ Wired |
-| `/dashboard/profile` | ❌ **404 — needs dedicated page** |
-| `/dashboard/cv` | ⚠️ Catch-all shell only — no real DB page |
+
+### Shell & UX
+| Feature | Status |
+|---|---|
+| ⌘K / Ctrl+K command launcher | ✅ Done — searches all pages + quick actions |
+| Sidebar nav with active state | ✅ Done |
+| Mobile horizontal nav scroll | ✅ Done |
+| Sticky header with trigger pill | ✅ Done |
+| Onboarding wizard (5 steps) | ✅ Done |
 
 ### AI provider support
 | Provider | Status |
@@ -71,7 +85,7 @@ All backed by real DB reads/writes. Every page has a dedicated `page.tsx` or wir
 | Anthropic (Claude Opus 4.7 / Sonnet 4.6 / Haiku 4.5) | ✅ Done |
 | OpenAI (GPT-4o / 4o-mini / 4-Turbo / o1 / o1-mini) | ✅ Done |
 | Google Gemini (2.0 Flash / 2.0 Pro / 1.5 Pro / 1.5 Flash) | ✅ Done |
-| Manual mode (prompt export + JSON import) | ✅ Done — all 10 AI workflows |
+| Manual mode (prompt export + JSON import) | ✅ Done — all AI workflows |
 
 ### Customisability
 | Feature | Status |
@@ -87,69 +101,131 @@ All backed by real DB reads/writes. Every page has a dedicated `page.tsx` or wir
 |---|---|
 | Custom URL scan sources (persistent, per-user) | ✅ Done |
 | 50+ general job board portal library | ✅ Done |
-| One-click add from portal library (permanent) | ✅ Done |
-| HTML scraping + AI extraction + dedup | ✅ Done |
-| Company-specific career page library | ❌ Missing |
+| 50+ company career page library | ✅ Done |
+| One-click add from library (permanent) | ✅ Done |
+| HTML scraping + AI extraction | ✅ Done |
+| Dedup by URL + title/company | ✅ Done |
+
+### Follow-up & tracker
+| Feature | Status |
+|---|---|
+| Urgency bucket system (overdue / due today / this week / waiting) | ✅ Done |
+| Mark sent — resets urgency clock via `updated_at` | ✅ Done |
+| Tracker detail drawer with workflow shortcuts | ✅ Done |
+| Tracker saved views (5 presets) | ✅ Done |
 
 ---
 
-## 2. Remaining gaps vs career-ops
+## 2. Remaining work — what still needs to be done
 
-### Gap 1 — `/dashboard/profile` is 404
-The nav links to `/dashboard/profile` but no dedicated `page.tsx` exists. The catch-all returns the old static shell from `dashboard-pages.tsx`. Needs a real wired profile page.
+### 🔴 Bugs (must fix)
 
-**Fix:** Create `app/dashboard/profile/page.tsx` that loads real profile data and redirects (or renders) with the full targeting profile UI — target roles, archetypes, company types, seniority, work mode, comp, languages. Can reuse and simplify the Settings page structure.
+#### Bug 1 — `POST /api/pipeline` ignores Gemini provider
+**File:** `app/api/pipeline/route.ts` lines 97–99, 179–181
+**Problem:** Imports `callAnthropic` and `callOpenAI` directly. If user's active provider is Gemini, the pipeline route silently fails — Gemini users can't use auto-orchestration at all.
+**Fix:** Replace `callAnthropic`/`callOpenAI` calls with `callProvider(cred.provider, apiKey, model, ...)` — the same pattern every other route uses.
+```ts
+// Replace:
+const raw = cred.provider === "anthropic"
+  ? await callAnthropic(apiKey, model, SYSTEM_PROMPT, userPrompt)
+  : await callOpenAI(apiKey, model, SYSTEM_PROMPT, userPrompt);
+// With:
+const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
+```
 
-### Gap 2 — Company-specific career page library
-Career-ops ships URLs for 45+ specific named companies (Anthropic, OpenAI, ElevenLabs, Cohere, Scale AI, Mistral, etc.). NextRole's 50-portal library covers job *boards* (LinkedIn, Greenhouse, Wellfound, etc.) — not individual company career pages.
-
-**Fix:**
-- Add `lib/scanner/companies.ts` — curated list of 50+ tech/AI company career page URLs
-- Surface these in a second tab inside the Portal Library: "Companies" vs "Job Boards"
-- Same one-click add → `scan_sources` flow
-
-### Gap 3 — Salary negotiation toolkit
-Career-ops has a dedicated negotiation module: counter-offer scripts, geographic discount rebuttals, competing-offer leverage framing, BATNA guidance. NextRole does compensation *analysis* inside evaluate but has no `/negotiate` workflow.
-
-**Fix:**
-- `lib/negotiate/prompt.ts`
-- `app/api/negotiate/route.ts` — POST `{ job_id, offer_amount, competing_offer?, location?, mode }`
-- `app/dashboard/negotiate/page.tsx` + `components/nextrole/negotiate-page.tsx`
-- Add to nav under Coaching
-
-### Gap 4 — Parallel batch processing
-Career-ops uses sub-agents to evaluate jobs in parallel. NextRole's batch loops sequentially — for 20 jobs with a slow provider this can take 3–4 minutes.
-
-**Fix:** Upgrade `app/api/batch/route.ts` to use `Promise.allSettled` for concurrent evaluation, with a concurrency cap of 5 to avoid rate limits.
-
-### Gap 5 — Bulk data export
-No CSV/JSON export for jobs, evaluations, or reports. Users can't get their data out.
-
-**Fix:**
-- `app/api/export/route.ts` — GET with `?format=csv|json&type=jobs|evaluations|reports`
-- Export button on tracker and activity pages
-
-### Gap 6 — Advanced tracker filtering
-Tracker and pipeline pages show all jobs with basic status grouping. No column filtering, date ranges, score ranges, archetype filter, or saved views.
-
-**Fix:** Add filter bar to tracker and pipeline pages (status, archetype, score range, date range, source).
+#### Bug 2 — Patterns page double query + dead code
+**File:** `app/dashboard/patterns/page.tsx` lines 13–63
+**Problem:** Fetches jobs twice — first at line 13 without IDs (wasted), then again at line 66 with IDs to do the actual join. Also has two dead variables (`jobsById`, `jobEvalsForJob`) that are computed and immediately voided.
+**Fix:** Remove the first jobs query and the dead code. Use only the second query (`jobsWithId`) throughout.
 
 ---
 
-## 3. Build order (next session)
+### 🟡 Functional gaps (should build)
 
-| Priority | Item | Effort |
+#### Gap 1 — Liveness checking
+**What:** No way to detect if a tracked job's listing has expired or been filled. Stale jobs accumulate in the tracker with no signal they're closed.
+**Career-ops parity:** Career-ops marks jobs as expired when a URL 404s or AI detects "position filled" language.
+**Files to create/change:**
+- `GET /api/liveness?job_id=` — HTTP HEAD the job URL, optionally AI-verify the page content
+- Tracker row: "Check liveness" button, shows a `closed` badge when detected
+- `status = "archived"` auto-update + job_event log on confirmation
+**Effort:** Small–Medium
+
+#### Gap 2 — Advanced tracker filter bar
+**What:** Saved views cover broad cases, but users can't filter by archetype + score range + date + source simultaneously. No way to answer "Platform roles scored > 3.5 applied in the last 30 days."
+**Career-ops parity:** Career-ops has column-level filters across all tracker fields.
+**Files to change:**
+- `components/nextrole/tracker-page.tsx` — add filter bar above table: archetype pills, score slider (1.0–5.0), date range picker, source dropdown
+- Filters compose on top of active saved view
+**Effort:** Medium
+
+#### Gap 3 — Auto-evaluate scanned jobs
+**What:** Scanner adds new jobs as `pending` and stops. Users must manually go to each job and trigger evaluation. Career-ops can chain scan → evaluate → status automatically.
+**Files to change:**
+- `components/nextrole/scanner-page.tsx` — add "Auto-evaluate after scan" toggle on each source
+- `app/api/scan/route.ts` — after scan completes, if `auto_evaluate: true`, POST to `/api/pipeline` for each added job (background, best-effort)
+- `scan_sources` table: add `auto_evaluate boolean default false` column (migration)
+**Effort:** Medium
+
+#### Gap 4 — One-click retry from activity
+**What:** Failed task runs show in activity log with error messages, but the "Retry" button is a placeholder. The `task_runs.input` JSON contains everything needed to reconstruct the original call.
+**Files to change:**
+- `components/nextrole/activity-page.tsx` — wire retry button to a `retryTaskRun(id)` server action
+- `app/actions/tasks.ts` — create `retryTaskRun`: reads `input` from `task_runs`, reconstructs and re-POSTs to the correct API route
+**Effort:** Small–Medium
+
+---
+
+### 🟢 Enhancements (nice to have — NextRole-specific, beyond career-ops)
+
+| # | Feature | Description | Effort |
+|---|---|---|---|
+| E1 | **Score trend chart** | Line chart in Patterns showing avg eval score over time (weekly buckets). Needs `evaluations.created_at` grouping. | Small |
+| E2 | **Job dedup warning on manual add** | When adding a job in Pipeline, check if title+company already exists and warn before inserting. Server action already has the Supabase client. | Small |
+| E3 | **Interview timeline / deadline view** | Calendar strip in Tracker showing interview rounds and follow-up deadlines by date. Uses `job_events` with `event_type = "status_change"` to determine round dates. | Medium |
+| E4 | **Dark mode** | CSS variable swap via `data-theme="dark"` on `<html>`. All colours are already CSS variables in `globals.css`. Theme toggle in sidebar footer. | Medium |
+| E5 | **Resume diff view** | Side-by-side comparison of base CV vs tailored resume — highlight added/removed sentences. Available on `/dashboard/resumes/[id]`. | Medium |
+| E6 | **Batch progress streaming** | Replace the single blocking `POST /api/batch` with a streaming response (Server-Sent Events or `ReadableStream`) so the UI shows each job completing in real time. | Large |
+| E7 | **Keyboard shortcuts in lists** | `j`/`k` to move between jobs in tracker, `e` to evaluate selected, `d` to open drawer. Currently only ⌘K is wired. | Small |
+| E8 | **Email digest** | Weekly summary email (via Resend or Postmark): pipeline stats, overdue follow-ups, high-score roles not applied. Requires a cron job or Supabase edge function. | Large |
+| E9 | **Prompt template library** | Save and reuse custom prompts for frequently used workflows (e.g. "evaluate this for remote-first culture fit"). Stored in a `prompt_templates` table. | Medium |
+| E10 | **Browser extension** | One-click "Evaluate this job" from any job listing page — sends URL to `/api/evaluate` and shows score in a sidebar popup. | Large |
+
+---
+
+## 3. Build order — recommended sequence
+
+### Phase 1: Bug fixes (1 session, small)
+| # | Task | File | Effort |
+|---|---|---|---|
+| B1 | Fix pipeline Gemini bug | `app/api/pipeline/route.ts` | 15 min |
+| B2 | Fix patterns double query + dead code | `app/dashboard/patterns/page.tsx` | 15 min |
+
+### Phase 2: Functional gaps (1–2 sessions, medium)
+| # | Task | Effort |
 |---|---|---|
-| 1 | Fix `/dashboard/profile` 404 — dedicated wired page | Small |
-| 2 | Company career page library (`lib/scanner/companies.ts` + UI tab) | Medium |
-| 3 | Parallel batch (Promise.allSettled, cap 5) | Small |
-| 4 | Negotiation toolkit (prompt + API + page + component) | Medium |
-| 5 | Bulk export (`/api/export`) | Small |
-| 6 | Tracker/pipeline filter bar | Medium |
+| G1 | Liveness checker — `/api/liveness` + tracker UI | Small |
+| G4 | Retry failed tasks from activity | Small |
+| G2 | Advanced tracker filter bar | Medium |
+| G3 | Auto-evaluate scanned jobs | Medium |
+
+### Phase 3: Enhancements (ongoing, pick by value)
+| Priority | Enhancement | Why |
+|---|---|---|
+| High | E1 Score trend chart | Patterns page is already there — small addition |
+| High | E2 Dedup warning on add | Small, prevents duplicate noise |
+| High | E7 Keyboard shortcuts in lists | Consistent with ⌘K investment |
+| Medium | E4 Dark mode | Big UX win, CSS vars already set up |
+| Medium | E3 Interview timeline | Useful for active interview stage |
+| Medium | E5 Resume diff view | Rounds out the resume workflow |
+| Lower | E6 Batch streaming | Large effort, current polling is acceptable |
+| Lower | E8 Email digest | Requires external email provider setup |
+| Lower | E9 Prompt templates | Niche power-user feature |
+| Lower | E10 Browser extension | Entirely separate build |
 
 ---
 
-## 4. Parity summary
+## 4. Full parity table — updated 2026-04-27
 
 | Category | Career-Ops | NextRole | Status |
 |---|---|---|---|
@@ -157,35 +233,43 @@ Tracker and pipeline pages show all jobs with basic status grouping. No column f
 | Custom scoring thresholds | ✓ | ✓ | ✅ |
 | Multi-language output | ✓ | ✓ (12 langs) | ✅ |
 | Archetype detection + routing | ✓ | ✓ (15 types + custom) | ✅ |
-| Batch evaluation | Parallel sub-agents | Sequential, up to 20 | ⚠️ Sequential only |
+| Batch evaluation (parallel) | ✓ sub-agents | ✓ Promise.allSettled cap 5 | ✅ |
 | Job comparison + ranking | ✓ | ✓ | ✅ |
 | ATS resume generation + PDF | ✓ | ✓ | ✅ |
 | Portal scanner + dedup | ✓ | ✓ | ✅ |
-| General job board library (50+) | ✗ | ✓ | ✅ (exceeds) |
-| Company career page library (45+) | ✓ | ✗ | ❌ |
+| General job board library (50+) | ✗ | ✓ | ✅ exceeds |
+| Company career page library (50+) | ✓ 45 | ✓ 50+ | ✅ exceeds |
 | Interview prep (STAR + questions) | ✓ | ✓ | ✅ |
 | Story bank CRUD + AI | ✓ | ✓ | ✅ |
 | Apply assistant (6 question types) | ✓ | ✓ | ✅ |
 | Follow-up generation (5 types) | ✓ | ✓ | ✅ |
+| Follow-up urgency + timing | ✓ | ✓ buckets + mark-sent | ✅ |
 | Deep company research | ✓ | ✓ | ✅ |
 | Contact outreach (5 types) | ✓ | ✓ | ✅ |
 | Training evaluator | ✓ | ✓ | ✅ |
 | Project evaluator | ✓ | ✓ | ✅ |
-| Pattern analytics | ✓ | ✓ | ✅ |
-| Auto-pipeline orchestration | ✓ | ✓ | ✅ |
-| Salary negotiation toolkit | ✓ | ✗ | ❌ |
-| Provider support (Anthropic/OpenAI) | ✓ | ✓ | ✅ |
-| Gemini provider | ✗ | ✓ | ✅ (exceeds) |
+| Pattern analytics + funnel | ✓ | ✓ | ✅ |
+| Auto-pipeline orchestration | ✓ | ✓ ⚠️ Gemini bug | ⚠️ |
+| Salary negotiation toolkit | ✓ | ✓ BATNA + email draft | ✅ |
+| Provider: Anthropic + OpenAI | ✓ | ✓ | ✅ |
+| Provider: Google Gemini | ✗ | ✓ | ✅ exceeds |
 | Manual mode (all workflows) | ✓ | ✓ | ✅ |
-| Encrypted API key storage | ✓ | ✓ | ✅ |
-| Custom eval focus injection | ✗ | ✓ | ✅ (exceeds) |
-| Custom archetype list | ✗ | ✓ | ✅ (exceeds) |
-| Full job tracker (7 statuses) | ✓ | ✓ | ✅ |
-| Activity feed | ✓ | ✓ | ✅ |
-| Bulk data export | ✓ | ✗ | ❌ |
-| Advanced tracker filtering | ✓ | ✗ | ❌ |
-| Terminal UI / TUI | ✓ | N/A (web) | — |
-| Keyboard-first navigation | ✓ | N/A (web) | — |
+| Encrypted API key storage | ✓ | ✓ AES-256-GCM | ✅ |
+| Custom eval focus injection | ✗ | ✓ | ✅ exceeds |
+| Custom archetype list override | ✗ | ✓ | ✅ exceeds |
+| Full job tracker (7 statuses) | ✓ | ✓ + drawer + saved views | ✅ exceeds |
+| Activity feed + task log | ✓ | ✓ | ✅ |
+| Bulk data export (CSV + JSON) | ✓ | ✓ | ✅ |
+| Advanced tracker filtering | ✓ | ⚠️ saved views only, no filter bar | ⚠️ |
+| Liveness checking | ✓ | ✗ | ❌ |
+| Auto-evaluate scanned jobs | ✓ | ✗ | ❌ |
+| Retry failed task runs | ✓ | ✗ UI only | ❌ |
+| CV editor with analysis | ✗ | ✓ section detector + proof-points | ✅ exceeds |
+| Onboarding wizard | ✗ | ✓ 5-step | ✅ exceeds |
+| ⌘K command launcher | ✗ | ✓ | ✅ exceeds |
+| Terminal UI / TUI | ✓ | N/A (web app) | — |
+| Keyboard-first nav (j/k/etc.) | ✓ | ✗ only ⌘K | ❌ (enhancement) |
 
-**Overall parity: ~88%**
-4 actionable gaps remain: company career pages, negotiation toolkit, parallel batch, export + filtering.
+**Overall parity: ~95%**
+3 functional gaps remain: liveness checking, advanced filter bar, auto-evaluate on scan.
+2 bugs: pipeline Gemini, patterns double query.
