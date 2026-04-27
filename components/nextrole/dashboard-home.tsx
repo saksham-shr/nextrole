@@ -60,10 +60,86 @@ const QUICK_ACTIONS = [
   { label: "Providers", href: "/dashboard/providers", accent: false },
 ];
 
+// ── Setup checklist ───────────────────────────────────────────────────────────
+
+type SetupStep = {
+  label: string;
+  description: string;
+  href: string;
+  done: boolean;
+};
+
+function SetupChecklist({ steps }: { steps: SetupStep[] }) {
+  const doneCount = steps.filter((s) => s.done).length;
+  const allDone = doneCount === steps.length;
+
+  if (allDone) return null;
+
+  return (
+    <Surface tone="accent" className="p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Eyebrow>Getting started</Eyebrow>
+          <h2 className="mt-2 text-lg font-bold">
+            Complete your setup — {doneCount} of {steps.length} done
+          </h2>
+          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
+            Finish these steps to unlock the full evaluation workflow.
+          </p>
+        </div>
+        <div className="flex items-center gap-1">
+          {steps.map((s, i) => (
+            <div
+              key={i}
+              className={`h-2 w-8 rounded-full transition-colors ${
+                s.done ? "bg-[var(--accent)]" : "bg-[var(--line)]"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {steps.map((step) => (
+          <a
+            key={step.label}
+            href={step.done ? undefined : step.href}
+            className={`group relative rounded-[18px] border p-4 transition ${
+              step.done
+                ? "border-[var(--ok)] bg-[#eef8f0] cursor-default"
+                : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)] hover:shadow-sm cursor-pointer"
+            }`}
+          >
+            {/* Status dot */}
+            <div
+              className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
+                step.done
+                  ? "bg-[var(--ok)] text-white"
+                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] border border-[var(--line)]"
+              }`}
+            >
+              {step.done ? "✓" : "→"}
+            </div>
+            <p className={`text-sm font-bold ${step.done ? "text-[var(--ok)]" : ""}`}>
+              {step.label}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
+              {step.description}
+            </p>
+          </a>
+        ))}
+      </div>
+    </Surface>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export function DashboardHome({
   userName,
   hasCV,
   hasProvider,
+  hasJobs,
   kpis,
   attentionItems,
   kanban,
@@ -72,6 +148,7 @@ export function DashboardHome({
   userName: string;
   hasCV: boolean;
   hasProvider: boolean;
+  hasJobs: boolean;
   kpis: {
     active: number;
     interviews: number;
@@ -85,60 +162,54 @@ export function DashboardHome({
 }) {
   const setupComplete = hasCV && hasProvider;
 
+  const setupSteps: SetupStep[] = [
+    {
+      label: "Add your CV",
+      description: "Paste your base CV — the AI reads it in every evaluation.",
+      href: "/dashboard/settings",
+      done: hasCV,
+    },
+    {
+      label: "Connect a provider",
+      description: "Add an Anthropic, OpenAI, or Gemini API key to run AI workflows.",
+      href: "/dashboard/providers",
+      done: hasProvider,
+    },
+    {
+      label: "Add a job",
+      description: "Paste a job description into the pipeline to get started.",
+      href: "/dashboard/pipeline",
+      done: hasJobs,
+    },
+    {
+      label: "Run an evaluation",
+      description: "Score your first role and see how well it fits your profile.",
+      href: "/dashboard/evaluate",
+      done: kpis.active > 0 || kpis.pending === 0 && hasJobs,
+    },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-2">
         <Eyebrow>NextRole workspace</Eyebrow>
-        <Display className="mt-2 text-4xl sm:text-5xl">Dashboard</Display>
+        <Display className="mt-2 text-4xl sm:text-5xl">
+          {setupComplete
+            ? `Good to see you, ${userName}.`
+            : `Hi ${userName} — let's get you set up.`}
+        </Display>
+        {setupComplete && kpis.active > 0 && (
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)]">
+            {kpis.active} active {kpis.active === 1 ? "role" : "roles"} in the pipeline.
+            {kpis.interviews > 0 && ` ${kpis.interviews} in interview.`}
+            {kpis.highScore > 0 && ` ${kpis.highScore} high-score ${kpis.highScore === 1 ? "role" : "roles"} not yet applied.`}
+          </p>
+        )}
       </div>
 
-      {/* Welcome banner */}
-      <Surface tone={setupComplete ? "accent" : "warn"} className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Eyebrow>Welcome back</Eyebrow>
-            <h2 className="mt-2 text-2xl font-bold">
-              {setupComplete
-                ? `Good to see you, ${userName}.`
-                : `Hi ${userName} — let's finish setup.`}
-            </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)]">
-              {setupComplete
-                ? kpis.active === 0
-                  ? "Pipeline is empty — add a role and run your first evaluation to get started."
-                  : `${kpis.active} active ${kpis.active === 1 ? "role" : "roles"} in the pipeline.${kpis.interviews > 0 ? ` ${kpis.interviews} in interview.` : ""}${kpis.highScore > 0 ? ` ${kpis.highScore} high-score ${kpis.highScore === 1 ? "role" : "roles"} not yet applied.` : ""}`
-                : "Add your CV in Settings and an API key in Providers before running your first evaluation."}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            {setupComplete ? (
-              <>
-                <Button href="/dashboard/evaluate" tone="accent">
-                  Evaluate job
-                </Button>
-                <Button href="/dashboard/pipeline">Add to pipeline</Button>
-                <Button href="/dashboard/tracker" ghost>
-                  Open tracker
-                </Button>
-              </>
-            ) : (
-              <>
-                {!hasCV && (
-                  <Button href="/dashboard/settings" tone="accent">
-                    Add CV
-                  </Button>
-                )}
-                {!hasProvider && (
-                  <Button href="/dashboard/providers" tone={hasCV ? "accent" : "default"}>
-                    Add provider
-                  </Button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </Surface>
+      {/* Setup checklist — visible until all 4 steps are done */}
+      <SetupChecklist steps={setupSteps} />
 
       {/* KPI row */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
@@ -170,7 +241,7 @@ export function DashboardHome({
           label="Pending triage"
           value={String(kpis.pending)}
           sublabel="in intake"
-          tone={kpis.pending > 0 ? "default" : "default"}
+          tone="default"
         />
       </div>
 
@@ -211,12 +282,12 @@ export function DashboardHome({
             </Surface>
           )}
 
-          {/* Empty state when no attention needed */}
-          {attentionItems.length === 0 && setupComplete && (
+          {/* All clear state */}
+          {attentionItems.length === 0 && setupComplete && hasJobs && (
             <Surface tone="ok" className="p-5">
               <SectionTitle
                 title="All clear"
-                subtitle="No open attention items — your setup is complete and pipeline is healthy"
+                subtitle="No open action items — pipeline is healthy"
               />
             </Surface>
           )}
@@ -231,11 +302,14 @@ export function DashboardHome({
             {kanban.every((col) => col.items.length === 0) ? (
               <div className="py-6 text-center">
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  No active jobs yet — add roles in the pipeline and run evaluations to populate this.
+                  No active jobs yet — add roles to the pipeline and run evaluations to populate this.
                 </p>
                 <div className="mt-4 flex justify-center gap-3">
                   <Button tone="accent" href="/dashboard/pipeline">
                     Add to pipeline
+                  </Button>
+                  <Button href="/dashboard/evaluate" ghost>
+                    Evaluate a job
                   </Button>
                 </div>
               </div>
@@ -249,10 +323,7 @@ export function DashboardHome({
         <div className="space-y-6">
           {/* Quick actions */}
           <Surface className="p-5">
-            <SectionTitle
-              title="Quick actions"
-              subtitle="Fast entry points"
-            />
+            <SectionTitle title="Quick actions" subtitle="Fast entry points" />
             <div className="grid gap-2">
               {QUICK_ACTIONS.map((action) => (
                 <Button

@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHome } from "@/components/nextrole/dashboard-home";
 
@@ -17,7 +16,7 @@ export default async function DashboardPage() {
     { data: jobs },
     { data: recentRuns },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, base_cv, onboarding_completed").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, base_cv").eq("id", user.id).single(),
     supabase
       .from("provider_credentials")
       .select("id")
@@ -40,11 +39,6 @@ export default async function DashboardPage() {
 
   const allJobs = jobs ?? [];
 
-  // ── First-time onboarding redirect ─────────────────────────────────────────
-  // Only redirect once — the flag is set the moment they land on the
-  // onboarding page and never cleared, so this fires exactly one time.
-  if (!profile?.onboarding_completed) redirect("/dashboard/onboarding");
-
   // KPI counts
   const activeStatuses = ["evaluated", "applied", "interview", "offer"] as const;
   const activeJobs = allJobs.filter((j) => activeStatuses.includes(j.status as typeof activeStatuses[number]));
@@ -59,7 +53,7 @@ export default async function DashboardPage() {
   );
   const pending = allJobs.filter((j) => j.status === "pending");
 
-  // Pipeline kanban data (non-archived)
+  // Pipeline kanban data
   const kanbanStatuses = ["evaluated", "applied", "interview", "offer"] as const;
   const kanban = kanbanStatuses.map((status) => ({
     title: status.charAt(0).toUpperCase() + status.slice(1),
@@ -69,24 +63,8 @@ export default async function DashboardPage() {
       .map((j) => `${j.title} — ${j.company}`),
   }));
 
-  // Attention items
+  // Attention items (non-setup items only — setup is handled by the checklist)
   const attentionItems: Array<{ title: string; body: string; href: string; tone: "warn" | "default" }> = [];
-  if (!profile?.base_cv) {
-    attentionItems.push({
-      title: "CV missing",
-      body: "Add your base CV in Settings — the evaluator reads it for every analysis.",
-      href: "/dashboard/settings",
-      tone: "warn",
-    });
-  }
-  if (!providerRows?.length) {
-    attentionItems.push({
-      title: "No AI provider configured",
-      body: "Add an Anthropic or OpenAI API key in Providers to run evaluations.",
-      href: "/dashboard/providers",
-      tone: "warn",
-    });
-  }
   if (highScore.length > 0) {
     attentionItems.push({
       title: `${highScore.length} high-score ${highScore.length === 1 ? "role" : "roles"} not applied`,
@@ -118,6 +96,7 @@ export default async function DashboardPage() {
       userName={profile?.full_name ?? user.email?.split("@")[0] ?? "there"}
       hasCV={Boolean(profile?.base_cv)}
       hasProvider={Boolean(providerRows?.length)}
+      hasJobs={allJobs.length > 0}
       kpis={{
         active: activeJobs.length,
         interviews: interviews.length,

@@ -230,16 +230,6 @@ alter table evaluations
   add column if not exists level_strategy jsonb;
 
 
--- ── Migration 010: onboarding_completed flag on profiles ──────
--- Existing users have already seen (or skipped) onboarding,
--- so default their flag to true so they are never redirected.
-
-alter table profiles
-  add column if not exists onboarding_completed boolean not null default false;
-
--- Mark all existing users as already having completed onboarding
--- so the new redirect logic doesn't send them back to the wizard.
-update profiles set onboarding_completed = true where onboarding_completed = false;
 
 
 -- ── Verify ───────────────────────────────────────────────────

@@ -64,7 +64,6 @@ export type ProfileRow = {
   eval_score_watch: number | null;         // custom watch threshold (default 2.5)
   custom_eval_focus: string | null;        // extra instructions injected into evaluate prompt
   custom_archetypes: string[] | null;      // overrides default archetype list
-  onboarding_completed: boolean;           // set true the first time /dashboard/onboarding loads
   created_at: string;
   updated_at: string;
 };
@@ -281,7 +280,6 @@ export type Database = {
           eval_score_watch?: number | null;
           custom_eval_focus?: string | null;
           custom_archetypes?: string[] | null;
-          onboarding_completed?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -306,7 +304,6 @@ export type Database = {
           eval_score_watch?: number | null;
           custom_eval_focus?: string | null;
           custom_archetypes?: string[] | null;
-          onboarding_completed?: boolean;
           updated_at?: string;
         };
         Relationships: [];
