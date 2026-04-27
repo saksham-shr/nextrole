@@ -21,12 +21,19 @@ import {
   type Portal,
   type PortalCategory,
 } from "@/lib/scanner/portals";
+import {
+  COMPANIES,
+  COMPANY_CATEGORIES,
+  searchCompanies,
+  type CompanyPortal,
+  type CompanyCategory,
+} from "@/lib/scanner/companies";
 
 export type SourceWithLatestRun = ScanSourceRow & {
   scan_runs: ScanRunRow[];
 };
 
-type Tab = "my_sources" | "portal_library";
+type Tab = "my_sources" | "portal_library" | "company_library";
 
 const TYPE_LABELS: Record<string, string> = {
   greenhouse: "Greenhouse",
@@ -198,6 +205,142 @@ function PortalLibrary({ enabledUrls, onAdd }: { enabledUrls: Set<string>; onAdd
   );
 }
 
+// ── Company career page library panel ───────────────────────
+
+function CompanyLibrary({ enabledUrls, onAdd }: { enabledUrls: Set<string>; onAdd: (c: CompanyPortal) => void }) {
+  const [category, setCategory] = useState<CompanyCategory | "all">("all");
+  const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const filtered = useMemo(() => {
+    const base = query.trim() ? searchCompanies(query) : COMPANIES;
+    return category === "all" ? base : base.filter((c) => c.category === category);
+  }, [category, query]);
+
+  async function handleAdd(company: CompanyPortal) {
+    setAdding(company.id);
+    setErrors((prev) => ({ ...prev, [company.id]: "" }));
+    const result = await addPortalFromLibrary(company.id, company.name, company.url);
+    if (result.error && result.error !== "Already added") {
+      setErrors((prev) => ({ ...prev, [company.id]: result.error! }));
+    } else {
+      onAdd(company);
+    }
+    setAdding(null);
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Search */}
+      <div className="flex flex-wrap gap-3">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search companies…"
+          className="min-w-[200px] flex-1 rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2.5 text-sm outline-none focus:border-[var(--accent)]"
+        />
+      </div>
+
+      {/* Category pills */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setCategory("all")}
+          className={`rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition ${
+            category === "all"
+              ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+              : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+          }`}
+        >
+          All ({COMPANIES.length})
+        </button>
+        {COMPANY_CATEGORIES.map((cat) => {
+          const count = COMPANIES.filter((c) => c.category === cat.id).length;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setCategory(cat.id)}
+              className={`rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition ${
+                category === cat.id
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                  : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--muted-foreground)]"
+              }`}
+            >
+              {cat.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Company grid */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {filtered.map((company) => {
+          const isEnabled = enabledUrls.has(company.url);
+          const isAdding = adding === company.id;
+          const err = errors[company.id];
+
+          return (
+            <div
+              key={company.id}
+              className={`rounded-[18px] border p-4 transition ${
+                isEnabled
+                  ? "border-[var(--ok)] bg-[#eef8f0]"
+                  : "border-[var(--line)] bg-[var(--surface)]"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-bold text-sm truncate">{company.name}</p>
+                  <p className="mt-0.5 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                    {COMPANY_CATEGORIES.find((c) => c.id === company.category)?.label ?? company.category}
+                    {company.ats ? ` · ${company.ats}` : ""}
+                  </p>
+                  <p className="mt-1.5 text-xs text-[var(--muted-foreground)] leading-relaxed">
+                    {company.description}
+                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {company.tags.slice(0, 3).map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-full border border-[var(--line-soft)] bg-[var(--surface-soft)] px-2 py-0.5 font-mono text-[9px] text-[var(--muted-foreground)]"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              {err && <p className="mt-2 text-xs text-[var(--bad)]">{err}</p>}
+              <div className="mt-3">
+                {isEnabled ? (
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ok)]">
+                    ✓ Added to sources
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => handleAdd(company)}
+                    disabled={isAdding}
+                    className="rounded-full border border-[var(--accent)] bg-[var(--accent)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] text-white transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isAdding ? "Adding…" : "Add to scanner"}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="py-8 text-center text-sm text-[var(--muted-foreground)]">
+          No companies match "{query}"
+        </p>
+      )}
+    </div>
+  );
+}
+
 // ── Main scanner component ───────────────────────────────────
 
 export function ScannerPageContent({
@@ -242,7 +385,7 @@ export function ScannerPageContent({
     }
   }
 
-  function handlePortalAdded(portal: Portal) {
+  function handlePortalAdded(portal: Portal | CompanyPortal) {
     // Optimistically add a placeholder so the UI shows "Added" immediately
     // The real row will appear on next page load
     setSources((prev) => [
@@ -270,14 +413,15 @@ export function ScannerPageContent({
         <Eyebrow>NextRole workspace</Eyebrow>
         <Display className="mt-2 text-4xl sm:text-5xl">Scanner</Display>
         <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
-          Browse 50+ curated job portals or add any URL. Every source is saved permanently and can be scanned on demand.
+          Browse 50+ curated job boards and 50+ specific company career pages, or add any URL. Every source is saved permanently and can be scanned on demand.
         </p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
         <StatCard label="My sources" value={String(sources.length)} sublabel="configured" />
-        <StatCard label="Total portals" value={String(PORTALS.length)} sublabel="in library" />
+        <StatCard label="Job boards" value={String(PORTALS.length)} sublabel="in portal library" />
+        <StatCard label="Companies" value={String(COMPANIES.length)} sublabel="career pages" />
         <StatCard
           label="Total discovered"
           value={String(totalDiscovered)}
@@ -304,7 +448,7 @@ export function ScannerPageContent({
 
       {/* Tab bar */}
       <div className="flex gap-2 border-b border-[var(--line)] pb-0">
-        {(["my_sources", "portal_library"] as Tab[]).map((t) => (
+        {(["my_sources", "portal_library", "company_library"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -314,7 +458,11 @@ export function ScannerPageContent({
                 : "border-transparent text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
             }`}
           >
-            {t === "my_sources" ? `My Sources (${sources.length})` : `Portal Library (${PORTALS.length})`}
+            {t === "my_sources"
+              ? `My Sources (${sources.length})`
+              : t === "portal_library"
+              ? `Job Boards (${PORTALS.length})`
+              : `Companies (${COMPANIES.length})`}
           </button>
         ))}
       </div>
@@ -458,10 +606,22 @@ export function ScannerPageContent({
         <div className="space-y-4">
           <Surface className="p-4">
             <p className="text-sm text-[var(--muted-foreground)]">
-              Browse {PORTALS.length} pre-configured portals. Click <strong>Add to scanner</strong> on any portal to add it to your sources permanently — it will appear in My Sources and stay there across sessions.
+              Browse {PORTALS.length} pre-configured job boards (Greenhouse, Ashby, Lever, LinkedIn, Wellfound…). Click <strong>Add to scanner</strong> to add permanently — it will appear in My Sources and stay there across sessions.
             </p>
           </Surface>
           <PortalLibrary enabledUrls={enabledUrls} onAdd={handlePortalAdded} />
+        </div>
+      )}
+
+      {/* ── Company Library tab ── */}
+      {tab === "company_library" && (
+        <div className="space-y-4">
+          <Surface className="p-4">
+            <p className="text-sm text-[var(--muted-foreground)]">
+              Browse {COMPANIES.length} specific company career pages — AI labs, developer tools, fintech, enterprise, and more. Click <strong>Add to scanner</strong> to track that company&apos;s jobs directly.
+            </p>
+          </Surface>
+          <CompanyLibrary enabledUrls={enabledUrls} onAdd={handlePortalAdded} />
         </div>
       )}
     </div>
