@@ -64,12 +64,25 @@ export function ActivityPageContent({ runs }: { runs: TaskRunWithJob[] }) {
 
   return (
     <div className="space-y-8">
-      <div className="mb-8">
-        <Eyebrow>NextRole workspace</Eyebrow>
-        <Display className="mt-2 text-4xl sm:text-5xl">Activity</Display>
-        <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
-          Background runs, artifacts, retries, and system-visible history.
-        </p>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <Eyebrow>NextRole workspace</Eyebrow>
+          <Display className="mt-2 text-4xl sm:text-5xl">Activity</Display>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-[var(--muted-foreground)] sm:text-base">
+            Background runs, artifacts, retries, and system-visible history.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button href="/api/export?type=evaluations&format=csv" ghost>
+            Export evals CSV
+          </Button>
+          <Button href="/api/export?type=reports&format=csv" ghost>
+            Export reports CSV
+          </Button>
+          <Button href="/api/export?type=evaluations&format=json" ghost>
+            Export JSON
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

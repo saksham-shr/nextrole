@@ -403,6 +403,12 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
             Evaluate job
           </Button>
           <Button href="/dashboard/pipeline">Add to pipeline</Button>
+          <Button href="/api/export?type=jobs&format=csv" ghost>
+            Export CSV
+          </Button>
+          <Button href="/api/export?type=jobs&format=json" ghost>
+            Export JSON
+          </Button>
         </div>
       </div>
 
