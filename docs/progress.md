@@ -37,6 +37,7 @@
 | `POST /api/pipeline` — auto-orchestration (eval → status → deep) | ✅ Done |
 | `POST /api/negotiate` — counter-offer, BATNA, email draft, geo rebuttal | ✅ Done |
 | `GET  /api/export` — CSV + JSON bulk export (jobs, evals, reports) | ✅ Done |
+| `GET  /api/liveness` — HTTP + content check for closed listings | ✅ Done |
 
 ### Dashboard pages (28 dedicated routes — all wired)
 Every route has a real `page.tsx` backed by Supabase queries.
@@ -113,6 +114,7 @@ Every route has a real `page.tsx` backed by Supabase queries.
 | Mark sent — resets urgency clock via `updated_at` | ✅ Done |
 | Tracker detail drawer with workflow shortcuts | ✅ Done |
 | Tracker saved views (5 presets) | ✅ Done |
+| Liveness checker — detect closed listings from drawer | ✅ Done |
 
 ---
 
@@ -130,14 +132,8 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 
 ### 🟡 Functional gaps (should build)
 
-#### Gap 1 — Liveness checking
-**What:** No way to detect if a tracked job's listing has expired or been filled. Stale jobs accumulate in the tracker with no signal they're closed.
-**Career-ops parity:** Career-ops marks jobs as expired when a URL 404s or AI detects "position filled" language.
-**Files to create/change:**
-- `GET /api/liveness?job_id=` — HTTP HEAD the job URL, optionally AI-verify the page content
-- Tracker row: "Check liveness" button, shows a `closed` badge when detected
-- `status = "archived"` auto-update + job_event log on confirmation
-**Effort:** Small–Medium
+#### ~~Gap 1 — Liveness checking~~ ✅ Fixed — commit `01294ba`
+`GET /api/liveness?job_id=` — HTTP GET with 12s timeout, 404/410 → closed, 200 → scans first 50 KB against 16 closed-job regex patterns. `LivenessPanel` added to tracker drawer: idle → check button, live → green badge + recheck, closed → red badge + one-click archive, unknown → warn badge + retry.
 
 #### Gap 2 — Advanced tracker filter bar
 **What:** Saved views cover broad cases, but users can't filter by archetype + score range + date + source simultaneously. No way to answer "Platform roles scored > 3.5 applied in the last 30 days."
@@ -190,12 +186,12 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 | B2 | ~~Fix patterns double query + dead code~~ | `app/dashboard/patterns/page.tsx` | `adeca53` |
 
 ### Phase 2: Functional gaps (1–2 sessions, medium)
-| # | Task | Effort |
-|---|---|---|
-| G1 | Liveness checker — `/api/liveness` + tracker UI | Small |
-| G4 | Retry failed tasks from activity | Small |
-| G2 | Advanced tracker filter bar | Medium |
-| G3 | Auto-evaluate scanned jobs | Medium |
+| # | Task | Effort | Status |
+|---|---|---|---|
+| G1 | ~~Liveness checker — `/api/liveness` + tracker UI~~ | Small | ✅ `01294ba` |
+| G4 | Retry failed tasks from activity | Small | 🔲 |
+| G2 | Advanced tracker filter bar | Medium | 🔲 |
+| G3 | Auto-evaluate scanned jobs | Medium | 🔲 |
 
 ### Phase 3: Enhancements (ongoing, pick by value)
 | Priority | Enhancement | Why |
@@ -249,7 +245,7 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 | Activity feed + task log | ✓ | ✓ | ✅ |
 | Bulk data export (CSV + JSON) | ✓ | ✓ | ✅ |
 | Advanced tracker filtering | ✓ | ⚠️ saved views only, no filter bar | ⚠️ |
-| Liveness checking | ✓ | ✗ | ❌ |
+| Liveness checking | ✓ | ✓ HTTP + regex, drawer UI | ✅ |
 | Auto-evaluate scanned jobs | ✓ | ✗ | ❌ |
 | Retry failed task runs | ✓ | ✗ UI only | ❌ |
 | CV editor with analysis | ✗ | ✓ section detector + proof-points | ✅ exceeds |
@@ -258,6 +254,6 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 | Terminal UI / TUI | ✓ | N/A (web app) | — |
 | Keyboard-first nav (j/k/etc.) | ✓ | ✗ only ⌘K | ❌ (enhancement) |
 
-**Overall parity: ~97%**
-3 functional gaps remain: liveness checking, advanced filter bar, auto-evaluate on scan.
-0 bugs outstanding — both fixed this session.
+**Overall parity: ~98%**
+2 functional gaps remain: advanced filter bar, auto-evaluate on scan.
+0 bugs outstanding.
