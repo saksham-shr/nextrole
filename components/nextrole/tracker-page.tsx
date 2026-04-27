@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Badge,
   Button,
@@ -51,12 +52,29 @@ const ALL_STATUSES: JobStatus[] = [
   "archived",
 ];
 
+type SavedView = "active" | "needs_action" | "interviews" | "high_score" | "archived";
+
+const SAVED_VIEWS: Array<{ id: SavedView; label: string }> = [
+  { id: "active", label: "All Active" },
+  { id: "needs_action", label: "Needs Action" },
+  { id: "interviews", label: "Interviews" },
+  { id: "high_score", label: "High Score / Not Applied" },
+  { id: "archived", label: "Archived" },
+];
+
 function latestScore(
   evals: Array<{ score: number | null; decision: string | null }>,
 ): string {
   const withScore = evals.filter((e) => e.score !== null);
   if (withScore.length === 0) return "—";
   return String(withScore[withScore.length - 1]!.score);
+}
+
+function latestDecision(
+  evals: Array<{ score: number | null; decision: string | null }>,
+): string | null {
+  const withDecision = evals.filter((e) => e.decision !== null);
+  return withDecision[withDecision.length - 1]?.decision ?? null;
 }
 
 function StatusSelect({
@@ -87,11 +105,172 @@ function StatusSelect({
   );
 }
 
-function TableView({ jobs }: { jobs: JobWithEval[] }) {
+// ── Job detail drawer ────────────────────────────────────────
+
+const WORKFLOW_LINKS = [
+  { label: "Evaluate", param: "evaluate", icon: "⚡" },
+  { label: "Resume", param: "resumes", icon: "📄" },
+  { label: "Apply", param: "apply", icon: "✉️" },
+  { label: "Interview Prep", param: "interview-prep", icon: "🎯" },
+  { label: "Follow-up", param: "followup", icon: "🔔" },
+  { label: "Deep Research", param: "deep", icon: "🔬" },
+  { label: "Contact", param: "contact", icon: "🤝" },
+  { label: "Report", param: "reports", icon: "📊" },
+] as const;
+
+function JobDrawer({
+  job,
+  onClose,
+}: {
+  job: JobWithEval;
+  onClose: () => void;
+}) {
+  const score = latestScore(job.evaluations);
+  const decision = latestDecision(job.evaluations);
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+        onClick={onClose}
+      />
+
+      {/* Drawer panel */}
+      <div className="fixed right-0 top-0 z-50 flex h-full w-full max-w-md flex-col overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] shadow-2xl">
+        {/* Header */}
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] p-5">
+          <div className="min-w-0 flex-1">
+            <Eyebrow>Job detail</Eyebrow>
+            <p className="mt-1 text-lg font-bold leading-snug">{job.title}</p>
+            <p className="text-sm text-[var(--muted-foreground)]">{job.company}</p>
+            {job.archetype && (
+              <p className="mt-0.5 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                {job.archetype}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 rounded-full border border-[var(--line)] p-2 text-[var(--muted-foreground)] hover:bg-[var(--surface-soft)] transition"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Status + score */}
+        <div className="flex flex-wrap items-center gap-3 border-b border-dashed border-[var(--line-soft)] px-5 py-4">
+          <Badge tone={STATUS_TONES[job.status]}>{STATUS_LABELS[job.status]}</Badge>
+          {score !== "—" && (
+            <Badge tone={parseFloat(score) >= 4 ? "ok" : parseFloat(score) >= 3 ? "warn" : "bad"}>
+              Score {score}
+            </Badge>
+          )}
+          {decision && (
+            <Badge tone="accent">{decision}</Badge>
+          )}
+          {job.source && (
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+              via {job.source}
+            </span>
+          )}
+        </div>
+
+        {/* Change status */}
+        <div className="border-b border-dashed border-[var(--line-soft)] px-5 py-4">
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Change status
+          </p>
+          <StatusSelect jobId={job.id} current={job.status} />
+        </div>
+
+        {/* Workflow links */}
+        <div className="border-b border-dashed border-[var(--line-soft)] px-5 py-4">
+          <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Open workflow
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {WORKFLOW_LINKS.map(({ label, param, icon }) => (
+              <a
+                key={param}
+                href={`/dashboard/${param}?job_id=${job.id}`}
+                className="flex items-center gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-sm font-bold transition hover:border-[var(--accent)] hover:bg-[#fcefe7]"
+              >
+                <span>{icon}</span>
+                <span>{label}</span>
+              </a>
+            ))}
+          </div>
+        </div>
+
+        {/* Metadata */}
+        <div className="px-5 py-4 space-y-3">
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            Details
+          </p>
+          <div className="space-y-2">
+            {[
+              { label: "Source", value: job.source },
+              { label: "Archetype", value: job.archetype },
+              { label: "Added", value: new Date(job.created_at).toLocaleDateString() },
+              { label: "Updated", value: new Date(job.updated_at).toLocaleDateString() },
+            ]
+              .filter((r) => r.value)
+              .map(({ label, value }) => (
+                <div key={label} className="flex items-start justify-between gap-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                    {label}
+                  </span>
+                  <span className="text-right text-sm font-medium">{value}</span>
+                </div>
+              ))}
+            {job.url && (
+              <div className="flex items-start justify-between gap-2">
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                  URL
+                </span>
+                <a
+                  href={job.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-right text-sm font-medium text-[var(--accent)] hover:underline break-all"
+                >
+                  Open →
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Danger zone */}
+        <div className="mt-auto border-t border-[var(--line)] px-5 py-4">
+          <form action={deleteJob}>
+            <input type="hidden" name="job_id" value={job.id} />
+            <input type="hidden" name="return_to" value="/dashboard/tracker" />
+            <Button type="submit" tone="bad" ghost className="w-full justify-center">
+              Delete job
+            </Button>
+          </form>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── Table view ───────────────────────────────────────────────
+
+function TableView({
+  jobs,
+  onSelect,
+}: {
+  jobs: JobWithEval[];
+  onSelect: (job: JobWithEval) => void;
+}) {
   if (jobs.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-[var(--muted-foreground)]">
-        No jobs yet. Add one in the pipeline or evaluate a role directly.
+        No jobs in this view.
       </p>
     );
   }
@@ -101,33 +280,28 @@ function TableView({ jobs }: { jobs: JobWithEval[] }) {
       <table className="min-w-full border-collapse">
         <thead className="bg-[var(--surface-soft)]">
           <tr>
-            {[
-              "Role",
-              "Company",
-              "Stage",
-              "Score",
-              "Archetype",
-              "Source",
-              "Actions",
-            ].map((col) => (
-              <th
-                key={col}
-                className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]"
-              >
-                {col}
-              </th>
-            ))}
+            {["Role", "Company", "Stage", "Score", "Archetype", "Source", ""].map(
+              (col) => (
+                <th
+                  key={col}
+                  className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]"
+                >
+                  {col}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
           {jobs.map((job) => (
             <tr
               key={job.id}
-              className="border-b border-dashed border-[var(--line-soft)] last:border-b-0"
+              onClick={() => onSelect(job)}
+              className="cursor-pointer border-b border-dashed border-[var(--line-soft)] last:border-b-0 hover:bg-[var(--surface-soft)] transition-colors"
             >
               <td className="px-4 py-3 text-sm font-bold">{job.title}</td>
               <td className="px-4 py-3 text-sm">{job.company}</td>
-              <td className="px-4 py-3">
+              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <StatusSelect jobId={job.id} current={job.status} />
               </td>
               <td className="px-4 py-3">
@@ -142,26 +316,9 @@ function TableView({ jobs }: { jobs: JobWithEval[] }) {
                 {job.source ?? "—"}
               </td>
               <td className="px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <Button
-                    href={`/dashboard/evaluate?job_id=${job.id}`}
-                    ghost
-                    tone="accent"
-                  >
-                    Evaluate
-                  </Button>
-                  <form action={deleteJob}>
-                    <input type="hidden" name="job_id" value={job.id} />
-                    <input
-                      type="hidden"
-                      name="return_to"
-                      value="/dashboard/tracker"
-                    />
-                    <Button type="submit" ghost tone="bad">
-                      Delete
-                    </Button>
-                  </form>
-                </div>
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)]">
+                  Details →
+                </span>
               </td>
             </tr>
           ))}
@@ -170,6 +327,8 @@ function TableView({ jobs }: { jobs: JobWithEval[] }) {
     </div>
   );
 }
+
+// ── Board view ───────────────────────────────────────────────
 
 function BoardView({ jobs }: { jobs: JobWithEval[] }) {
   const columns: JobStatus[] = [
@@ -188,11 +347,12 @@ function BoardView({ jobs }: { jobs: JobWithEval[] }) {
   return <KanbanBoard columns={kanbanCols} />;
 }
 
-export function TrackerPageContent({
-  jobs,
-}: {
-  jobs: JobWithEval[];
-}) {
+// ── Main page ────────────────────────────────────────────────
+
+export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
+  const [selectedJob, setSelectedJob] = useState<JobWithEval | null>(null);
+  const [activeView, setActiveView] = useState<SavedView>("active");
+
   const active = jobs.filter((j) =>
     ["evaluated", "applied", "interview", "offer"].includes(j.status),
   );
@@ -202,15 +362,34 @@ export function TrackerPageContent({
       j.status === "evaluated" &&
       j.evaluations.some((e) => e.score !== null && e.score >= 4),
   );
-
-  // Exclude archived and pending from main tracker view
-  const tracked = jobs.filter(
-    (j) => j.status !== "pending" && j.status !== "archived",
-  );
   const archived = jobs.filter((j) => j.status === "archived");
+
+  // Jobs shown in the view based on saved view selection
+  const viewJobs: JobWithEval[] = (() => {
+    switch (activeView) {
+      case "active":
+        return jobs.filter((j) => !["pending", "archived"].includes(j.status));
+      case "needs_action":
+        return jobs.filter(
+          (j) =>
+            (j.status === "evaluated" && j.evaluations.length === 0) ||
+            (j.status === "applied" &&
+              new Date(j.updated_at) < new Date(Date.now() - 7 * 86400000)),
+        );
+      case "interviews":
+        return interviews;
+      case "high_score":
+        return highScoreNotApplied;
+      case "archived":
+        return archived;
+      default:
+        return active;
+    }
+  })();
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Eyebrow>NextRole workspace</Eyebrow>
@@ -227,6 +406,7 @@ export function TrackerPageContent({
         </div>
       </div>
 
+      {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Active" value={String(active.length)} sublabel="in pipeline" />
         <StatCard
@@ -241,69 +421,54 @@ export function TrackerPageContent({
           sublabel="score ≥4 not applied"
           tone={highScoreNotApplied.length > 0 ? "accent" : "default"}
         />
-        <StatCard
-          label="Archived"
-          value={String(archived.length)}
-          sublabel="closed"
-        />
+        <StatCard label="Archived" value={String(archived.length)} sublabel="closed" />
       </div>
 
+      {/* Saved view pills */}
+      <div className="flex flex-wrap gap-2">
+        {SAVED_VIEWS.map((view) => {
+          const count =
+            view.id === "active" ? active.length
+            : view.id === "needs_action" ? jobs.filter((j) => j.status === "evaluated" && j.evaluations.length === 0).length
+            : view.id === "interviews" ? interviews.length
+            : view.id === "high_score" ? highScoreNotApplied.length
+            : archived.length;
+
+          return (
+            <button
+              key={view.id}
+              onClick={() => setActiveView(view.id)}
+              className={`rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition ${
+                activeView === view.id
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                  : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--line)]"
+              }`}
+            >
+              {view.label} ({count})
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Main table + board */}
       <TabbedPanel
         tabs={[
           {
             id: "table",
-            label: "Table view",
-            content: <TableView jobs={tracked} />,
+            label: "Table",
+            content: <TableView jobs={viewJobs} onSelect={setSelectedJob} />,
           },
           {
             id: "board",
-            label: "Board view",
-            content: <BoardView jobs={tracked} />,
-          },
-          {
-            id: "archived",
-            label: `Archived (${archived.length})`,
-            content: <TableView jobs={archived} />,
+            label: "Board",
+            content: <BoardView jobs={viewJobs} />,
           },
         ]}
       />
 
-      {highScoreNotApplied.length > 0 && (
-        <Surface tone="accent" className="p-5">
-          <SectionTitle
-            title="High score — not applied"
-            subtitle="Score ≥ 4.0 and still evaluated only"
-          />
-          <div className="mt-3 space-y-2">
-            {highScoreNotApplied.map((job) => (
-              <div
-                key={job.id}
-                className="flex items-center justify-between gap-4 border-b border-dashed border-[var(--line-soft)] py-2 last:border-b-0"
-              >
-                <div>
-                  <p className="text-sm font-bold">
-                    {job.title} — {job.company}
-                  </p>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    Score {latestScore(job.evaluations)} ·{" "}
-                    {job.archetype ?? "unknown archetype"}
-                  </p>
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  <Badge tone="ok">
-                    {latestScore(job.evaluations)}
-                  </Badge>
-                  <Button
-                    href={`/dashboard/apply?job_id=${job.id}`}
-                    tone="accent"
-                  >
-                    Apply now
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Surface>
+      {/* Detail drawer */}
+      {selectedJob && (
+        <JobDrawer job={selectedJob} onClose={() => setSelectedJob(null)} />
       )}
     </div>
   );
