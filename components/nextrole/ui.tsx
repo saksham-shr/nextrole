@@ -364,6 +364,8 @@ export function InputField({
   name,
   type = "text",
   defaultValue,
+  value,
+  onChange,
   rows = 5,
   hint,
 }: {
@@ -373,9 +375,12 @@ export function InputField({
   name?: string;
   type?: string;
   defaultValue?: string | number;
+  value?: string | number;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   rows?: number;
   hint?: string;
 }) {
+  const controlled = value !== undefined;
   return (
     <label className="block">
       <Eyebrow className="mb-2 block">{label}</Eyebrow>
@@ -384,7 +389,7 @@ export function InputField({
           name={name}
           rows={rows}
           placeholder={placeholder}
-          defaultValue={defaultValue}
+          {...(controlled ? { value: value as string, onChange } : { defaultValue })}
           className="w-full rounded-[18px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
       ) : (
@@ -392,7 +397,7 @@ export function InputField({
           name={name}
           type={type}
           placeholder={placeholder}
-          defaultValue={defaultValue}
+          {...(controlled ? { value, onChange } : { defaultValue })}
           className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
       )}

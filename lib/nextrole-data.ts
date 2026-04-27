@@ -49,6 +49,7 @@ export const navGroups: Array<{
       { label: "Profile", href: "/dashboard/profile" },
       { label: "Providers", href: "/dashboard/providers" },
       { label: "Settings", href: "/dashboard/settings" },
+      { label: "Get Started", href: "/dashboard/onboarding" },
     ],
   },
 ];
@@ -425,6 +426,10 @@ const dashboardRouteInfo = {
   negotiate: {
     title: "Negotiate",
     subtitle: "Counter-offer scripts, BATNA analysis, and ready-to-send negotiation emails.",
+  },
+  onboarding: {
+    title: "Get Started",
+    subtitle: "5-step setup: profile, CV, provider, targeting, and your first evaluate.",
   },
 } as const;
 

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { Badge, Button, Surface } from "@/components/nextrole/ui";
 import { navGroups, quickActions } from "@/lib/nextrole-data";
 import { signOut } from "@/app/actions/auth";
+import { useCommandLauncher } from "@/components/nextrole/command-launcher";
 
 function displayName(email: string) {
   const local = email.split("@")[0] ?? email;
@@ -20,9 +21,13 @@ export function DashboardShell({
   user: { email: string };
 }) {
   const pathname = usePathname();
+  const { modal, triggerOpen } = useCommandLauncher();
 
   return (
     <div className="min-h-screen p-3 sm:p-4">
+      {/* Command launcher portal */}
+      {modal}
+
       <Surface className="min-h-[calc(100vh-1.5rem)] overflow-hidden">
         <div className="flex min-h-[calc(100vh-1.5rem)]">
           <aside className="hidden w-72 shrink-0 border-r border-[var(--line)] bg-[var(--surface)] lg:flex lg:flex-col">
@@ -101,9 +106,14 @@ export function DashboardShell({
             <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[rgba(247,243,236,0.94)] backdrop-blur">
               <div className="flex flex-wrap items-center gap-3 px-4 py-4 sm:px-6">
                 <div className="min-w-0 flex-1">
-                  <div className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                    Cmd K search | jump | run a workflow
-                  </div>
+                  {/* ⌘K trigger pill — real button now */}
+                  <button
+                    type="button"
+                    onClick={triggerOpen}
+                    className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-left font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--foreground)]"
+                  >
+                    <span className="hidden sm:inline">⌘K · </span>Search pages, actions, tools…
+                  </button>
                 </div>
                 <Badge>2 tasks running</Badge>
                 <Badge tone="warn">6 attention items</Badge>
