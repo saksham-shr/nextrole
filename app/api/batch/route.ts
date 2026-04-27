@@ -3,8 +3,11 @@ import { createClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto";
 import { callProvider, parseJSON } from "@/lib/evaluate/providers";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/evaluate/prompt";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const maxDuration = 300;
+
+const CONCURRENCY = 5; // max parallel AI calls
 
 interface EvalBlocks {
   role_fit: { score: number; summary: string; details: string; signals: string[] };
@@ -46,6 +49,120 @@ function clampScore(score: unknown): number {
   const n = typeof score === "number" ? score : parseFloat(String(score));
   return Math.max(1.0, Math.min(5.0, isNaN(n) ? 1.0 : n));
 }
+
+// ── Per-job evaluation (runs concurrently) ───────────────────
+
+async function evaluateJob(
+  job: { id: string; title: string; company: string; description: string | null; archetype: string | null },
+  deps: {
+    supabase: SupabaseClient;
+    userId: string;
+    baseCv: string;
+    provider: string;
+    apiKey: string;
+    model: string;
+    credId: string;
+  },
+): Promise<BatchJobResult> {
+  const { supabase, userId, baseCv, provider, apiKey, model } = deps;
+
+  if (!job.description) {
+    return { job_id: job.id, title: job.title, company: job.company, status: "skipped", error: "No job description" };
+  }
+
+  const userPrompt = buildUserPrompt({
+    title: job.title,
+    company: job.company,
+    description: job.description,
+    base_cv: baseCv,
+    archetype: job.archetype,
+  });
+
+  let rawOutput: string;
+  try {
+    rawOutput = await callProvider(provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
+  } catch (err) {
+    return {
+      job_id: job.id,
+      title: job.title,
+      company: job.company,
+      status: "failed",
+      error: err instanceof Error ? err.message : "AI call failed",
+    };
+  }
+
+  let result: EvalResult;
+  try {
+    result = parseJSON(rawOutput) as EvalResult;
+  } catch {
+    return { job_id: job.id, title: job.title, company: job.company, status: "failed", error: "AI returned invalid JSON" };
+  }
+
+  const score = clampScore(result.score);
+  const decision = (
+    ["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch"
+  ) as "apply" | "watch" | "skip";
+
+  // Persist evaluation
+  const { data: evaluation } = await supabase
+    .from("evaluations")
+    .insert({
+      user_id: userId,
+      job_id: job.id,
+      score,
+      decision,
+      role_fit: result.blocks.role_fit as Record<string, unknown>,
+      compensation_analysis: result.blocks.compensation_analysis as Record<string, unknown>,
+      cv_match: result.blocks.cv_match as Record<string, unknown>,
+      personalization_guidance: result.blocks.personalization_guidance as Record<string, unknown>,
+      interview_signals: result.blocks.interview_signals as Record<string, unknown>,
+      legitimacy_check: result.blocks.legitimacy_check as Record<string, unknown>,
+      raw_output: rawOutput,
+      provider,
+      model,
+    })
+    .select("id")
+    .single();
+
+  // Update job status
+  await supabase
+    .from("jobs")
+    .update({ status: "evaluated", updated_at: new Date().toISOString() })
+    .eq("id", job.id)
+    .eq("user_id", userId);
+
+  // Persist report
+  if (evaluation?.id) {
+    await supabase.from("reports").insert({
+      user_id: userId,
+      job_id: job.id,
+      evaluation_id: evaluation.id,
+      title: `${job.title} at ${job.company}`,
+      type: "evaluation",
+      content: {
+        score,
+        decision,
+        job_title: job.title,
+        job_company: job.company,
+        provider,
+        model,
+        blocks: result.blocks,
+      } as unknown as Record<string, unknown>,
+    });
+  }
+
+  return {
+    job_id: job.id,
+    title: job.title,
+    company: job.company,
+    status: "completed",
+    score,
+    decision,
+    evaluation_id: evaluation?.id,
+  };
+}
+
+// ── Route handler ────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -105,7 +222,13 @@ export async function POST(request: NextRequest) {
   }
 
   const apiKey = decrypt(cred.encrypted_key);
-  const model = cred.model ?? (cred.provider === "anthropic" ? "claude-opus-4-7" : cred.provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o");
+  const model =
+    cred.model ??
+    (cred.provider === "anthropic"
+      ? "claude-opus-4-7"
+      : cred.provider === "gemini"
+      ? "gemini-2.0-flash"
+      : "gpt-4o");
 
   // Create batch task_run
   const { data: batchRun } = await supabase
@@ -114,146 +237,54 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       type: "batch",
       status: "running",
-      input: { job_ids: jobIds, count: jobs.length },
+      input: { job_ids: jobIds, count: jobs.length, concurrency: CONCURRENCY },
       progress_message: `0 / ${jobs.length} complete`,
     })
     .select("id")
     .single();
 
-  const results: BatchJobResult[] = [];
+  const deps = {
+    supabase,
+    userId: user.id,
+    baseCv: profile.base_cv,
+    provider: cred.provider,
+    apiKey,
+    model,
+    credId: cred.id,
+  };
+
+  // ── Chunked parallel execution ───────────────────────────
+  const allResults: BatchJobResult[] = [];
   let completed = 0;
   let failed = 0;
   let skipped = 0;
 
-  for (const job of jobs) {
-    // Skip jobs without descriptions
-    if (!job.description) {
-      results.push({
-        job_id: job.id,
-        title: job.title,
-        company: job.company,
-        status: "skipped",
-        error: "No job description",
-      });
-      skipped++;
-      continue;
+  for (let i = 0; i < jobs.length; i += CONCURRENCY) {
+    const chunk = jobs.slice(i, i + CONCURRENCY);
+
+    const settled = await Promise.allSettled(
+      chunk.map((job) => evaluateJob(job, deps)),
+    );
+
+    for (const outcome of settled) {
+      const result: BatchJobResult =
+        outcome.status === "fulfilled"
+          ? outcome.value
+          : {
+              job_id: "unknown",
+              title: "Unknown",
+              company: "Unknown",
+              status: "failed",
+              error: outcome.reason instanceof Error ? outcome.reason.message : "Unexpected error",
+            };
+
+      allResults.push(result);
+      if (result.status === "completed") completed++;
+      else if (result.status === "skipped") skipped++;
+      else failed++;
     }
 
-    const userPrompt = buildUserPrompt({
-      title: job.title,
-      company: job.company,
-      description: job.description,
-      base_cv: profile.base_cv,
-      archetype: job.archetype,
-    });
-
-    let rawOutput: string;
-    try {
-      rawOutput =
-        await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "AI call failed";
-      results.push({
-        job_id: job.id,
-        title: job.title,
-        company: job.company,
-        status: "failed",
-        error: message,
-      });
-      failed++;
-
-      if (batchRun) {
-        await supabase
-          .from("task_runs")
-          .update({
-            progress_message: `${completed + failed + skipped} / ${jobs.length} complete`,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", batchRun.id);
-      }
-      continue;
-    }
-
-    let result: EvalResult;
-    try {
-      result = parseJSON(rawOutput) as EvalResult;
-    } catch {
-      results.push({
-        job_id: job.id,
-        title: job.title,
-        company: job.company,
-        status: "failed",
-        error: "AI returned invalid JSON",
-      });
-      failed++;
-      continue;
-    }
-
-    const score = clampScore(result.score);
-    const decision = (
-      ["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch"
-    ) as "apply" | "watch" | "skip";
-
-    // Persist evaluation
-    const { data: evaluation } = await supabase
-      .from("evaluations")
-      .insert({
-        user_id: user.id,
-        job_id: job.id,
-        score,
-        decision,
-        role_fit: result.blocks.role_fit as Record<string, unknown>,
-        compensation_analysis: result.blocks.compensation_analysis as Record<string, unknown>,
-        cv_match: result.blocks.cv_match as Record<string, unknown>,
-        personalization_guidance: result.blocks.personalization_guidance as Record<string, unknown>,
-        interview_signals: result.blocks.interview_signals as Record<string, unknown>,
-        legitimacy_check: result.blocks.legitimacy_check as Record<string, unknown>,
-        raw_output: rawOutput,
-        provider: cred.provider,
-        model,
-      })
-      .select("id")
-      .single();
-
-    // Update job status
-    await supabase
-      .from("jobs")
-      .update({ status: "evaluated", updated_at: new Date().toISOString() })
-      .eq("id", job.id)
-      .eq("user_id", user.id);
-
-    // Persist report
-    if (evaluation?.id) {
-      await supabase.from("reports").insert({
-        user_id: user.id,
-        job_id: job.id,
-        evaluation_id: evaluation.id,
-        title: `${job.title} at ${job.company}`,
-        type: "evaluation",
-        content: {
-          score,
-          decision,
-          job_title: job.title,
-          job_company: job.company,
-          provider: cred.provider,
-          model,
-          blocks: result.blocks,
-        } as unknown as Record<string, unknown>,
-      });
-    }
-
-    results.push({
-      job_id: job.id,
-      title: job.title,
-      company: job.company,
-      status: "completed",
-      score,
-      decision,
-      evaluation_id: evaluation?.id,
-    });
-    completed++;
-
-    // Update progress
+    // Update progress after each chunk
     if (batchRun) {
       await supabase
         .from("task_runs")
@@ -265,7 +296,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Finalize batch task_run
+  // Finalize task_run
   if (batchRun) {
     await supabase
       .from("task_runs")
@@ -285,7 +316,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     task_run_id: batchRun?.id,
-    results,
+    results: allResults,
     completed,
     failed,
     skipped,
