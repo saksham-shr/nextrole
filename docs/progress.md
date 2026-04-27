@@ -1,5 +1,5 @@
 # NextRole Progress Report
-**Last updated:** 2026-04-27
+**Last updated:** 2026-04-27 (session 2)
 
 ---
 
@@ -34,7 +34,7 @@
 | `POST /api/contact` — outreach message drafts (5 types) | ✅ Done |
 | `POST /api/training` — course/cert ROI evaluation | ✅ Done |
 | `POST /api/project` — portfolio project evaluation | ✅ Done |
-| `POST /api/pipeline` — auto-orchestration (eval → status → deep) | ✅ Done ⚠️ Gemini bug |
+| `POST /api/pipeline` — auto-orchestration (eval → status → deep) | ✅ Done |
 | `POST /api/negotiate` — counter-offer, BATNA, email draft, geo rebuttal | ✅ Done |
 | `GET  /api/export` — CSV + JSON bulk export (jobs, evals, reports) | ✅ Done |
 
@@ -120,23 +120,11 @@ Every route has a real `page.tsx` backed by Supabase queries.
 
 ### 🔴 Bugs (must fix)
 
-#### Bug 1 — `POST /api/pipeline` ignores Gemini provider
-**File:** `app/api/pipeline/route.ts` lines 97–99, 179–181
-**Problem:** Imports `callAnthropic` and `callOpenAI` directly. If user's active provider is Gemini, the pipeline route silently fails — Gemini users can't use auto-orchestration at all.
-**Fix:** Replace `callAnthropic`/`callOpenAI` calls with `callProvider(cred.provider, apiKey, model, ...)` — the same pattern every other route uses.
-```ts
-// Replace:
-const raw = cred.provider === "anthropic"
-  ? await callAnthropic(apiKey, model, SYSTEM_PROMPT, userPrompt)
-  : await callOpenAI(apiKey, model, SYSTEM_PROMPT, userPrompt);
-// With:
-const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
-```
+#### ~~Bug 1 — `POST /api/pipeline` ignores Gemini provider~~ ✅ Fixed
+`callProvider` now used throughout. Gemini model default added. Committed `c836461`.
 
-#### Bug 2 — Patterns page double query + dead code
-**File:** `app/dashboard/patterns/page.tsx` lines 13–63
-**Problem:** Fetches jobs twice — first at line 13 without IDs (wasted), then again at line 66 with IDs to do the actual join. Also has two dead variables (`jobsById`, `jobEvalsForJob`) that are computed and immediately voided.
-**Fix:** Remove the first jobs query and the dead code. Use only the second query (`jobsWithId`) throughout.
+#### ~~Bug 2 — Patterns page double query + dead code~~ ✅ Fixed
+Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`, `jobsById`) removed. 2 Supabase queries instead of 3. Committed `adeca53`.
 
 ---
 
@@ -195,11 +183,11 @@ const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, user
 
 ## 3. Build order — recommended sequence
 
-### Phase 1: Bug fixes (1 session, small)
-| # | Task | File | Effort |
+### ~~Phase 1: Bug fixes~~ ✅ Complete
+| # | Task | File | Commit |
 |---|---|---|---|
-| B1 | Fix pipeline Gemini bug | `app/api/pipeline/route.ts` | 15 min |
-| B2 | Fix patterns double query + dead code | `app/dashboard/patterns/page.tsx` | 15 min |
+| B1 | ~~Fix pipeline Gemini bug~~ | `app/api/pipeline/route.ts` | `c836461` |
+| B2 | ~~Fix patterns double query + dead code~~ | `app/dashboard/patterns/page.tsx` | `adeca53` |
 
 ### Phase 2: Functional gaps (1–2 sessions, medium)
 | # | Task | Effort |
@@ -249,7 +237,7 @@ const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, user
 | Training evaluator | ✓ | ✓ | ✅ |
 | Project evaluator | ✓ | ✓ | ✅ |
 | Pattern analytics + funnel | ✓ | ✓ | ✅ |
-| Auto-pipeline orchestration | ✓ | ✓ ⚠️ Gemini bug | ⚠️ |
+| Auto-pipeline orchestration | ✓ | ✓ all 3 providers | ✅ |
 | Salary negotiation toolkit | ✓ | ✓ BATNA + email draft | ✅ |
 | Provider: Anthropic + OpenAI | ✓ | ✓ | ✅ |
 | Provider: Google Gemini | ✗ | ✓ | ✅ exceeds |
@@ -270,6 +258,6 @@ const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, user
 | Terminal UI / TUI | ✓ | N/A (web app) | — |
 | Keyboard-first nav (j/k/etc.) | ✓ | ✗ only ⌘K | ❌ (enhancement) |
 
-**Overall parity: ~95%**
+**Overall parity: ~97%**
 3 functional gaps remain: liveness checking, advanced filter bar, auto-evaluate on scan.
-2 bugs: pipeline Gemini, patterns double query.
+0 bugs outstanding — both fixed this session.
