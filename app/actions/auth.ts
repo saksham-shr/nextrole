@@ -16,6 +16,16 @@ export async function signIn(formData: FormData) {
   redirect("/dashboard");
 }
 
+function getSiteOrigin(requestOrigin: string | null): string {
+  // Prefer the explicit env var — always correct in production.
+  // Fall back to the request Origin header, then localhost for local dev.
+  return (
+    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ??
+    requestOrigin ??
+    "http://localhost:3000"
+  );
+}
+
 export async function signUp(formData: FormData) {
   const agreedToTerms = formData.get("agreeToTerms") === "yes";
   if (!agreedToTerms) {
@@ -24,13 +34,14 @@ export async function signUp(formData: FormData) {
 
   const supabase = await createClient();
   const headersList = await headers();
-  const origin = headersList.get("origin") ?? "http://localhost:3000";
+  const origin = getSiteOrigin(headersList.get("origin"));
 
   const { error } = await supabase.auth.signUp({
     email: formData.get("email") as string,
     password: formData.get("password") as string,
     options: {
-      emailRedirectTo: `${origin}/auth/callback`,
+      // After confirming email, land on onboarding so new users are guided
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard/onboarding`,
     },
   });
   if (error) {
@@ -42,7 +53,7 @@ export async function signUp(formData: FormData) {
 export async function forgotPassword(formData: FormData) {
   const supabase = await createClient();
   const headersList = await headers();
-  const origin = headersList.get("origin") ?? "http://localhost:3000";
+  const origin = getSiteOrigin(headersList.get("origin"));
 
   const { error } = await supabase.auth.resetPasswordForEmail(
     formData.get("email") as string,

@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHome } from "@/components/nextrole/dashboard-home";
 
@@ -22,7 +23,7 @@ export default async function DashboardPage() {
       .select("id")
       .eq("user_id", user.id)
       .eq("is_active", true)
-      .in("provider", ["anthropic", "openai"])
+      .in("provider", ["anthropic", "openai", "gemini"])
       .limit(1),
     supabase
       .from("jobs")
@@ -38,6 +39,15 @@ export default async function DashboardPage() {
   ]);
 
   const allJobs = jobs ?? [];
+
+  // ── New-user detection ──────────────────────────────────────────────────────
+  // If a user has no jobs, no CV, and no providers they are brand new.
+  // Send them to onboarding so they get guided through setup.
+  const isNewUser =
+    allJobs.length === 0 &&
+    !profile?.base_cv &&
+    !(providerRows?.length);
+  if (isNewUser) redirect("/dashboard/onboarding");
 
   // KPI counts
   const activeStatuses = ["evaluated", "applied", "interview", "offer"] as const;

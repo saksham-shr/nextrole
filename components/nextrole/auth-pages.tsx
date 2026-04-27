@@ -61,10 +61,12 @@ function TrialBanner() {
 function AuthShell({
   title,
   subtitle,
+  showTrialBanner,
   children,
 }: {
   title: string;
   subtitle: string;
+  showTrialBanner?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -75,7 +77,7 @@ function AuthShell({
         <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           {subtitle}
         </p>
-        <TrialBanner />
+        {showTrialBanner && <TrialBanner />}
         {children}
       </Surface>
     </main>
@@ -162,6 +164,7 @@ export function SignupPage({
     <AuthShell
       title="Start your job search OS"
       subtitle="Create an account, add your base CV, choose API or manual execution mode, and evaluate the first role right away."
+      showTrialBanner
     >
       {error && <Alert tone="error" message={error} />}
       {message && <Alert tone="ok" message={message} />}
