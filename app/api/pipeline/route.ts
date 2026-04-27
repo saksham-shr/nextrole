@@ -15,7 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { decrypt } from "@/lib/crypto";
-import { callAnthropic, callOpenAI, parseJSON } from "@/lib/evaluate/providers";
+import { callProvider, parseJSON } from "@/lib/evaluate/providers";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { DEEP_SYSTEM_PROMPT, buildDeepPrompt } from "@/lib/deep/prompt";
 
@@ -91,12 +91,16 @@ export async function POST(request: NextRequest) {
         );
       }
       const apiKey = decrypt(cred.encrypted_key);
-      const model = cred.model ?? (cred.provider === "anthropic" ? "claude-opus-4-7" : "gpt-4o");
+      const model =
+        cred.model ??
+        (cred.provider === "anthropic"
+          ? "claude-opus-4-7"
+          : cred.provider === "gemini"
+          ? "gemini-2.0-flash"
+          : "gpt-4o");
 
       try {
-        const raw = cred.provider === "anthropic"
-          ? await callAnthropic(apiKey, model, SYSTEM_PROMPT, userPrompt)
-          : await callOpenAI(apiKey, model, SYSTEM_PROMPT, userPrompt);
+        const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
 
         const evaluation = parseJSON(raw) as EvalResult;
         const score = typeof evaluation?.score === "number" ? evaluation.score : null;
@@ -174,11 +178,15 @@ export async function POST(request: NextRequest) {
       };
     } else if (cred?.encrypted_key) {
       const apiKey = decrypt(cred.encrypted_key);
-      const model = cred.model ?? (cred.provider === "anthropic" ? "claude-opus-4-7" : "gpt-4o");
+      const model =
+        cred.model ??
+        (cred.provider === "anthropic"
+          ? "claude-opus-4-7"
+          : cred.provider === "gemini"
+          ? "gemini-2.0-flash"
+          : "gpt-4o");
       try {
-        const raw = cred.provider === "anthropic"
-          ? await callAnthropic(apiKey, model, DEEP_SYSTEM_PROMPT, deepPrompt)
-          : await callOpenAI(apiKey, model, DEEP_SYSTEM_PROMPT, deepPrompt);
+        const raw = await callProvider(cred.provider, apiKey, model, DEEP_SYSTEM_PROMPT, deepPrompt);
         results.deep_research = { dossier: parseJSON(raw) };
       } catch (err) {
         results.deep_research = { error: err instanceof Error ? err.message : "AI call failed" };
