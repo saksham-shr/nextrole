@@ -189,9 +189,9 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 | # | Task | Effort | Status |
 |---|---|---|---|
 | G1 | ~~Liveness checker — `/api/liveness` + tracker UI~~ | Small | ✅ `01294ba` |
-| G4 | Retry failed tasks from activity | Small | 🔲 |
-| G2 | Advanced tracker filter bar | Medium | 🔲 |
-| G3 | Auto-evaluate scanned jobs | Medium | 🔲 |
+| G4 | Retry failed tasks from activity | Small | ✅ |
+| G2 | Advanced tracker filter bar | Medium | ✅ |
+| G3 | Auto-evaluate scanned jobs | Medium | ✅ |
 
 ### Phase 3: Enhancements (ongoing, pick by value)
 | Priority | Enhancement | Why |
@@ -244,10 +244,10 @@ Single query with `id` included. Dead code block (`jobEvalMap`, `jobEvalsForJob`
 | Full job tracker (7 statuses) | ✓ | ✓ + drawer + saved views | ✅ exceeds |
 | Activity feed + task log | ✓ | ✓ | ✅ |
 | Bulk data export (CSV + JSON) | ✓ | ✓ | ✅ |
-| Advanced tracker filtering | ✓ | ⚠️ saved views only, no filter bar | ⚠️ |
+| Advanced tracker filtering | ✓ | ✓ archetype pills + score range + date range + source | ✅ |
 | Liveness checking | ✓ | ✓ HTTP + regex, drawer UI | ✅ |
-| Auto-evaluate scanned jobs | ✓ | ✗ | ❌ |
-| Retry failed task runs | ✓ | ✗ UI only | ❌ |
+| Auto-evaluate scanned jobs | ✓ | ✓ per-source toggle + pipeline chain | ✅ |
+| Retry failed task runs | ✓ | ✓ server action + UI | ✅ |
 | CV editor with analysis | ✗ | ✓ section detector + proof-points | ✅ exceeds |
 | Onboarding wizard | ✗ | ✓ 5-step | ✅ exceeds |
 | ⌘K command launcher | ✗ | ✓ | ✅ exceeds |

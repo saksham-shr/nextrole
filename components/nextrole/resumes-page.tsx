@@ -215,7 +215,14 @@ function parseResumeData(content: string | null): ResumeData | null {
   }
 }
 
-export function ResumeDetailPageContent({ resume }: { resume: ResumeWithJob }) {
+export function ResumeDetailPageContent({
+  resume,
+  baseCv,
+}: {
+  resume: ResumeWithJob;
+  baseCv?: string | null;
+}) {
+  const [diffMode, setDiffMode] = useState(false);
   const data = parseResumeData(resume.content);
 
   return (
@@ -238,15 +245,39 @@ export function ResumeDetailPageContent({ resume }: { resume: ResumeWithJob }) {
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button
-            href={`/api/resume/${resume.id}/html`}
-            tone="accent"
-          >
+          <Button href={`/api/resume/${resume.id}/html`} tone="accent">
             Print / Save PDF
           </Button>
+          {baseCv && (
+            <Button ghost onClick={() => setDiffMode((v) => !v)}>
+              {diffMode ? "Resume view" : "Compare with CV"}
+            </Button>
+          )}
           <Button href="/dashboard/resumes">← All resumes</Button>
         </div>
       </div>
+
+      {/* Diff view */}
+      {diffMode && baseCv && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Surface className="p-5">
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+              Base CV
+            </p>
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[var(--foreground)]">
+              {baseCv}
+            </pre>
+          </Surface>
+          <Surface className="p-5">
+            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+              Tailored resume
+            </p>
+            <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[var(--foreground)]">
+              {resume.content ?? "No content saved"}
+            </pre>
+          </Surface>
+        </div>
+      )}
 
       {!data && (
         <Surface className="p-5">

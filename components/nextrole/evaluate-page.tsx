@@ -34,6 +34,9 @@ interface InterviewSignals {
 interface LegitimacyCheck {
   score: number; verdict: string; notes: string;
 }
+interface LevelStrategy {
+  score: number; summary: string; seniority_fit: string; progression_value: string; notes: string;
+}
 interface DecisionBlock {
   score: number; decision: Decision; rationale: string; priority: string;
 }
@@ -44,6 +47,7 @@ interface EvalBlocks {
   personalization_guidance: PersonGuidance;
   interview_signals: InterviewSignals;
   legitimacy_check: LegitimacyCheck;
+  level_strategy: LevelStrategy;
   decision: DecisionBlock;
 }
 interface EvalResponse {
@@ -166,6 +170,19 @@ function ResultsPanel({ score, decision, blocks }: { score: number; decision: De
             {blocks.legitimacy_check.verdict}
           </Badge>
           <p className="text-[var(--muted-foreground)]">{blocks.legitimacy_check.notes}</p>
+        </BlockCard>
+
+        <BlockCard title="G · Level Strategy" score={blocks.level_strategy?.score}>
+          <p className="font-semibold">{blocks.level_strategy?.summary}</p>
+          <div className="flex flex-wrap gap-2 mt-1">
+            <Badge tone={blocks.level_strategy?.seniority_fit === "right_level" ? "ok" : "warn"}>
+              {blocks.level_strategy?.seniority_fit?.replace(/_/g, " ")}
+            </Badge>
+            <Badge tone={blocks.level_strategy?.progression_value === "high" ? "ok" : blocks.level_strategy?.progression_value === "low" ? "bad" : "default"}>
+              {blocks.level_strategy?.progression_value} progression value
+            </Badge>
+          </div>
+          <p className="text-[var(--muted-foreground)]">{blocks.level_strategy?.notes}</p>
         </BlockCard>
       </div>
     </div>

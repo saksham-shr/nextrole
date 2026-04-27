@@ -13,6 +13,7 @@ interface EvalBlocks {
   personalization_guidance: { summary: string; tactics: string[]; angle: string };
   interview_signals: { likely_topics: string[]; red_flags: string[]; preparation_notes: string };
   legitimacy_check: { score: number; verdict: string; notes: string };
+  level_strategy: { score: number; summary: string; seniority_fit: string; progression_value: string; notes: string };
   decision: { score: number; decision: string; rationale: string; priority: string };
 }
 
@@ -69,6 +70,7 @@ export async function POST(request: NextRequest) {
       personalization_guidance: result.blocks.personalization_guidance as Record<string, unknown>,
       interview_signals: result.blocks.interview_signals as Record<string, unknown>,
       legitimacy_check: result.blocks.legitimacy_check as Record<string, unknown>,
+      level_strategy: result.blocks.level_strategy as Record<string, unknown>,
       raw_output: rawOutput, provider: "manual", model: "manual",
     }).select("id").single();
 
@@ -175,6 +177,7 @@ export async function POST(request: NextRequest) {
     personalization_guidance: result.blocks.personalization_guidance as Record<string, unknown>,
     interview_signals: result.blocks.interview_signals as Record<string, unknown>,
     legitimacy_check: result.blocks.legitimacy_check as Record<string, unknown>,
+    level_strategy: result.blocks.level_strategy as Record<string, unknown>,
     raw_output: rawOutput, provider: cred.provider, model,
   }).select("id").single();
 

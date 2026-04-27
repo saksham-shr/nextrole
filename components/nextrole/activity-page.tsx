@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition, useState } from "react";
 import {
   Badge,
   Button,
@@ -10,6 +11,7 @@ import {
   Surface,
 } from "@/components/nextrole/ui";
 import type { TaskRunRow } from "@/lib/db/types";
+import { retryTaskRun } from "@/app/actions/tasks";
 
 export type TaskRunWithJob = TaskRunRow & {
   jobs: { title: string; company: string } | null;
@@ -55,6 +57,45 @@ function outputSummary(output: Record<string, unknown> | null): string | null {
   if (typeof output.decision === "string") parts.push(`Decision: ${output.decision}`);
   if (typeof output.count === "number") parts.push(`${output.count} items`);
   return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+const RETRYABLE_TYPES = new Set([
+  "evaluate", "compare", "batch", "scan", "interview_prep",
+  "followup", "deep_research", "apply", "contact_draft",
+  "training_eval", "project_eval", "negotiate",
+]);
+
+function RetryButton({ runId }: { runId: string }) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+
+  function handleRetry() {
+    setError(null);
+    startTransition(async () => {
+      const result = await retryTaskRun(runId);
+      if (result.error) {
+        setError(result.error);
+      } else {
+        setDone(true);
+      }
+    });
+  }
+
+  if (done) {
+    return <span className="text-xs text-[var(--ok)]">Queued</span>;
+  }
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <Button ghost onClick={handleRetry} disabled={pending}>
+        {pending ? "Retrying…" : "Retry"}
+      </Button>
+      {error && (
+        <p className="text-xs text-[var(--bad)]">{error}</p>
+      )}
+    </div>
+  );
 }
 
 export function ActivityPageContent({ runs }: { runs: TaskRunWithJob[] }) {
@@ -146,9 +187,14 @@ export function ActivityPageContent({ runs }: { runs: TaskRunWithJob[] }) {
                     )}
                   </div>
                 </div>
-                <span className="font-mono text-xs text-[var(--muted-foreground)]">
-                  {timeAgo(run.created_at)}
-                </span>
+                <div className="flex flex-col items-end gap-2">
+                  <span className="font-mono text-xs text-[var(--muted-foreground)]">
+                    {timeAgo(run.created_at)}
+                  </span>
+                  {run.status === "failed" && RETRYABLE_TYPES.has(run.type) && run.input && (
+                    <RetryButton runId={run.id} />
+                  )}
+                </div>
               </div>
             </Surface>
           ))}

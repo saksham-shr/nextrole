@@ -79,6 +79,27 @@ export async function addScanSource(formData: FormData) {
   redirect("/dashboard/scanner?message=Source+added");
 }
 
+export async function toggleAutoEvaluate(
+  sourceId: string,
+  value: boolean,
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("scan_sources")
+    .update({ auto_evaluate: value, updated_at: new Date().toISOString() })
+    .eq("id", sourceId)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/scanner");
+  return {};
+}
+
 export async function deleteScanSource(formData: FormData) {
   const sourceId = formData.get("source_id") as string | null;
   if (!sourceId) redirect("/dashboard/scanner?error=Missing+source+id");

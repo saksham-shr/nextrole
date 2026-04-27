@@ -11,13 +11,12 @@ export default async function ResumeDetailPage({
   const { id } = await params;
   const supabase = await createClient();
 
-  const { data: row } = await supabase
-    .from("resumes")
-    .select("*, jobs:job_id (title, company)")
-    .eq("id", id)
-    .single();
+  const [{ data: row }, { data: profile }] = await Promise.all([
+    supabase.from("resumes").select("*, jobs:job_id (title, company)").eq("id", id).single(),
+    supabase.from("profiles").select("base_cv").single(),
+  ]);
 
   if (!row) notFound();
 
-  return <ResumeDetailPageContent resume={row as ResumeWithJob} />;
+  return <ResumeDetailPageContent resume={row as ResumeWithJob} baseCv={profile?.base_cv ?? null} />;
 }

@@ -3,6 +3,7 @@ import { PatternsPageContent } from "@/components/nextrole/patterns-page";
 
 type ArchetypeStat = { archetype: string; count: number; avg_score: number | null; applied: number };
 type SourceStat = { source: string; count: number };
+type WeeklyScore = { week: string; avg: number; count: number };
 
 export default async function PatternsPage() {
   const supabase = await createClient();
@@ -17,7 +18,7 @@ export default async function PatternsPage() {
       .eq("user_id", user.id),
     supabase
       .from("evaluations")
-      .select("score, job_id")
+      .select("score, job_id, created_at")
       .eq("user_id", user.id),
   ]);
 
@@ -129,6 +130,20 @@ export default async function PatternsPage() {
     });
   }
 
+  // ── Weekly score trend ────────────────────────────────────────────────────────
+  const weeklyMap = new Map<string, { sum: number; count: number }>();
+  for (const e of allEvals) {
+    if (e.score === null) continue;
+    const d = new Date(e.created_at);
+    d.setDate(d.getDate() - d.getDay()); // rewind to Sunday
+    const key = d.toISOString().slice(0, 10);
+    const prev = weeklyMap.get(key) ?? { sum: 0, count: 0 };
+    weeklyMap.set(key, { sum: prev.sum + e.score, count: prev.count + 1 });
+  }
+  const weeklyScores: WeeklyScore[] = Array.from(weeklyMap.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([week, { sum, count }]) => ({ week, avg: sum / count, count }));
+
   return (
     <PatternsPageContent
       funnel={funnel}
@@ -138,6 +153,7 @@ export default async function PatternsPage() {
       totalEvaluated={totalEvaluated}
       conversionRate={conversionRate}
       recommendations={recommendations}
+      weeklyScores={weeklyScores}
     />
   );
 }

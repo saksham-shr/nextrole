@@ -492,3 +492,48 @@ export function EmptyState({
     </Surface>
   );
 }
+
+// ── Loading primitives ───────────────────────────────────────
+
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      className={cx(
+        "rounded-[8px] bg-[length:600px_100%]",
+        "bg-[linear-gradient(90deg,var(--surface-soft)_25%,var(--surface)_50%,var(--surface-soft)_75%)]",
+        "animate-[shimmer_1.5s_ease-in-out_infinite]",
+        className ?? "h-4 w-full",
+      )}
+    />
+  );
+}
+
+export function SkeletonText({
+  lines = 3,
+  className,
+}: {
+  lines?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cx("space-y-2", className)}>
+      {Array.from({ length: lines }).map((_, i) => (
+        <Skeleton
+          key={i}
+          className={cx("h-3", i === lines - 1 ? "w-3/4" : "w-full")}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <div
+      className={cx(
+        "h-4 w-4 animate-spin rounded-full border-2 border-[var(--line-soft)] border-t-[var(--accent)]",
+        className,
+      )}
+    />
+  );
+}

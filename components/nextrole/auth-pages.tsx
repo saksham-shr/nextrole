@@ -1,10 +1,14 @@
+"use client";
+
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useFormStatus } from "react-dom";
 import {
   Badge,
   Button,
   Display,
   InputField,
+  Spinner,
   Surface,
 } from "@/components/nextrole/ui";
 import {
@@ -13,6 +17,28 @@ import {
   forgotPassword,
   resetPassword,
 } from "@/app/actions/auth";
+
+function AuthSubmitButton({
+  label,
+  pendingLabel,
+}: {
+  label: string;
+  pendingLabel: string;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" tone="accent" disabled={pending}>
+      {pending ? (
+        <span className="flex items-center gap-2">
+          <Spinner className="h-3.5 w-3.5 border-white border-t-transparent" />
+          {pendingLabel}
+        </span>
+      ) : (
+        label
+      )}
+    </Button>
+  );
+}
 
 function AuthShell({
   title,
@@ -101,9 +127,7 @@ export function LoginPage({
           <Badge tone="accent">Encrypted keys</Badge>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="submit" tone="accent">
-            Sign in
-          </Button>
+          <AuthSubmitButton label="Sign in" pendingLabel="Signing in…" />
           <Button href="/signup" ghost>
             Create account
           </Button>
@@ -157,9 +181,7 @@ export function SignupPage({
           ))}
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="submit" tone="accent">
-            Create account
-          </Button>
+          <AuthSubmitButton label="Create account" pendingLabel="Creating account…" />
           <Button href="/login" ghost>
             I already have an account
           </Button>
@@ -193,9 +215,7 @@ export function ForgotPasswordPage({
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="submit" tone="accent">
-            Send reset link
-          </Button>
+          <AuthSubmitButton label="Send reset link" pendingLabel="Sending…" />
           <Button href="/login" ghost>
             Back to login
           </Button>
@@ -235,9 +255,7 @@ export function ResetPasswordPage({
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
-          <Button type="submit" tone="accent">
-            Save and sign in
-          </Button>
+          <AuthSubmitButton label="Save and sign in" pendingLabel="Saving…" />
           <Button href="/login" ghost>
             Back to login
           </Button>

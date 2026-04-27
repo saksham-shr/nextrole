@@ -50,9 +50,9 @@ export function LandingPage() {
               like a real pipeline.
             </Display>
             <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
-              NextRole is the full Career Ops workflow on the web: discover new
-              roles, evaluate fit, tailor resumes, prep interviews, send
-              follow-ups, and improve the funnel from one connected workspace.
+              Discover roles, evaluate fit, tailor resumes, prep interviews,
+              send follow-ups, and improve your funnel — all from one connected
+              workspace built for serious job seekers.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
               <Button href="/signup" tone="accent">
@@ -203,9 +203,9 @@ export function LandingPage() {
             Start running a search.
           </Display>
           <p className="mt-5 max-w-3xl text-sm leading-7 text-[#d8d2c8] sm:text-base">
-            This frontend is designed around full Career Ops coverage from day
-            one, so evaluate, scanner, tracker, resumes, prep, follow-up, and
-            patterns all live in one product.
+            Every workflow you need — evaluate, scan, track, tailor resumes,
+            prep interviews, send follow-ups, and analyse patterns — built into
+            one product from day one.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Button href="/signup" tone="accent">

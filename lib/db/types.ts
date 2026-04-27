@@ -116,6 +116,7 @@ export type EvaluationRow = {
   personalization_guidance: Record<string, unknown> | null;
   interview_signals: Record<string, unknown> | null;
   legitimacy_check: Record<string, unknown> | null;
+  level_strategy: Record<string, unknown> | null;
   raw_output: string | null;
   provider: string | null;
   model: string | null;
@@ -171,6 +172,7 @@ export type ScanSourceRow = {
   url: string;
   type: string;
   is_active: boolean;
+  auto_evaluate: boolean;
   last_scanned_at: string | null;
   total_discovered: number;
   created_at: string;
@@ -232,6 +234,17 @@ export type InterviewPrepPackRow = {
   status: "draft" | "ready";
   provider: string | null;
   model: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PromptTemplateRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  workflow: string;
+  template: string;
   created_at: string;
   updated_at: string;
 };
@@ -381,6 +394,7 @@ export type Database = {
           personalization_guidance?: Record<string, unknown> | null;
           interview_signals?: Record<string, unknown> | null;
           legitimacy_check?: Record<string, unknown> | null;
+          level_strategy?: Record<string, unknown> | null;
           raw_output?: string | null;
           provider?: string | null;
           model?: string | null;
@@ -396,6 +410,7 @@ export type Database = {
           personalization_guidance?: Record<string, unknown> | null;
           interview_signals?: Record<string, unknown> | null;
           legitimacy_check?: Record<string, unknown> | null;
+          level_strategy?: Record<string, unknown> | null;
           raw_output?: string | null;
           provider?: string | null;
           model?: string | null;
@@ -496,6 +511,7 @@ export type Database = {
           url: string;
           type?: string;
           is_active?: boolean;
+          auto_evaluate?: boolean;
           last_scanned_at?: string | null;
           total_discovered?: number;
           created_at?: string;
@@ -506,6 +522,7 @@ export type Database = {
           url?: string;
           type?: string;
           is_active?: boolean;
+          auto_evaluate?: boolean;
           last_scanned_at?: string | null;
           total_discovered?: number;
           updated_at?: string;
@@ -612,6 +629,27 @@ export type Database = {
           status?: "draft" | "ready";
           provider?: string | null;
           model?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      prompt_templates: {
+        Row: PromptTemplateRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          name: string;
+          description?: string | null;
+          workflow?: string;
+          template: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          name?: string;
+          description?: string | null;
+          workflow?: string;
+          template?: string;
           updated_at?: string;
         };
         Relationships: [];

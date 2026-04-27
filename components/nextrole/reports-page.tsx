@@ -31,6 +31,7 @@ interface ReportContent {
     personalization_guidance?: { summary?: string; tactics?: string[]; angle?: string };
     interview_signals?: { likely_topics?: string[]; red_flags?: string[]; preparation_notes?: string };
     legitimacy_check?: { score?: number; verdict?: string; notes?: string };
+    level_strategy?: { score?: number; summary?: string; seniority_fit?: string; progression_value?: string; notes?: string };
     decision?: { score?: number; decision?: string; rationale?: string; priority?: string };
   };
 }
@@ -315,6 +316,27 @@ export function ReportDetailPageContent({ report }: { report: ReportWithJob }) {
           )}
           {blocks.legitimacy_check.notes && (
             <p className="text-[var(--muted-foreground)]">{blocks.legitimacy_check.notes}</p>
+          )}
+        </BlockCard>
+      )}
+
+      {blocks.level_strategy && (
+        <BlockCard title="Level strategy" score={blocks.level_strategy.score}>
+          {blocks.level_strategy.summary && <p>{blocks.level_strategy.summary}</p>}
+          <div className="flex flex-wrap gap-2">
+            {blocks.level_strategy.seniority_fit && (
+              <span className="font-mono text-xs text-[var(--muted-foreground)]">
+                Seniority: {blocks.level_strategy.seniority_fit.replace(/_/g, " ")}
+              </span>
+            )}
+            {blocks.level_strategy.progression_value && (
+              <span className="font-mono text-xs text-[var(--muted-foreground)]">
+                Progression value: {blocks.level_strategy.progression_value}
+              </span>
+            )}
+          </div>
+          {blocks.level_strategy.notes && (
+            <p className="text-[var(--muted-foreground)]">{blocks.level_strategy.notes}</p>
           )}
         </BlockCard>
       )}

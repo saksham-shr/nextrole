@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -395,9 +396,11 @@ function JobDrawer({
 function TableView({
   jobs,
   onSelect,
+  focusedIndex = -1,
 }: {
   jobs: JobWithEval[];
   onSelect: (job: JobWithEval) => void;
+  focusedIndex?: number;
 }) {
   if (jobs.length === 0) {
     return (
@@ -425,11 +428,13 @@ function TableView({
           </tr>
         </thead>
         <tbody>
-          {jobs.map((job) => (
+          {jobs.map((job, i) => (
             <tr
               key={job.id}
               onClick={() => onSelect(job)}
-              className="cursor-pointer border-b border-dashed border-[var(--line-soft)] last:border-b-0 hover:bg-[var(--surface-soft)] transition-colors"
+              className={`cursor-pointer border-b border-dashed border-[var(--line-soft)] last:border-b-0 hover:bg-[var(--surface-soft)] transition-colors ${
+                i === focusedIndex ? "bg-[rgba(200,74,31,0.07)] outline outline-1 outline-[var(--accent)]" : ""
+              }`}
             >
               <td className="px-4 py-3 text-sm font-bold">{job.title}</td>
               <td className="px-4 py-3 text-sm">{job.company}</td>
@@ -479,11 +484,247 @@ function BoardView({ jobs }: { jobs: JobWithEval[] }) {
   return <KanbanBoard columns={kanbanCols} />;
 }
 
+// ── Filter bar ───────────────────────────────────────────────
+
+const SCORE_STEPS = [1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0];
+
+export type TrackerFilters = {
+  archetypes: string[];
+  scoreMin: number;
+  scoreMax: number;
+  dateFrom: string;
+  dateTo: string;
+  source: string;
+};
+
+export const DEFAULT_FILTERS: TrackerFilters = {
+  archetypes: [],
+  scoreMin: 1.0,
+  scoreMax: 5.0,
+  dateFrom: "",
+  dateTo: "",
+  source: "",
+};
+
+function isDefaultFilters(f: TrackerFilters): boolean {
+  return (
+    f.archetypes.length === 0 &&
+    f.scoreMin === 1.0 &&
+    f.scoreMax === 5.0 &&
+    f.dateFrom === "" &&
+    f.dateTo === "" &&
+    f.source === ""
+  );
+}
+
+function FilterBar({
+  filters,
+  onChange,
+  allArchetypes,
+  allSources,
+  resultCount,
+  totalCount,
+}: {
+  filters: TrackerFilters;
+  onChange: (f: TrackerFilters) => void;
+  allArchetypes: string[];
+  allSources: string[];
+  resultCount: number;
+  totalCount: number;
+}) {
+  const isDefault = isDefaultFilters(filters);
+
+  function toggleArchetype(a: string) {
+    const next = filters.archetypes.includes(a)
+      ? filters.archetypes.filter((x) => x !== a)
+      : [...filters.archetypes, a];
+    onChange({ ...filters, archetypes: next });
+  }
+
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface-soft)] p-4 space-y-3">
+      {/* Header row */}
+      <div className="flex items-center justify-between gap-3">
+        <span className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+          Filters
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-[10px] text-[var(--muted-foreground)]">
+            {resultCount} of {totalCount} jobs
+          </span>
+          {!isDefault && (
+            <button
+              onClick={() => onChange(DEFAULT_FILTERS)}
+              className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Archetype pills */}
+      {allArchetypes.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {allArchetypes.map((a) => (
+            <button
+              key={a}
+              onClick={() => toggleArchetype(a)}
+              className={`rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.18em] transition ${
+                filters.archetypes.includes(a)
+                  ? "border-[var(--accent)] bg-[var(--accent)] text-white"
+                  : "border-[var(--line-soft)] bg-[var(--surface)] text-[var(--muted-foreground)] hover:border-[var(--line)]"
+              }`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Score / date / source row */}
+      <div className="flex flex-wrap items-end gap-3">
+        {/* Score range */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+            Score
+          </span>
+          <select
+            value={filters.scoreMin}
+            onChange={(e) => onChange({ ...filters, scoreMin: parseFloat(e.target.value) })}
+            className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[10px] outline-none focus:border-[var(--accent)]"
+          >
+            {SCORE_STEPS.filter((s) => s <= filters.scoreMax).map((s) => (
+              <option key={s} value={s}>{s.toFixed(1)}</option>
+            ))}
+          </select>
+          <span className="font-mono text-[10px] text-[var(--muted-foreground)]">–</span>
+          <select
+            value={filters.scoreMax}
+            onChange={(e) => onChange({ ...filters, scoreMax: parseFloat(e.target.value) })}
+            className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[10px] outline-none focus:border-[var(--accent)]"
+          >
+            {SCORE_STEPS.filter((s) => s >= filters.scoreMin).map((s) => (
+              <option key={s} value={s}>{s.toFixed(1)}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Date range */}
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+            Added
+          </span>
+          <input
+            type="date"
+            value={filters.dateFrom}
+            onChange={(e) => onChange({ ...filters, dateFrom: e.target.value })}
+            className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[10px] outline-none focus:border-[var(--accent)]"
+          />
+          <span className="font-mono text-[10px] text-[var(--muted-foreground)]">–</span>
+          <input
+            type="date"
+            value={filters.dateTo}
+            onChange={(e) => onChange({ ...filters, dateTo: e.target.value })}
+            className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[10px] outline-none focus:border-[var(--accent)]"
+          />
+        </div>
+
+        {/* Source */}
+        {allSources.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+              Source
+            </span>
+            <select
+              value={filters.source}
+              onChange={(e) => onChange({ ...filters, source: e.target.value })}
+              className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 font-mono text-[10px] outline-none focus:border-[var(--accent)]"
+            >
+              <option value="">All</option>
+              {allSources.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ────────────────────────────────────────────────
 
-export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
+type JobEvent = { job_id: string; event_type: string; payload: Record<string, unknown> | null; created_at: string };
+
+function InterviewTimeline({ jobs, events }: { jobs: JobWithEval[]; events: JobEvent[] }) {
+  const interviewJobs = jobs.filter((j) => j.status === "interview");
+  if (interviewJobs.length === 0) return null;
+
+  return (
+    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+        Interview schedule
+      </p>
+      <div className="space-y-3">
+        {interviewJobs.map((job) => {
+          const jobEvents = events
+            .filter((e) => e.job_id === job.id)
+            .sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+          const interviewEntry = jobEvents.find(
+            (e) => (e.payload as { to?: string } | null)?.to === "interview",
+          );
+          const enteredAt = interviewEntry
+            ? new Date(interviewEntry.created_at)
+            : new Date(job.updated_at);
+
+          const followUpDue = new Date(enteredAt);
+          followUpDue.setDate(followUpDue.getDate() + 5);
+          const isOverdue = followUpDue < new Date();
+
+          return (
+            <div
+              key={job.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-3"
+            >
+              <div>
+                <p className="text-sm font-bold">{job.title}</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                  {job.company} · entered {enteredAt.toLocaleDateString()}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  className={`rounded-full border px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.18em] ${
+                    isOverdue
+                      ? "border-[var(--bad)] text-[var(--bad)]"
+                      : "border-[var(--warn)] text-[var(--warn)]"
+                  }`}
+                >
+                  Follow-up {isOverdue ? "overdue" : `due ${followUpDue.toLocaleDateString()}`}
+                </span>
+                <a
+                  href={`/dashboard/interview-prep?job_id=${job.id}`}
+                  className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
+                >
+                  Prep →
+                </a>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function TrackerPageContent({ jobs, jobEvents = [] }: { jobs: JobWithEval[]; jobEvents?: JobEvent[] }) {
   const [selectedJob, setSelectedJob] = useState<JobWithEval | null>(null);
   const [activeView, setActiveView] = useState<SavedView>("active");
+  const [filters, setFilters] = useState<TrackerFilters>(DEFAULT_FILTERS);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+  const router = useRouter();
 
   const active = jobs.filter((j) =>
     ["evaluated", "applied", "interview", "offer"].includes(j.status),
@@ -497,7 +738,7 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
   const archived = jobs.filter((j) => j.status === "archived");
 
   // Jobs shown in the view based on saved view selection
-  const viewJobs: JobWithEval[] = (() => {
+  const viewJobs: JobWithEval[] = useMemo(() => {
     switch (activeView) {
       case "active":
         return jobs.filter((j) => !["pending", "archived"].includes(j.status));
@@ -517,7 +758,78 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
       default:
         return active;
     }
-  })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeView, jobs]);
+
+  // Additional filters compose on top of the saved view
+  const filteredJobs = useMemo(() => {
+    return viewJobs.filter((job) => {
+      if (filters.archetypes.length > 0) {
+        if (!job.archetype || !filters.archetypes.includes(job.archetype)) return false;
+      }
+      if (filters.scoreMin > 1.0 || filters.scoreMax < 5.0) {
+        const score = [...job.evaluations].reverse().find((e) => e.score !== null)?.score ?? null;
+        if (score === null) {
+          if (filters.scoreMin > 1.0) return false;
+        } else {
+          if (score < filters.scoreMin || score > filters.scoreMax) return false;
+        }
+      }
+      if (filters.dateFrom) {
+        if (new Date(job.created_at) < new Date(filters.dateFrom)) return false;
+      }
+      if (filters.dateTo) {
+        if (new Date(job.created_at) > new Date(filters.dateTo + "T23:59:59")) return false;
+      }
+      if (filters.source) {
+        if (job.source !== filters.source) return false;
+      }
+      return true;
+    });
+  }, [viewJobs, filters]);
+
+  // Unique values for filter options (from all jobs, not just viewJobs)
+  const allArchetypes = useMemo(() => {
+    const set = new Set<string>();
+    jobs.forEach((j) => { if (j.archetype) set.add(j.archetype); });
+    return Array.from(set).sort();
+  }, [jobs]);
+
+  const allSources = useMemo(() => {
+    const set = new Set<string>();
+    jobs.forEach((j) => { if (j.source) set.add(j.source); });
+    return Array.from(set).sort();
+  }, [jobs]);
+
+  // Reset focused index when the visible list changes
+  useEffect(() => { setFocusedIndex(-1); }, [filteredJobs]);
+
+  // Keyboard shortcuts: j/k navigate, d open drawer, e evaluate, Escape dismiss
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      if (e.key === "j") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.min(i + 1, filteredJobs.length - 1));
+      } else if (e.key === "k") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "d" && focusedIndex >= 0) {
+        e.preventDefault();
+        setSelectedJob(filteredJobs[focusedIndex] ?? null);
+      } else if (e.key === "e" && focusedIndex >= 0) {
+        e.preventDefault();
+        const job = filteredJobs[focusedIndex];
+        if (job) router.push(`/dashboard/evaluate?job_id=${job.id}`);
+      } else if (e.key === "Escape") {
+        setFocusedIndex(-1);
+        setSelectedJob(null);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [filteredJobs, focusedIndex, router]);
 
   return (
     <div className="space-y-6">
@@ -562,6 +874,9 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
         <StatCard label="Archived" value={String(archived.length)} sublabel="closed" />
       </div>
 
+      {/* Interview timeline */}
+      <InterviewTimeline jobs={jobs} events={jobEvents} />
+
       {/* Saved view pills */}
       <div className="flex flex-wrap gap-2">
         {SAVED_VIEWS.map((view) => {
@@ -575,7 +890,7 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
           return (
             <button
               key={view.id}
-              onClick={() => setActiveView(view.id)}
+              onClick={() => { setActiveView(view.id); setFilters(DEFAULT_FILTERS); }}
               className={`rounded-full border px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.18em] transition ${
                 activeView === view.id
                   ? "border-[var(--accent)] bg-[var(--accent)] text-white"
@@ -588,18 +903,33 @@ export function TrackerPageContent({ jobs }: { jobs: JobWithEval[] }) {
         })}
       </div>
 
+      {/* Filter bar */}
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        allArchetypes={allArchetypes}
+        allSources={allSources}
+        resultCount={filteredJobs.length}
+        totalCount={viewJobs.length}
+      />
+
+      {/* Keyboard hint */}
+      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+        j/k navigate · d open drawer · e evaluate · Esc dismiss
+      </p>
+
       {/* Main table + board */}
       <TabbedPanel
         tabs={[
           {
             id: "table",
             label: "Table",
-            content: <TableView jobs={viewJobs} onSelect={setSelectedJob} />,
+            content: <TableView jobs={filteredJobs} onSelect={setSelectedJob} focusedIndex={focusedIndex} />,
           },
           {
             id: "board",
             label: "Board",
-            content: <BoardView jobs={viewJobs} />,
+            content: <BoardView jobs={filteredJobs} />,
           },
         ]}
       />

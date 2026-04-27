@@ -11,7 +11,7 @@ import {
   Surface,
   SectionTitle,
 } from "@/components/nextrole/ui";
-import { addScanSource, deleteScanSource, addPortalFromLibrary } from "@/app/actions/scanner";
+import { addScanSource, deleteScanSource, addPortalFromLibrary, toggleAutoEvaluate } from "@/app/actions/scanner";
 import type { ScanSourceRow, ScanRunRow } from "@/lib/db/types";
 import type { ScanResult } from "@/app/api/scan/route";
 import {
@@ -341,6 +341,44 @@ function CompanyLibrary({ enabledUrls, onAdd }: { enabledUrls: Set<string>; onAd
   );
 }
 
+// ── Auto-evaluate toggle ─────────────────────────────────────
+
+function AutoEvalToggle({
+  sourceId,
+  initialValue,
+}: {
+  sourceId: string;
+  initialValue: boolean;
+}) {
+  const [enabled, setEnabled] = useState(initialValue);
+  const [saving, setSaving] = useState(false);
+
+  async function handleToggle() {
+    const next = !enabled;
+    setEnabled(next);
+    setSaving(true);
+    await toggleAutoEvaluate(sourceId, next);
+    setSaving(false);
+  }
+
+  return (
+    <button
+      onClick={handleToggle}
+      disabled={saving}
+      title="Auto-evaluate new jobs found by this scan"
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-50 ${
+        enabled ? "bg-[var(--accent)]" : "bg-[var(--line)]"
+      }`}
+    >
+      <span
+        className={`pointer-events-none inline-block h-3.5 w-3.5 rounded-full bg-white shadow-sm transition-transform ${
+          enabled ? "translate-x-4" : "translate-x-0"
+        }`}
+      />
+    </button>
+  );
+}
+
 // ── Main scanner component ───────────────────────────────────
 
 export function ScannerPageContent({
@@ -397,6 +435,7 @@ export function ScannerPageContent({
         url: portal.url,
         type: portal.category,
         is_active: true,
+        auto_evaluate: false,
         last_scanned_at: null,
         total_discovered: 0,
         created_at: new Date().toISOString(),
@@ -533,7 +572,15 @@ export function ScannerPageContent({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {!isTmp && (
+                          <div className="flex items-center gap-1.5">
+                            <AutoEvalToggle sourceId={src.id} initialValue={src.auto_evaluate} />
+                            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+                              Auto-eval
+                            </span>
+                          </div>
+                        )}
                         {!isTmp && (
                           <Button tone="accent" onClick={() => runScan(src.id)} disabled={!!scanningId}>
                             {isScanning ? "Scanning…" : "Scan now"}
@@ -565,6 +612,9 @@ export function ScannerPageContent({
                           <span className="text-[var(--ok)]">{result.added} new → pipeline</span>
                           <span className="text-[var(--muted-foreground)]">{result.duplicates} duplicates skipped</span>
                           <span className="text-[var(--muted-foreground)]">{result.discovered} total found</span>
+                          {result.auto_evaluated !== undefined && (
+                            <span className="text-[var(--accent)]">{result.auto_evaluated} auto-evaluated</span>
+                          )}
                         </div>
                         {result.discoveries.length > 0 && (
                           <div className="space-y-2">

@@ -49,7 +49,7 @@ export function buildSystemPrompt(opts?: {
     ? `\n\nCUSTOM EVALUATION FOCUS (apply these criteria especially in role_fit and cv_match):\n${opts.customFocus}`
     : "";
 
-  return `You are a career intelligence engine evaluating job opportunities. You analyse roles across 7 structured blocks and produce a rigorous, honest assessment.
+  return `You are a career intelligence engine evaluating job opportunities. You analyse roles across 8 structured blocks and produce a rigorous, honest assessment.
 
 You MUST respond with valid JSON only — no markdown, no prose, no code fences. The JSON must match this exact structure:
 
@@ -88,6 +88,13 @@ You MUST respond with valid JSON only — no markdown, no prose, no code fences.
       "score": <number 1.0-5.0>,
       "verdict": "<legitimate|suspicious|unknown>",
       "notes": "<company health, role legitimacy, JD quality signals>"
+    },
+    "level_strategy": {
+      "score": <number 1.0-5.0>,
+      "summary": "<one sentence on career level and progression fit>",
+      "seniority_fit": "<overleveled|right_level|underleveled>",
+      "progression_value": "<high|medium|low>",
+      "notes": "<2-3 sentences on how this role fits the candidate's career trajectory and whether taking it is a strategic move>"
     },
     "decision": {
       "score": <number 1.0-5.0>,

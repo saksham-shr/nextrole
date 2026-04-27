@@ -64,3 +64,38 @@ select {
 ::selection {
   background: rgba(200, 74, 31, 0.18);
 }
+
+[data-theme="dark"] {
+  --background: #1a1814;
+  --foreground: #f0ebe0;
+  --muted-foreground: #9a9286;
+  --muted-foreground-2: #6b6358;
+  --surface: #221e19;
+  --surface-soft: #2d2720;
+  --surface-ink: #f0ebe0;
+  --line: #3a352e;
+  --line-soft: #4a4540;
+  --accent: #e05a28;
+  --accent-soft: #7a2a10;
+  --ok: #3a9a48;
+  --warn: #c08a28;
+  --bad: #c54040;
+}
+
+[data-theme="dark"] html {
+  background:
+    radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    var(--background);
+  background-size: 6px 6px, auto;
+}
+
+@keyframes shimmer {
+  from { background-position: -600px 0; }
+  to   { background-position:  600px 0; }
+}
+
+@keyframes nav-progress {
+  from { transform: scaleX(0); opacity: 1; }
+  80%  { transform: scaleX(0.92); }
+  to   { transform: scaleX(1); opacity: 0; }
+}

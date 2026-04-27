@@ -2,11 +2,47 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Badge, Button, Surface } from "@/components/nextrole/ui";
 import { navGroups, quickActions } from "@/lib/nextrole-data";
 import { signOut } from "@/app/actions/auth";
 import { useCommandLauncher } from "@/components/nextrole/command-launcher";
+
+function useDarkMode() {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("nextrole-theme");
+    const isDark = stored === "dark";
+    setDark(isDark);
+    document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
+  }, []);
+
+  function toggle() {
+    const next = !dark;
+    setDark(next);
+    localStorage.setItem("nextrole-theme", next ? "dark" : "light");
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+  }
+
+  return { dark, toggle };
+}
+
+function NavigationProgress() {
+  const pathname = usePathname();
+  const [show, setShow] = useState(false);
+
+  useEffect(() => {
+    setShow(true);
+    const t = setTimeout(() => setShow(false), 700);
+    return () => clearTimeout(t);
+  }, [pathname]);
+
+  if (!show) return null;
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-[200] h-[2.5px] origin-left animate-[nav-progress_0.7s_ease-out_forwards] bg-[var(--accent)]" />
+  );
+}
 
 function displayName(email: string) {
   const local = email.split("@")[0] ?? email;
@@ -22,9 +58,11 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
   const { modal, triggerOpen } = useCommandLauncher();
+  const { dark, toggle: toggleDark } = useDarkMode();
 
   return (
     <div className="min-h-screen p-3 sm:p-4">
+      <NavigationProgress />
       {/* Command launcher portal */}
       {modal}
 
@@ -90,14 +128,23 @@ export function DashboardShell({
                   <Badge tone="accent">Anthropic API</Badge>
                   <Badge>Manual mode ready</Badge>
                 </div>
-                <form action={signOut} className="mt-3">
+                <div className="mt-3 flex items-center justify-between">
+                  <form action={signOut}>
+                    <button
+                      type="submit"
+                      className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    >
+                      Sign out
+                    </button>
+                  </form>
                   <button
-                    type="submit"
-                    className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+                    onClick={toggleDark}
+                    title={dark ? "Switch to light mode" : "Switch to dark mode"}
+                    className="rounded-full border border-[var(--line-soft)] px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
                   >
-                    Sign out
+                    {dark ? "Light" : "Dark"}
                   </button>
-                </form>
+                </div>
               </div>
             </div>
           </aside>

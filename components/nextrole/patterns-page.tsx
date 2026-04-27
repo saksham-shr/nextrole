@@ -15,6 +15,83 @@ type FunnelStep = { label: string; count: number };
 type ArchetypeStat = { archetype: string; count: number; avg_score: number | null; applied: number };
 type SourceStat = { source: string; count: number };
 type Recommendation = { title: string; body: string };
+type WeeklyScore = { week: string; avg: number; count: number };
+
+const CHART_W = 600;
+const CHART_H = 100;
+const PAD = { top: 10, right: 16, bottom: 24, left: 32 };
+
+function ScoreTrendChart({ data }: { data: WeeklyScore[] }) {
+  if (data.length < 2) return null;
+
+  const innerW = CHART_W - PAD.left - PAD.right;
+  const innerH = CHART_H - PAD.top - PAD.bottom;
+  const minScore = 1, maxScore = 5;
+
+  const px = (i: number) => PAD.left + (i / (data.length - 1)) * innerW;
+  const py = (v: number) => PAD.top + innerH - ((v - minScore) / (maxScore - minScore)) * innerH;
+
+  const points = data.map((d, i) => `${px(i)},${py(d.avg)}`).join(" ");
+  const area = [
+    `M ${px(0)},${py(data[0]!.avg)}`,
+    ...data.map((d, i) => `L ${px(i)},${py(d.avg)}`),
+    `L ${px(data.length - 1)},${PAD.top + innerH}`,
+    `L ${PAD.left},${PAD.top + innerH} Z`,
+  ].join(" ");
+
+  const yLabels = [1, 2, 3, 4, 5];
+  const xStep = Math.ceil(data.length / 6);
+
+  return (
+    <Surface className="p-5">
+      <SectionTitle title="Score trend" subtitle="Weekly average evaluation score" />
+      <svg
+        viewBox={`0 0 ${CHART_W} ${CHART_H}`}
+        className="mt-3 w-full"
+        style={{ height: 120 }}
+        aria-label="Score trend chart"
+      >
+        {/* Y gridlines */}
+        {yLabels.map((v) => (
+          <g key={v}>
+            <line
+              x1={PAD.left} y1={py(v)}
+              x2={CHART_W - PAD.right} y2={py(v)}
+              stroke="var(--line-soft)" strokeWidth={0.5} strokeDasharray="3 3"
+            />
+            <text x={PAD.left - 4} y={py(v) + 3.5} textAnchor="end"
+              fontSize={8} fill="var(--muted-foreground)" fontFamily="monospace">
+              {v}
+            </text>
+          </g>
+        ))}
+        {/* Area fill */}
+        <path d={area} fill="var(--accent)" opacity={0.08} />
+        {/* Line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke="var(--accent)"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {/* Dots + x labels */}
+        {data.map((d, i) => (
+          <g key={d.week}>
+            <circle cx={px(i)} cy={py(d.avg)} r={3} fill="var(--accent)" />
+            {i % xStep === 0 && (
+              <text x={px(i)} y={CHART_H - 4} textAnchor="middle"
+                fontSize={7} fill="var(--muted-foreground)" fontFamily="monospace">
+                {d.week.slice(5)}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+    </Surface>
+  );
+}
 
 export function PatternsPageContent({
   funnel,
@@ -24,6 +101,7 @@ export function PatternsPageContent({
   totalEvaluated,
   conversionRate,
   recommendations,
+  weeklyScores = [],
 }: {
   funnel: FunnelStep[];
   archetypeStats: ArchetypeStat[];
@@ -32,6 +110,7 @@ export function PatternsPageContent({
   totalEvaluated: number;
   conversionRate: number | null;
   recommendations: Recommendation[];
+  weeklyScores?: WeeklyScore[];
 }) {
   const hasData = funnel.some((f) => f.count > 0);
 
@@ -104,6 +183,9 @@ export function PatternsPageContent({
               </p>
             </Surface>
           </div>
+
+          {/* Score trend chart */}
+          {weeklyScores.length >= 2 && <ScoreTrendChart data={weeklyScores} />}
 
           <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
             {/* Archetype breakdown */}

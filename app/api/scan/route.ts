@@ -4,7 +4,7 @@ import { decrypt } from "@/lib/crypto";
 import { callProvider, parseJSON } from "@/lib/evaluate/providers";
 import { SCANNER_SYSTEM_PROMPT, buildScannerPrompt } from "@/lib/scanner/prompt";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 interface RawDiscovery {
   title?: unknown;
@@ -21,6 +21,7 @@ export interface ScanResult {
   discovered: number;
   added: number;
   duplicates: number;
+  auto_evaluated?: number;
   discoveries: Array<{
     id: string;
     title: string;
@@ -164,6 +165,7 @@ export async function POST(request: NextRequest) {
 
   // Process discoveries
   const results: ScanResult["discoveries"] = [];
+  const addedJobIds: string[] = [];
   let addedCount = 0;
   let dupCount = 0;
 
@@ -216,6 +218,7 @@ export async function POST(request: NextRequest) {
         title,
         company,
         url,
+        description: descSnippet,
         source: source.name,
         status: "pending",
       })
@@ -241,6 +244,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     addedCount++;
+    if (job?.id) addedJobIds.push(job.id);
     if (url) existingUrls.add(url.toLowerCase());
     existingTitlesCompanies.add(`${title.toLowerCase()}|${company.toLowerCase()}`);
 
@@ -287,12 +291,34 @@ export async function POST(request: NextRequest) {
     .update({ last_used_at: new Date().toISOString() })
     .eq("id", cred.id);
 
+  // Auto-evaluate newly added jobs (best-effort, cap 3 concurrent, 30s each)
+  let autoEvaluated = 0;
+  if (source.auto_evaluate && addedJobIds.length > 0) {
+    const host = request.headers.get("host") ?? "localhost:3000";
+    const protocol = host.startsWith("localhost") ? "http" : "https";
+    const cookie = request.headers.get("cookie") ?? "";
+    const toEval = addedJobIds.slice(0, 3);
+
+    const evals = await Promise.allSettled(
+      toEval.map((jobId) =>
+        fetch(`${protocol}://${host}/api/pipeline`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Cookie: cookie },
+          body: JSON.stringify({ job_id: jobId, steps: ["evaluate", "status_update"] }),
+          signal: AbortSignal.timeout(30000),
+        }),
+      ),
+    );
+    autoEvaluated = evals.filter((r) => r.status === "fulfilled" && r.value.ok).length;
+  }
+
   return NextResponse.json({
     scan_run_id: scanRun.id,
     source_id: sourceId,
     discovered: discoveredCount,
     added: addedCount,
     duplicates: dupCount,
+    ...(source.auto_evaluate && { auto_evaluated: autoEvaluated }),
     discoveries: results,
   } satisfies ScanResult);
 }

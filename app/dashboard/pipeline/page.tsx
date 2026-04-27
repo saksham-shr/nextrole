@@ -9,15 +9,22 @@ export default async function PipelinePage({
   const { error, message } = await searchParams;
 
   const supabase = await createClient();
-  const { data: jobs } = await supabase
-    .from("jobs")
-    .select("*")
-    .eq("status", "pending")
-    .order("created_at", { ascending: false });
+  const [{ data: jobs }, { data: allJobs }] = await Promise.all([
+    supabase
+      .from("jobs")
+      .select("*")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("jobs")
+      .select("title, company")
+      .neq("status", "archived"),
+  ]);
 
   return (
     <PipelinePageContent
       jobs={jobs ?? []}
+      existingJobs={allJobs ?? []}
       error={error}
       message={message}
     />

@@ -37,6 +37,7 @@ export const navGroups: Array<{
       { label: "Follow-up", href: "/dashboard/followup" },
       { label: "Negotiate", href: "/dashboard/negotiate" },
       { label: "Patterns", href: "/dashboard/patterns" },
+      { label: "Prompts", href: "/dashboard/prompts" },
       { label: "Deep Research", href: "/dashboard/deep" },
       { label: "Contact", href: "/dashboard/contact" },
       { label: "Training", href: "/dashboard/training" },
@@ -333,7 +334,7 @@ const dashboardRouteInfo = {
   },
   evaluate: {
     title: "Evaluate",
-    subtitle: "Paste a URL or job description and run the Career Ops scoring flow.",
+    subtitle: "Paste a URL or job description and run the full AI scoring flow.",
   },
   compare: {
     title: "Compare",
@@ -430,6 +431,10 @@ const dashboardRouteInfo = {
   onboarding: {
     title: "Get Started",
     subtitle: "5-step setup: profile, CV, provider, targeting, and your first evaluate.",
+  },
+  prompts: {
+    title: "Prompt Templates",
+    subtitle: "Save and reuse custom prompts across evaluate, scan, resume, and other workflows.",
   },
 } as const;
 

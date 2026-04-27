@@ -481,7 +481,7 @@ function ComparePage() {
           </div>
         </Surface>
         <Surface tone="accent" className="p-5">
-          <SectionTitle title="Compare criteria" subtitle="Weighted ranking by the Career Ops logic" />
+          <SectionTitle title="Compare criteria" subtitle="Weighted ranking by the NextRole scoring logic" />
           <TogglePills
             items={[
               "Balanced",

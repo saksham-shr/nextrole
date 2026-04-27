@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   Badge,
   Button,
@@ -29,14 +30,48 @@ const ARCHETYPES = [
 
 const SOURCES = ["manual", "scanner", "batch", "referral", "linkedin", "other"];
 
-function AddJobForm({ onDone }: { onDone: () => void }) {
+function AddJobForm({
+  onDone,
+  existingJobs,
+}: {
+  onDone: () => void;
+  existingJobs: Array<{ title: string; company: string }>;
+}) {
+  const [title, setTitle] = useState("");
+  const [company, setCompany] = useState("");
+
+  const duplicate = title.trim() && company.trim()
+    ? existingJobs.find(
+        (j) =>
+          j.title.toLowerCase() === title.trim().toLowerCase() &&
+          j.company.toLowerCase() === company.trim().toLowerCase(),
+      )
+    : null;
+
   return (
     <Surface className="p-5">
       <SectionTitle title="Add job to pipeline" subtitle="Manual URL or paste — will evaluate from here" />
       <form action={createJob} className="mt-4 space-y-4">
+        {duplicate && (
+          <p className="rounded-[14px] border border-[var(--warn)] bg-[#faf2df] px-4 py-3 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--warn)]">
+            Possible duplicate — this role already exists in your pipeline or tracker.
+          </p>
+        )}
         <div className="grid gap-4 sm:grid-cols-2">
-          <InputField label="Job title" name="title" placeholder="Senior Software Engineer" />
-          <InputField label="Company" name="company" placeholder="Stripe" />
+          <InputField
+            label="Job title"
+            name="title"
+            placeholder="Senior Software Engineer"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+          />
+          <InputField
+            label="Company"
+            name="company"
+            placeholder="Stripe"
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+          />
         </div>
         <InputField label="URL" name="url" placeholder="https://stripe.com/jobs/..." />
         <InputField
@@ -87,9 +122,9 @@ function AddJobForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function JobRow({ job }: { job: JobRow }) {
+function JobRow({ job, focused }: { job: JobRow; focused?: boolean }) {
   return (
-    <div className="flex flex-wrap items-center gap-3 border-b border-dashed border-[var(--line-soft)] py-3 last:border-b-0">
+    <div className={`flex flex-wrap items-center gap-3 border-b border-dashed border-[var(--line-soft)] py-3 last:border-b-0 rounded-[10px] transition-colors ${focused ? "outline outline-2 outline-[var(--accent)] outline-offset-[-2px] bg-[var(--surface-soft)]" : ""}`}>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold">{job.title}</p>
         <p className="mt-0.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
@@ -126,14 +161,40 @@ function JobRow({ job }: { job: JobRow }) {
 
 export function PipelinePageContent({
   jobs,
+  existingJobs = [],
   error,
   message,
 }: {
   jobs: JobRow[];
+  existingJobs?: Array<{ title: string; company: string }>;
   error?: string;
   message?: string;
 }) {
   const [showForm, setShowForm] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState<number>(-1);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (jobs.length === 0) return;
+    function onKey(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      if (e.key === "j") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.min(i + 1, jobs.length - 1));
+      } else if (e.key === "k") {
+        e.preventDefault();
+        setFocusedIndex((i) => Math.max(i - 1, 0));
+      } else if (e.key === "e" && focusedIndex >= 0) {
+        e.preventDefault();
+        router.push(`/dashboard/evaluate?job_id=${jobs[focusedIndex].id}`);
+      } else if (e.key === "Escape") {
+        setFocusedIndex(-1);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [jobs, focusedIndex, router]);
 
   return (
     <div>
@@ -163,7 +224,7 @@ export function PipelinePageContent({
 
       {showForm && (
         <div className="mb-6">
-          <AddJobForm onDone={() => setShowForm(false)} />
+          <AddJobForm onDone={() => setShowForm(false)} existingJobs={existingJobs} />
         </div>
       )}
 
