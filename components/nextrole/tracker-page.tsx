@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import {
   Badge,
   Button,
@@ -102,6 +102,135 @@ function StatusSelect({
         ))}
       </select>
     </form>
+  );
+}
+
+// ── Liveness check panel ─────────────────────────────────────
+
+type LivenessStatus = "idle" | "checking" | "live" | "closed" | "unknown";
+
+const LIVENESS_REASON_LABELS: Record<string, string> = {
+  ok: "URL responded 200 — listing appears active",
+  http_not_found: "URL returned 404 / 410 — listing removed",
+  http_error: "URL returned an error status",
+  content_closed: "Page content signals this role is filled or closed",
+  fetch_error: "Could not reach the URL — check your connection",
+  no_url: "No URL saved for this job",
+};
+
+function LivenessPanel({ job }: { job: JobWithEval }) {
+  const [status, setStatus] = useState<LivenessStatus>("idle");
+  const [reason, setReason] = useState<string>("");
+  const [archiving, setArchiving] = useState(false);
+  const [archived, setArchived] = useState(false);
+
+  const check = useCallback(async () => {
+    setStatus("checking");
+    setReason("");
+    try {
+      const res = await fetch(`/api/liveness?job_id=${job.id}`);
+      const data = (await res.json()) as {
+        live: boolean | null;
+        reason: string;
+        status_code?: number;
+      };
+      if (data.live === true) setStatus("live");
+      else if (data.live === false) setStatus("closed");
+      else setStatus("unknown");
+      setReason(data.reason ?? "");
+    } catch {
+      setStatus("unknown");
+      setReason("fetch_error");
+    }
+  }, [job.id]);
+
+  async function archive() {
+    setArchiving(true);
+    const fd = new FormData();
+    fd.set("job_id", job.id);
+    fd.set("status", "archived");
+    await updateJobStatus(fd);
+    setArchived(true);
+    setArchiving(false);
+  }
+
+  if (!job.url) return null;
+
+  return (
+    <div className="border-b border-dashed border-[var(--line-soft)] px-5 py-4">
+      <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+        Liveness
+      </p>
+
+      {status === "idle" && (
+        <Button ghost onClick={check} className="w-full justify-center">
+          Check if listing is still live
+        </Button>
+      )}
+
+      {status === "checking" && (
+        <p className="text-center font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          Checking…
+        </p>
+      )}
+
+      {status === "live" && (
+        <div className="flex items-center gap-3">
+          <Badge tone="ok">Live</Badge>
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {LIVENESS_REASON_LABELS[reason] ?? reason}
+          </span>
+          <button
+            onClick={check}
+            className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          >
+            Recheck
+          </button>
+        </div>
+      )}
+
+      {status === "closed" && (
+        <div className="space-y-3">
+          <div className="flex items-start gap-3">
+            <Badge tone="bad">Closed</Badge>
+            <span className="text-xs leading-relaxed text-[var(--muted-foreground)]">
+              {LIVENESS_REASON_LABELS[reason] ?? reason}
+            </span>
+          </div>
+          {!archived && job.status !== "archived" && (
+            <Button
+              tone="bad"
+              ghost
+              onClick={archive}
+              disabled={archiving}
+              className="w-full justify-center"
+            >
+              {archiving ? "Archiving…" : "Archive this job"}
+            </Button>
+          )}
+          {(archived || job.status === "archived") && (
+            <p className="text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ok)]">
+              Archived ✓
+            </p>
+          )}
+        </div>
+      )}
+
+      {status === "unknown" && (
+        <div className="flex items-center gap-3">
+          <Badge tone="warn">Unknown</Badge>
+          <span className="text-xs text-[var(--muted-foreground)]">
+            {LIVENESS_REASON_LABELS[reason] ?? "Could not determine status"}
+          </span>
+          <button
+            onClick={check}
+            className="ml-auto font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -242,6 +371,9 @@ function JobDrawer({
             )}
           </div>
         </div>
+
+        {/* Liveness check */}
+        <LivenessPanel job={job} />
 
         {/* Danger zone */}
         <div className="mt-auto border-t border-[var(--line)] px-5 py-4">
