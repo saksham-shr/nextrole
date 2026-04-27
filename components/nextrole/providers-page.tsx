@@ -111,6 +111,9 @@ function ProviderCard({
               placeholder={keyPlaceholder}
               className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
             />
+            <p className="mt-1.5 font-mono text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+              🔒 Encrypted with AES-256-GCM before storage — never stored in plaintext
+            </p>
           </label>
           <label className="block">
             <Eyebrow className="mb-2 block">Model</Eyebrow>
@@ -207,6 +210,23 @@ export function ProvidersPageContent({
           Connect one or more providers. The most recently updated active credential is used for each AI workflow.
           You can switch any time by updating or removing keys below.
         </p>
+      </Surface>
+
+      <Surface tone="ok" className="p-5">
+        <p className="text-sm font-bold">Your API keys are encrypted and safe</p>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["AES-256-GCM", "Industry-standard authenticated encryption — the same used by Signal."],
+            ["Raw key never stored", "Encrypted server-side the moment you save. Only the ciphertext enters the database."],
+            ["Server-side only", "Keys are decrypted in a server function at call time. The plaintext never reaches your browser."],
+            ["Row-level security", "Supabase RLS ensures no other user can ever read or modify your credentials."],
+          ].map(([title, body]) => (
+            <div key={title}>
+              <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--ok)]">{title}</p>
+              <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{body}</p>
+            </div>
+          ))}
+        </div>
       </Surface>
 
       <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">

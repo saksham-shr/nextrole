@@ -321,6 +321,18 @@ export function LandingPage() {
             <Badge>Gemini API</Badge>
             <Badge tone="accent">Manual Chat Mode</Badge>
           </div>
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2">
+            {[
+              "🔒 AES-256-GCM encrypted keys",
+              "Raw key never stored",
+              "Decrypted server-side only",
+              "Per-user row-level security",
+            ].map((item) => (
+              <span key={item} className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+                {item}
+              </span>
+            ))}
+          </div>
         </div>
 
         <Surface tone="accent" className="p-5">
@@ -356,7 +368,7 @@ export function LandingPage() {
       <section id="capabilities" className="px-6 py-8 lg:px-10">
         <SectionTitle
           title="All the major workflows, one place"
-          subtitle="Everything Career Ops does, turned into product surfaces"
+          subtitle="Every stage of a serious job search, built into one connected product"
         />
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {capabilityCards.map((item) => (
@@ -435,6 +447,38 @@ export function LandingPage() {
               sublabel={kpi.sublabel}
               tone={kpi.tone}
             />
+          ))}
+        </div>
+      </section>
+
+      <section className="border-t border-[var(--line)] px-6 py-8 lg:px-10">
+        <SectionTitle
+          title="Your API keys are safe"
+          subtitle="End-to-end encrypted — never stored in plaintext, never visible to the server after storage"
+        />
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            {
+              label: "AES-256-GCM encryption",
+              body: "Every key is encrypted with AES-256-GCM — the same standard used by Signal and WhatsApp — before it touches the database.",
+            },
+            {
+              label: "Raw key never stored",
+              body: "The moment you save a key it is encrypted server-side and discarded from memory. Only the encrypted blob is written to the database.",
+            },
+            {
+              label: "Decrypted server-side only",
+              body: "Keys are decrypted in a server-only function at the moment an AI call is made. The decrypted key is never returned to the browser.",
+            },
+            {
+              label: "Per-user row-level security",
+              body: "Supabase RLS policies enforce that no user can read, update, or delete another user's credentials — even with a valid session token.",
+            },
+          ].map((item) => (
+            <Surface key={item.label} className="p-5">
+              <p className="font-bold">{item.label}</p>
+              <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{item.body}</p>
+            </Surface>
           ))}
         </div>
       </section>
