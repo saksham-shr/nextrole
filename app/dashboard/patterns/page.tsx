@@ -9,74 +9,62 @@ export default async function PatternsPage() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
+  // Single parallel fetch — id included so evals can be joined client-side
   const [{ data: jobs }, { data: evals }] = await Promise.all([
-    supabase.from("jobs").select("status, archetype, source, created_at").eq("user_id", user.id),
-    supabase.from("evaluations").select("score, job_id").eq("user_id", user.id),
+    supabase
+      .from("jobs")
+      .select("id, status, archetype, source, created_at")
+      .eq("user_id", user.id),
+    supabase
+      .from("evaluations")
+      .select("score, job_id")
+      .eq("user_id", user.id),
   ]);
 
   const allJobs = jobs ?? [];
   const allEvals = evals ?? [];
 
-  // Funnel
+  // ── Funnel ───────────────────────────────────────────────────────────────────
   const statusOrder = ["pending", "evaluated", "applied", "interview", "offer"];
   const funnel = statusOrder.map((s) => ({
     label: s.charAt(0).toUpperCase() + s.slice(1),
     count: allJobs.filter((j) => j.status === s).length,
   }));
 
-  // Avg score
+  // ── Avg score ────────────────────────────────────────────────────────────────
   const scores = allEvals.map((e) => e.score).filter((s): s is number => s !== null);
   const avgScore = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
   const totalEvaluated = allJobs.filter((j) => j.status !== "pending").length;
 
-  // Eval → apply conversion
+  // ── Eval → apply conversion ──────────────────────────────────────────────────
   const evaluated = allJobs.filter((j) => j.status !== "pending").length;
   const applied = allJobs.filter((j) =>
     ["applied", "interview", "offer"].includes(j.status),
   ).length;
   const conversionRate = evaluated > 0 ? (applied / evaluated) * 100 : null;
 
-  // Archetype breakdown
+  // ── Archetype breakdown (count + applied + avg score via eval join) ───────────
   const archetypeMap = new Map<string, ArchetypeStat>();
+  const archetypeScores = new Map<string, number[]>();
+
   for (const job of allJobs) {
     const key = job.archetype ?? "Unknown";
+
+    // Count + applied
     const existing = archetypeMap.get(key) ?? { archetype: key, count: 0, avg_score: null, applied: 0 };
     existing.count++;
     if (["applied", "interview", "offer"].includes(job.status)) existing.applied++;
     archetypeMap.set(key, existing);
-  }
-  // Attach eval scores to archetypes
-  const jobEvalMap = new Map<string, number[]>();
-  for (const job of allJobs) {
-    if (!job.archetype) continue;
-    const jobEvalsForJob = allEvals.filter((e) => {
-      // We don't have job_id in jobs query directly — handled below
-      return false;
-    });
-    void jobEvalsForJob;
-  }
-  // Simpler approach: join by job_id client-side
-  const jobsById = new Map(allJobs.map((j, i) => {
-    // We need IDs — re-query
-    return [i, j]; // placeholder
-  }));
-  void jobsById;
 
-  // Re-fetch jobs with IDs for proper archetype score join
-  const { data: jobsWithId } = await supabase
-    .from("jobs")
-    .select("id, archetype, status, source")
-    .eq("user_id", user.id);
-
-  const archetypeScores = new Map<string, number[]>();
-  for (const job of jobsWithId ?? []) {
-    if (!job.archetype) continue;
-    const jobScores = allEvals
-      .filter((e) => e.job_id === job.id)
-      .map((e) => e.score)
-      .filter((s): s is number => s !== null);
-    const existing = archetypeScores.get(job.archetype) ?? [];
-    archetypeScores.set(job.archetype, [...existing, ...jobScores]);
+    // Join eval scores by job id
+    if (job.archetype) {
+      const jobScores = allEvals
+        .filter((e) => e.job_id === job.id)
+        .map((e) => e.score)
+        .filter((s): s is number => s !== null);
+      const prev = archetypeScores.get(key) ?? [];
+      archetypeScores.set(key, [...prev, ...jobScores]);
+    }
   }
 
   const archetypeStats: ArchetypeStat[] = Array.from(archetypeMap.values())
@@ -89,7 +77,7 @@ export default async function PatternsPage() {
     })
     .sort((a, b) => b.count - a.count);
 
-  // Source breakdown
+  // ── Source breakdown ──────────────────────────────────────────────────────────
   const sourceMap = new Map<string, number>();
   for (const job of allJobs) {
     const key = job.source ?? "unknown";
@@ -99,7 +87,7 @@ export default async function PatternsPage() {
     .map(([source, count]) => ({ source, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Recommendations
+  // ── Recommendations ───────────────────────────────────────────────────────────
   const recommendations: Array<{ title: string; body: string }> = [];
 
   if (archetypeStats.length >= 2) {
@@ -120,8 +108,11 @@ export default async function PatternsPage() {
     });
   }
 
-  const highScoreUnapplied = (jobsWithId ?? []).filter((j) => {
-    const sc = allEvals.filter((e) => e.job_id === j.id).map((e) => e.score).filter((s): s is number => s !== null);
+  const highScoreUnapplied = allJobs.filter((j) => {
+    const sc = allEvals
+      .filter((e) => e.job_id === j.id)
+      .map((e) => e.score)
+      .filter((s): s is number => s !== null);
     return j.status === "evaluated" && sc.some((s) => s >= 4.0);
   });
   if (highScoreUnapplied.length > 0) {
