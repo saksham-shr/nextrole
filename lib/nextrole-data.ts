@@ -35,6 +35,7 @@ export const navGroups: Array<{
       { label: "Story Bank", href: "/dashboard/story-bank" },
       { label: "Apply", href: "/dashboard/apply" },
       { label: "Follow-up", href: "/dashboard/followup" },
+      { label: "Negotiate", href: "/dashboard/negotiate" },
       { label: "Patterns", href: "/dashboard/patterns" },
       { label: "Deep Research", href: "/dashboard/deep" },
       { label: "Contact", href: "/dashboard/contact" },
@@ -420,6 +421,10 @@ const dashboardRouteInfo = {
   project: {
     title: "Project",
     subtitle: "Evaluate portfolio ideas by hiring signal, scope, and leverage.",
+  },
+  negotiate: {
+    title: "Negotiate",
+    subtitle: "Counter-offer scripts, BATNA analysis, and ready-to-send negotiation emails.",
   },
 } as const;
 

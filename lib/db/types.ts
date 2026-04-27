@@ -34,7 +34,8 @@ export type TaskType =
   | "apply"
   | "contact_draft"
   | "training_eval"
-  | "project_eval";
+  | "project_eval"
+  | "negotiate";
 
 export type ProviderType = "anthropic" | "openai" | "gemini" | "manual";
 
