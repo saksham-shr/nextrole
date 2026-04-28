@@ -24,7 +24,14 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (authOnlyPaths.includes(pathname) && hasAuthCookies) {
+  // Allow the signup confirmation screen through even when logged in
+  // (/signup?step=confirm) — the user just created their account and needs
+  // to see the "check your inbox" screen before the session is usable.
+  const isConfirmScreen =
+    pathname === "/signup" &&
+    request.nextUrl.searchParams.get("step") === "confirm";
+
+  if (authOnlyPaths.includes(pathname) && hasAuthCookies && !isConfirmScreen) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

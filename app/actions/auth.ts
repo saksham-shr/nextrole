@@ -48,20 +48,27 @@ export async function signUp(formData: FormData) {
   const headersList = await headers();
   const origin = getSiteOrigin(headersList.get("origin"));
 
-  const { error } = await supabase.auth.signUp({
-    email: formData.get("email") as string,
+  const email = formData.get("email") as string;
+
+  const { data, error } = await supabase.auth.signUp({
+    email,
     password: formData.get("password") as string,
     options: {
-      // After confirming email, land on onboarding so new users are guided
-      emailRedirectTo: `${origin}/auth/callback?next=/dashboard/onboarding`,
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
     },
   });
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
-  // Stay on the signup page and show the confirmation screen with the email
-  // pre-filled so the user can open their inbox or resend.
-  redirect(`/signup?step=confirm&email=${encodeURIComponent(formData.get("email") as string)}`);
+
+  // If Supabase returned a live session, email confirmation is disabled —
+  // the user is already signed in, send them straight to the dashboard.
+  if (data.session) {
+    redirect("/dashboard");
+  }
+
+  // Email confirmation is enabled — show the confirm screen on the same page.
+  redirect(`/signup?step=confirm&email=${encodeURIComponent(email)}`);
 }
 
 export async function forgotPassword(formData: FormData) {
