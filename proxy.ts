@@ -6,7 +6,32 @@ import { getSupabaseEnv } from "@/lib/supabase/config";
 const authOnlyPaths = ["/login", "/signup", "/forgot-password"];
 const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
 
+/**
+ * Copy any Set-Cookie headers that updateSession wrote onto `source` into
+ * the new redirect `target`, so refreshed tokens are never silently dropped.
+ */
+function copyAuthCookies(source: NextResponse, target: NextResponse) {
+  source.cookies.getAll().forEach(({ name, value, ...rest }) => {
+    if (name.startsWith("sb-")) {
+      target.cookies.set(name, value, rest);
+    }
+  });
+}
+
+/** Redirect helper that preserves any refreshed auth cookies. */
+function redirectWithCookies(
+  url: URL | string,
+  source: NextResponse,
+): NextResponse {
+  const redirect = NextResponse.redirect(url);
+  copyAuthCookies(source, redirect);
+  return redirect;
+}
+
 export async function proxy(request: NextRequest) {
+  // updateSession refreshes the access token when it's close to expiry and
+  // writes the new tokens into `response.cookies`. Every path below must
+  // either return `response` directly OR carry those cookies forward.
   const response = await updateSession(request);
   const { url, publishableKey, isConfigured } = getSupabaseEnv();
 
@@ -14,6 +39,9 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
+  // Read auth-cookie presence from the request (pre-refresh). The sb-* cookie
+  // names don't change during a refresh — only their values do — so this check
+  // is reliable regardless of whether updateSession just rotated the tokens.
   const hasAuthCookies = request.cookies
     .getAll()
     .some((cookie) => cookie.name.startsWith("sb-"));
@@ -21,21 +49,24 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (pathname.startsWith("/dashboard") && !hasAuthCookies) {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return redirectWithCookies(new URL("/login", request.url), response);
   }
 
   // Allow the signup confirmation screen through even when logged in
   // (/signup?step=confirm) — the user just created their account and needs
-  // to see the "check your inbox" screen before the session is usable.
+  // to see the OTP entry screen before the session is usable.
   const isConfirmScreen =
     pathname === "/signup" &&
     request.nextUrl.searchParams.get("step") === "confirm";
 
   if (authOnlyPaths.includes(pathname) && hasAuthCookies && !isConfirmScreen) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return redirectWithCookies(new URL("/dashboard", request.url), response);
   }
 
   if (pathname.startsWith("/dashboard/admin")) {
+    // Re-use the already-refreshed response cookies so we don't trigger a
+    // second token exchange. Read from request (pre-refresh) to get the
+    // session; getUser() validates the JWT server-side.
     const supabase = createServerClient(url, publishableKey, {
       cookies: {
         getAll() {
@@ -54,7 +85,7 @@ export async function proxy(request: NextRequest) {
     } = await supabase.auth.getUser();
 
     if ((user?.email ?? "").toLowerCase() !== ADMIN_EMAIL) {
-      return NextResponse.redirect(new URL("/dashboard", request.url));
+      return redirectWithCookies(new URL("/dashboard", request.url), response);
     }
   }
 

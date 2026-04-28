@@ -1,43 +1,64 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function GET(request: Request) {
+/**
+ * PKCE code-exchange landing route.
+ *
+ * Supabase redirects users here after they confirm their email or click a
+ * password-reset link. We swap the `code` for a session, write the resulting
+ * sb-* cookies onto the redirect response, and forward the user to `next`.
+ *
+ * Cookie handling notes:
+ * - Use NextRequest's `cookies` API (not manual `Cookie` header parsing) so
+ *   we get correctly URL-decoded values for JWT-shaped cookie values.
+ * - Write the new cookies onto the SAME redirect response we return — that's
+ *   the only way Set-Cookie reaches the browser from a Route Handler.
+ * - Mirror writes onto `request.cookies` too so subsequent reads inside this
+ *   handler see the freshly-set session.
+ */
+export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
   const next = searchParams.get("next") ?? "/dashboard";
 
-  if (code) {
-    const response = NextResponse.redirect(`${origin}${next}`);
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.headers
-              .get("cookie")
-              ?.split(";")
-              .filter(Boolean)
-              .map((c) => {
-                const [name, ...rest] = c.trim().split("=");
-                return { name: name.trim(), value: rest.join("=") };
-              }) ?? [];
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
-      },
+  if (!code) {
+    return NextResponse.redirect(
+      `${origin}/login?error=Missing+confirmation+code`,
     );
-
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return response;
   }
 
-  return NextResponse.redirect(
-    `${origin}/login?error=Could+not+authenticate+user`,
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !publishableKey) {
+    return NextResponse.redirect(
+      `${origin}/login?error=Supabase+is+not+configured`,
+    );
+  }
+
+  const response = NextResponse.redirect(`${origin}${next}`);
+
+  const supabase = createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          // Mirror onto the request so Supabase reads consistent state.
+          request.cookies.set(name, value);
+          // Actually send it to the browser.
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  return response;
 }
