@@ -11,7 +11,7 @@
  */
 
 import type { ReactNode } from "react";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrandWordmark } from "@/components/nextrole/brand";
@@ -92,6 +92,69 @@ function Alert({
   );
 }
 
+function EyeIcon({ open }: { open: boolean }) {
+  return open ? (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+      <line x1="1" y1="1" x2="23" y2="23" />
+    </svg>
+  ) : (
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function PasswordInput({
+  label,
+  name,
+  placeholder,
+  value,
+  onChange,
+  required,
+  autoComplete,
+}: {
+  label: string;
+  name: string;
+  placeholder: string;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  required?: boolean;
+  autoComplete?: string;
+}) {
+  const [show, setShow] = useState(false);
+  const toggle = useCallback(() => setShow((s) => !s), []);
+  return (
+    <label className="block">
+      <p className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
+        {label}
+      </p>
+      <div className="relative">
+        <input
+          name={name}
+          type={show ? "text" : "password"}
+          placeholder={placeholder}
+          value={value}
+          onChange={onChange}
+          required={required}
+          autoComplete={autoComplete}
+          className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 pr-12 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
+        />
+        <button
+          type="button"
+          onClick={toggle}
+          aria-label={show ? "Hide password" : "Show password"}
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+        >
+          <EyeIcon open={show} />
+        </button>
+      </div>
+    </label>
+  );
+}
+
 function SubmitButton({
   loading,
   label,
@@ -166,14 +229,14 @@ export function LoginPage({
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <InputField
+          <PasswordInput
             label="Password"
             name="password"
-            type="password"
             placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="current-password"
           />
         </div>
         <div className="mt-4 flex items-center justify-between gap-4">
@@ -207,6 +270,7 @@ export function SignupPage() {
   const supabase = createClient();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
@@ -217,6 +281,10 @@ export function SignupPage() {
     e.preventDefault();
     if (!agreed) {
       setError("You must agree to the Terms of Use");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
       return;
     }
     setLoading(true);
@@ -331,14 +399,23 @@ export function SignupPage() {
             onChange={(e) => setEmail(e.target.value)}
             required
           />
-          <InputField
+          <PasswordInput
             label="Password"
             name="password"
-            type="password"
             placeholder="8+ chars, one number"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="new-password"
+          />
+          <PasswordInput
+            label="Confirm password"
+            name="confirm_password"
+            placeholder="Re-enter your password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            autoComplete="new-password"
           />
         </div>
         <label className="mt-5 flex items-start gap-3 rounded-[18px] border border-[var(--line)] bg-[var(--surface-soft)] px-4 py-3">
@@ -643,23 +720,23 @@ export function ResetPasswordPage() {
       {error && <Alert tone="error" message={error} />}
       <form onSubmit={handleSubmit}>
         <div className="mt-8 space-y-4">
-          <InputField
+          <PasswordInput
             label="New password"
             name="password"
-            type="password"
             placeholder="Enter a new password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            autoComplete="new-password"
           />
-          <InputField
+          <PasswordInput
             label="Confirm password"
             name="confirm"
-            type="password"
             placeholder="Confirm your password"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
             required
+            autoComplete="new-password"
           />
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
