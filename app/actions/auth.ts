@@ -59,7 +59,9 @@ export async function signUp(formData: FormData) {
   if (error) {
     redirect(`/signup?error=${encodeURIComponent(error.message)}`);
   }
-  redirect("/login?message=Check+your+email+to+confirm+your+account");
+  // Stay on the signup page and show the confirmation screen with the email
+  // pre-filled so the user can open their inbox or resend.
+  redirect(`/signup?step=confirm&email=${encodeURIComponent(formData.get("email") as string)}`);
 }
 
 export async function forgotPassword(formData: FormData) {

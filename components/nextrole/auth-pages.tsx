@@ -207,13 +207,128 @@ export function LoginPage({
   );
 }
 
+// Detect the webmail URL for a given email address.
+function inboxUrl(email: string): string {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain === "gmail.com" || domain === "googlemail.com")
+    return "https://mail.google.com";
+  if (domain === "outlook.com" || domain === "hotmail.com" || domain === "live.com" || domain === "msn.com")
+    return "https://outlook.live.com";
+  if (domain === "yahoo.com" || domain === "ymail.com")
+    return "https://mail.yahoo.com";
+  if (domain === "icloud.com" || domain === "me.com" || domain === "mac.com")
+    return "https://www.icloud.com/mail";
+  if (domain === "protonmail.com" || domain === "proton.me")
+    return "https://mail.proton.me";
+  // Fallback — open a Gmail search for the confirmation email
+  return "https://mail.google.com";
+}
+
+function inboxLabel(email: string): string {
+  const domain = email.split("@")[1]?.toLowerCase() ?? "";
+  if (domain === "gmail.com" || domain === "googlemail.com") return "Open Gmail";
+  if (domain === "outlook.com" || domain === "hotmail.com" || domain === "live.com") return "Open Outlook";
+  if (domain === "yahoo.com" || domain === "ymail.com") return "Open Yahoo Mail";
+  if (domain === "icloud.com" || domain === "me.com") return "Open iCloud Mail";
+  if (domain === "protonmail.com" || domain === "proton.me") return "Open Proton Mail";
+  return "Open inbox";
+}
+
+function EmailConfirmScreen({ email }: { email: string }) {
+  return (
+    <div className="mt-8 space-y-6 text-center">
+      {/* Icon */}
+      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)] text-2xl text-white">
+        ✉
+      </div>
+
+      <div>
+        <h2 className="text-xl font-bold">Check your inbox</h2>
+        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
+          We sent a confirmation link to{" "}
+          <span className="font-bold text-[var(--foreground)]">{email}</span>.
+          Click the link in that email to activate your account — it expires in 24 hours.
+        </p>
+      </div>
+
+      {/* Primary CTA */}
+      <a
+        href={inboxUrl(email)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
+      >
+        {inboxLabel(email)} →
+      </a>
+
+      {/* Steps reminder */}
+      <Surface className="p-4 text-left">
+        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+          What happens next
+        </p>
+        <ol className="mt-3 space-y-2">
+          {[
+            "Click the confirmation link in your email",
+            "You'll land on the NextRole dashboard",
+            "Add your CV and connect an AI provider",
+            "Evaluate your first role",
+          ].map((step, i) => (
+            <li key={i} className="flex items-start gap-3 text-sm text-[var(--muted-foreground)]">
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
+                {i + 1}
+              </span>
+              {step}
+            </li>
+          ))}
+        </ol>
+      </Surface>
+
+      {/* Resend / wrong email */}
+      <div className="flex flex-wrap justify-center gap-4 text-sm">
+        <form action={resendConfirmation} className="contents">
+          <input type="hidden" name="email" value={email} />
+          <button
+            type="submit"
+            className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
+          >
+            Resend email
+          </button>
+        </form>
+        <Link
+          href="/signup"
+          className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
+        >
+          Wrong email? Sign up again
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export function SignupPage({
   error,
   message,
+  step,
+  email,
 }: {
   error?: string;
   message?: string;
+  step?: string;
+  email?: string;
 }) {
+  // After form submission, redirect back here with step=confirm&email=...
+  // Show the confirmation screen instead of the form.
+  if (step === "confirm" && email) {
+    return (
+      <AuthShell
+        title="Almost there"
+        subtitle="One last step — confirm your email address to activate your account."
+      >
+        <EmailConfirmScreen email={email} />
+      </AuthShell>
+    );
+  }
+
   return (
     <AuthShell
       title="Start your job search OS"
@@ -262,10 +377,10 @@ export function SignupPage({
             ["1", "Add your CV"],
             ["2", "Choose AI mode"],
             ["3", "Evaluate first role"],
-          ].map(([step, label]) => (
-            <Surface key={step} className="p-4 text-center">
+          ].map(([s, label]) => (
+            <Surface key={s} className="p-4 text-center">
               <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-                Step {step}
+                Step {s}
               </p>
               <p className="mt-2 text-sm font-bold">{label}</p>
             </Surface>

@@ -11,6 +11,7 @@ type AuthPageProps = {
   message?: string;
   resend?: string;
   email?: string;
+  step?: string;
 };
 
 const authPages: Record<string, React.ComponentType<AuthPageProps>> = {
@@ -25,15 +26,15 @@ export default async function AuthPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; message?: string; resend?: string; email?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; resend?: string; email?: string; step?: string }>;
 }) {
   const { slug } = await params;
-  const { error, message, resend, email } = await searchParams;
+  const { error, message, resend, email, step } = await searchParams;
   const Page = authPages[slug];
 
   if (!Page) {
     notFound();
   }
 
-  return <Page error={error} message={message} resend={resend} email={email} />;
+  return <Page error={error} message={message} resend={resend} email={email} step={step} />;
 }
