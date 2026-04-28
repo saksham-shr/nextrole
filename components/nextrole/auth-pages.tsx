@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useFormStatus } from "react-dom";
 import { BrandWordmark } from "@/components/nextrole/brand";
@@ -18,6 +19,7 @@ import {
   forgotPassword,
   resetPassword,
   resendConfirmation,
+  verifyOtp,
 } from "@/app/actions/auth";
 
 function AuthSubmitButton({
@@ -207,91 +209,134 @@ export function LoginPage({
   );
 }
 
-// Detect the webmail URL for a given email address.
-function inboxUrl(email: string): string {
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  if (domain === "gmail.com" || domain === "googlemail.com")
-    return "https://mail.google.com";
-  if (domain === "outlook.com" || domain === "hotmail.com" || domain === "live.com" || domain === "msn.com")
-    return "https://outlook.live.com";
-  if (domain === "yahoo.com" || domain === "ymail.com")
-    return "https://mail.yahoo.com";
-  if (domain === "icloud.com" || domain === "me.com" || domain === "mac.com")
-    return "https://www.icloud.com/mail";
-  if (domain === "protonmail.com" || domain === "proton.me")
-    return "https://mail.proton.me";
-  // Fallback — open a Gmail search for the confirmation email
-  return "https://mail.google.com";
-}
-
-function inboxLabel(email: string): string {
-  const domain = email.split("@")[1]?.toLowerCase() ?? "";
-  if (domain === "gmail.com" || domain === "googlemail.com") return "Open Gmail";
-  if (domain === "outlook.com" || domain === "hotmail.com" || domain === "live.com") return "Open Outlook";
-  if (domain === "yahoo.com" || domain === "ymail.com") return "Open Yahoo Mail";
-  if (domain === "icloud.com" || domain === "me.com") return "Open iCloud Mail";
-  if (domain === "protonmail.com" || domain === "proton.me") return "Open Proton Mail";
-  return "Open inbox";
-}
-
-function EmailConfirmScreen({ email }: { email: string }) {
+function OtpSubmitButton() {
+  const { pending } = useFormStatus();
   return (
-    <div className="mt-8 space-y-6 text-center">
-      {/* Icon */}
-      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)] text-2xl text-white">
-        ✉
-      </div>
+    <Button type="submit" tone="accent" disabled={pending}>
+      {pending ? (
+        <span className="flex items-center gap-2">
+          <Spinner className="h-3.5 w-3.5 border-white border-t-transparent" />
+          Verifying…
+        </span>
+      ) : (
+        "Verify code"
+      )}
+    </Button>
+  );
+}
 
-      <div>
-        <h2 className="text-xl font-bold">Check your inbox</h2>
-        <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-          We sent a confirmation link to{" "}
+function OtpVerifyScreen({
+  email,
+  error,
+  message,
+}: {
+  email: string;
+  error?: string;
+  message?: string;
+}) {
+  const LENGTH = 6;
+  const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(""));
+  const inputRefs = useRef<Array<HTMLInputElement | null>>(Array(LENGTH).fill(null));
+
+  const token = digits.join("");
+
+  function handleChange(idx: number, value: string) {
+    // Strip non-digits, take last char so paste-into-single-box still works
+    const digit = value.replace(/\D/g, "").slice(-1);
+    const next = [...digits];
+    next[idx] = digit;
+    setDigits(next);
+    if (digit && idx < LENGTH - 1) {
+      inputRefs.current[idx + 1]?.focus();
+    }
+  }
+
+  function handleKeyDown(idx: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace") {
+      if (digits[idx]) {
+        const next = [...digits];
+        next[idx] = "";
+        setDigits(next);
+      } else if (idx > 0) {
+        inputRefs.current[idx - 1]?.focus();
+      }
+    } else if (e.key === "ArrowLeft" && idx > 0) {
+      inputRefs.current[idx - 1]?.focus();
+    } else if (e.key === "ArrowRight" && idx < LENGTH - 1) {
+      inputRefs.current[idx + 1]?.focus();
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, LENGTH);
+    if (!pasted) return;
+    const next = [...digits];
+    for (let i = 0; i < pasted.length; i++) next[i] = pasted[i];
+    setDigits(next);
+    const focusIdx = Math.min(pasted.length, LENGTH - 1);
+    inputRefs.current[focusIdx]?.focus();
+  }
+
+  return (
+    <div className="mt-8 space-y-6">
+      {/* Icon + heading */}
+      <div className="text-center">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)] text-2xl text-white">
+          ✉
+        </div>
+        <h2 className="mt-4 text-xl font-bold">Check your inbox</h2>
+        <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
+          We emailed a 6-digit code to{" "}
           <span className="font-bold text-[var(--foreground)]">{email}</span>.
-          Click the link in that email to activate your account — it expires in 24 hours.
+          Enter it below — it expires in 10 minutes.
         </p>
       </div>
 
-      {/* Primary CTA */}
-      <a
-        href={inboxUrl(email)}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-bold text-white transition hover:opacity-90"
-      >
-        {inboxLabel(email)} →
-      </a>
+      {error && <Alert tone="error" message={error} />}
+      {message && <Alert tone="ok" message={message} />}
 
-      {/* Steps reminder */}
-      <Surface className="p-4 text-left">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-          What happens next
-        </p>
-        <ol className="mt-3 space-y-2">
-          {[
-            "Click the confirmation link in your email",
-            "You'll land on the NextRole dashboard",
-            "Add your CV and connect an AI provider",
-            "Evaluate your first role",
-          ].map((step, i) => (
-            <li key={i} className="flex items-start gap-3 text-sm text-[var(--muted-foreground)]">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
-                {i + 1}
-              </span>
-              {step}
-            </li>
+      {/* OTP form */}
+      <form action={verifyOtp} className="space-y-5">
+        <input type="hidden" name="email" value={email} />
+        <input type="hidden" name="token" value={token} />
+
+        {/* 6-digit boxes */}
+        <div className="flex justify-center gap-2 sm:gap-3">
+          {digits.map((d, i) => (
+            <input
+              key={i}
+              ref={(el) => { inputRefs.current[i] = el; }}
+              type="text"
+              inputMode="numeric"
+              maxLength={1}
+              value={d}
+              onChange={(e) => handleChange(i, e.target.value)}
+              onKeyDown={(e) => handleKeyDown(i, e)}
+              onPaste={handlePaste}
+              onFocus={(e) => e.target.select()}
+              className={[
+                "h-14 w-12 rounded-[14px] border text-center text-xl font-bold outline-none transition",
+                "border-[var(--line)] bg-[var(--surface-soft)] text-[var(--foreground)]",
+                "focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20",
+                d ? "border-[var(--accent)]" : "",
+              ].join(" ")}
+            />
           ))}
-        </ol>
-      </Surface>
+        </div>
+
+        <OtpSubmitButton />
+      </form>
 
       {/* Resend / wrong email */}
-      <div className="flex flex-wrap justify-center gap-4 text-sm">
+      <div className="flex flex-wrap justify-center gap-4">
         <form action={resendConfirmation} className="contents">
           <input type="hidden" name="email" value={email} />
           <button
             type="submit"
             className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
           >
-            Resend email
+            Resend code
           </button>
         </form>
         <Link
@@ -317,14 +362,14 @@ export function SignupPage({
   email?: string;
 }) {
   // After form submission, redirect back here with step=confirm&email=...
-  // Show the confirmation screen instead of the form.
+  // Show the OTP verification screen instead of the form.
   if (step === "confirm" && email) {
     return (
       <AuthShell
         title="Almost there"
-        subtitle="One last step — confirm your email address to activate your account."
+        subtitle="One last step — enter the 6-digit code we sent to your inbox."
       >
-        <EmailConfirmScreen email={email} />
+        <OtpVerifyScreen email={email} error={error} message={message} />
       </AuthShell>
     );
   }

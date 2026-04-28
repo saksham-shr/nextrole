@@ -54,7 +54,9 @@ export async function signUp(formData: FormData) {
     email,
     password: formData.get("password") as string,
     options: {
-      emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
+      // After confirming, land on /auth/confirmed which signs the user out
+      // and redirects to /login with a success message.
+      emailRedirectTo: `${origin}/auth/callback?next=/auth/confirmed`,
     },
   });
   if (error) {
@@ -109,7 +111,7 @@ export async function signOut() {
 export async function resendConfirmation(formData: FormData) {
   const email = formData.get("email") as string;
   if (!email) {
-    redirect("/login?resend=1&error=Please+enter+your+email+address");
+    redirect(`/signup?step=confirm&email=&error=Please+enter+your+email+address`);
   }
 
   const supabase = await createClient();
@@ -120,16 +122,48 @@ export async function resendConfirmation(formData: FormData) {
     type: "signup",
     email,
     options: {
-      emailRedirectTo: `${origin}/auth/callback?next=/dashboard/onboarding`,
+      emailRedirectTo: `${origin}/auth/callback?next=/dashboard`,
     },
   });
 
   if (error) {
     redirect(
-      `/login?resend=1&error=${encodeURIComponent(error.message)}&email=${encodeURIComponent(email)}`,
+      `/signup?step=confirm&email=${encodeURIComponent(email)}&error=${encodeURIComponent(error.message)}`,
     );
   }
   redirect(
-    `/login?message=${encodeURIComponent("Confirmation email resent — check your inbox")}`,
+    `/signup?step=confirm&email=${encodeURIComponent(email)}&message=${encodeURIComponent("New code sent — check your inbox")}`,
   );
+}
+
+export async function verifyOtp(formData: FormData) {
+  const email = formData.get("email") as string;
+  const token = (formData.get("token") as string)?.replace(/\s/g, "");
+
+  if (!token || token.length !== 6) {
+    redirect(
+      `/signup?step=confirm&email=${encodeURIComponent(email)}&error=Enter+the+6-digit+code+from+your+email`,
+    );
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.verifyOtp({
+    email,
+    token,
+    type: "signup",
+  });
+
+  if (error) {
+    redirect(
+      `/signup?step=confirm&email=${encodeURIComponent(email)}&error=${encodeURIComponent(error.message)}`,
+    );
+  }
+
+  // Verification succeeded — user is now signed in, go to dashboard.
+  // If for some reason the session wasn't created, fall back to login.
+  if (!data.session) {
+    redirect("/login?message=Email+verified+%E2%80%94+sign+in+to+continue");
+  }
+
+  redirect("/dashboard");
 }
