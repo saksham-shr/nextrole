@@ -368,6 +368,8 @@ export function InputField({
   onChange,
   rows = 5,
   hint,
+  required,
+  autoComplete,
 }: {
   label: string;
   placeholder: string;
@@ -379,6 +381,8 @@ export function InputField({
   onChange?: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => void;
   rows?: number;
   hint?: string;
+  required?: boolean;
+  autoComplete?: string;
 }) {
   const controlled = value !== undefined;
   return (
@@ -389,6 +393,8 @@ export function InputField({
           name={name}
           rows={rows}
           placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
           {...(controlled ? { value: value as string, onChange } : { defaultValue })}
           className="w-full rounded-[18px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />
@@ -397,6 +403,8 @@ export function InputField({
           name={name}
           type={type}
           placeholder={placeholder}
+          required={required}
+          autoComplete={autoComplete}
           {...(controlled ? { value, onChange } : { defaultValue })}
           className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
         />

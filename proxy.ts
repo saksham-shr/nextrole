@@ -3,6 +3,10 @@ import { createServerClient } from "@supabase/ssr";
 import { updateSession } from "@/lib/supabase/proxy";
 import { getSupabaseEnv } from "@/lib/supabase/config";
 
+// Pages that should bounce a logged-in user back to the dashboard. The
+// recovery pages (verify-code, reset-password) intentionally stay reachable
+// while authenticated — the user just arrived from a recovery email and is
+// signed in to a temporary recovery session.
 const authOnlyPaths = ["/login", "/signup", "/forgot-password"];
 const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
 
@@ -52,14 +56,7 @@ export async function proxy(request: NextRequest) {
     return redirectWithCookies(new URL("/login", request.url), response);
   }
 
-  // Allow the signup confirmation screen through even when logged in
-  // (/signup?step=confirm) — the user just created their account and needs
-  // to see the OTP entry screen before the session is usable.
-  const isConfirmScreen =
-    pathname === "/signup" &&
-    request.nextUrl.searchParams.get("step") === "confirm";
-
-  if (authOnlyPaths.includes(pathname) && hasAuthCookies && !isConfirmScreen) {
+  if (authOnlyPaths.includes(pathname) && hasAuthCookies) {
     return redirectWithCookies(new URL("/dashboard", request.url), response);
   }
 

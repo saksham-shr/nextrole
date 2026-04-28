@@ -4,37 +4,35 @@ import {
   LoginPage,
   ResetPasswordPage,
   SignupPage,
+  VerifyCodePage,
 } from "@/components/nextrole/auth-pages";
-
-type AuthPageProps = {
-  error?: string;
-  message?: string;
-  resend?: string;
-  email?: string;
-  step?: string;
-};
-
-const authPages: Record<string, React.ComponentType<AuthPageProps>> = {
-  login: LoginPage,
-  signup: SignupPage,
-  "forgot-password": ForgotPasswordPage,
-  "reset-password": ResetPasswordPage,
-};
 
 export default async function AuthPage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ error?: string; message?: string; resend?: string; email?: string; step?: string }>;
+  searchParams: Promise<{
+    error?: string;
+    message?: string;
+    email?: string;
+  }>;
 }) {
   const { slug } = await params;
-  const { error, message, resend, email, step } = await searchParams;
-  const Page = authPages[slug];
+  const { error, message, email } = await searchParams;
 
-  if (!Page) {
-    notFound();
+  switch (slug) {
+    case "login":
+      return <LoginPage error={error} message={message} />;
+    case "signup":
+      return <SignupPage />;
+    case "forgot-password":
+      return <ForgotPasswordPage />;
+    case "reset-password":
+      return <ResetPasswordPage />;
+    case "verify-code":
+      return <VerifyCodePage email={email} />;
+    default:
+      notFound();
   }
-
-  return <Page error={error} message={message} resend={resend} email={email} step={step} />;
 }
