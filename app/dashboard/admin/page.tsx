@@ -3,6 +3,7 @@ import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
 import { Badge, StatCard, Surface } from "@/components/nextrole/ui";
+import { AdminDeleteButton } from "@/components/nextrole/admin-delete-button";
 
 const NOW_MS = Date.now();
 const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
@@ -41,6 +42,7 @@ export default async function AdminDashboardPage() {
   };
 
   let recentUsers: Array<{
+    id: string;
     email: string;
     createdAt: string;
     lastSignInAt: string | null;
@@ -76,6 +78,7 @@ export default async function AdminDashboardPage() {
       const created = new Date(account.created_at).getTime();
       const diffDays = Math.floor((NOW_MS - created) / 86400000);
       return {
+        id: account.id,
         email: account.email ?? "Unknown",
         createdAt: account.created_at,
         lastSignInAt: account.last_sign_in_at ?? null,
@@ -146,11 +149,12 @@ export default async function AdminDashboardPage() {
                   <th className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Created</th>
                   <th className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Last sign-in</th>
                   <th className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Trial</th>
+                  <th className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {recentUsers.map((account) => (
-                  <tr key={`${account.email}-${account.createdAt}`} className="border-b border-dashed border-[var(--line-soft)] last:border-b-0">
+                  <tr key={account.id} className="border-b border-dashed border-[var(--line-soft)] last:border-b-0">
                     <td className="px-4 py-3 text-sm font-semibold">{account.email}</td>
                     <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{formatDate(account.createdAt)}</td>
                     <td className="px-4 py-3 text-sm text-[var(--muted-foreground)]">{formatDate(account.lastSignInAt)}</td>
@@ -159,6 +163,13 @@ export default async function AdminDashboardPage() {
                         <Badge tone="ok">{`${account.trialDaysLeft} days left`}</Badge>
                       ) : (
                         <Badge tone="warn">Expired</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm">
+                      {account.email.toLowerCase() !== ADMIN_EMAIL ? (
+                        <AdminDeleteButton userId={account.id} userEmail={account.email} />
+                      ) : (
+                        <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">—</span>
                       )}
                     </td>
                   </tr>
