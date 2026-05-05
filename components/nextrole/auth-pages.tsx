@@ -29,32 +29,13 @@ import { createClient } from "@/lib/supabase/client";
 // Shared layout primitives
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TrialBanner() {
-  return (
-    <div className="mt-6 rounded-[22px] border border-[var(--accent)] bg-[#fcefe7] p-4">
-      <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--accent)]">
-        14-day free trial
-      </p>
-      <p className="mt-2 text-sm font-bold text-[var(--foreground)]">
-        No credit card required.
-      </p>
-      <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-        Start with onboarding, connect a provider or use manual mode, and run
-        the full workflow before worrying about billing infrastructure.
-      </p>
-    </div>
-  );
-}
-
 function AuthShell({
   title,
   subtitle,
-  showTrialBanner,
   children,
 }: {
   title: string;
   subtitle: string;
-  showTrialBanner?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -65,7 +46,6 @@ function AuthShell({
         <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
           {subtitle}
         </p>
-        {showTrialBanner && <TrialBanner />}
         {children}
       </Surface>
     </main>
@@ -152,6 +132,44 @@ function PasswordInput({
         </button>
       </div>
     </label>
+  );
+}
+
+function OAuthButtons({ next }: { next: "/onboarding" | "/dashboard" }) {
+  const supabase = createClient();
+
+  async function signInWithGoogle() {
+    await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback?next=${next}`,
+      },
+    });
+  }
+
+  return (
+    <div className="mt-6">
+      <div className="relative flex items-center gap-3">
+        <div className="h-px flex-1 bg-[var(--line-soft)]" />
+        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--muted-foreground-2)]">or</span>
+        <div className="h-px flex-1 bg-[var(--line-soft)]" />
+      </div>
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={signInWithGoogle}
+          className="flex w-full items-center justify-center gap-3 rounded-full border border-[var(--line-soft)] bg-[var(--surface)] py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--line)] hover:bg-[var(--surface-soft)]"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -255,15 +273,21 @@ export function LoginPage({
           </Button>
         </div>
       </form>
+      <OAuthButtons next="/dashboard" />
     </AuthShell>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Signup — link-based email confirmation. After signUp() succeeds, the user
-// gets a confirmation email; clicking the link hits /auth/callback which
-// swaps the code for a session and redirects to /dashboard.
+// Signup — email confirmation is disabled; signUp() resolves immediately with
+// a session and we redirect straight to /onboarding.
 // ─────────────────────────────────────────────────────────────────────────────
+
+const SIGNUP_BENEFITS: [string, string][] = [
+  ["🎯", "See if a job is right for you, in seconds."],
+  ["📄", "Tailor your resume to any role automatically."],
+  ["💬", "Prep answers for likely interview questions."],
+];
 
 export function SignupPage() {
   const router = useRouter();
@@ -274,122 +298,39 @@ export function SignupPage() {
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
-  // After a successful submit we show a "check your inbox" panel inline.
-  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!agreed) {
-      setError("You must agree to the Terms of Use");
-      return;
-    }
-    if (password !== confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
+    if (!agreed) { setError("You must agree to the Terms of Use"); return; }
+    if (password !== confirmPassword) { setError("Passwords do not match"); return; }
     setLoading(true);
     setError(undefined);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
-      },
-    });
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) { setError(error.message); setLoading(false); return; }
 
-    if (error) {
-      setError(error.message);
-      setLoading(false);
-      return;
-    }
-
-    // If Supabase issued a session immediately (email confirmation disabled
-    // in the project), just go to the dashboard.
-    if (data.session) {
-      router.push("/dashboard");
-      router.refresh();
-      return;
-    }
-
-    // Email confirmation enabled — show inline "check your inbox" success.
-    setSubmittedEmail(email);
-    setLoading(false);
-  }
-
-  if (submittedEmail) {
-    return (
-      <AuthShell
-        title="Almost there"
-        subtitle="One last step — confirm your email address to activate your account."
-      >
-        <div className="mt-8 space-y-6 text-center">
-          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[var(--accent)] text-2xl text-white">
-            ✉
-          </div>
-          <div>
-            <h2 className="text-xl font-bold">Check your inbox</h2>
-            <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              We sent a confirmation link to{" "}
-              <span className="font-bold text-[var(--foreground)]">
-                {submittedEmail}
-              </span>
-              . Click the link in that email to activate your account — it
-              expires in 24 hours.
-            </p>
-          </div>
-          <Surface className="p-4 text-left">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-              What happens next
-            </p>
-            <ol className="mt-3 space-y-2">
-              {[
-                "Click the confirmation link in your email",
-                "You'll land on the NextRole dashboard",
-                "Add your CV and connect an AI provider",
-                "Evaluate your first role",
-              ].map((step, i) => (
-                <li
-                  key={i}
-                  className="flex items-start gap-3 text-sm text-[var(--muted-foreground)]"
-                >
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-white">
-                    {i + 1}
-                  </span>
-                  {step}
-                </li>
-              ))}
-            </ol>
-          </Surface>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button
-              type="button"
-              onClick={() => setSubmittedEmail(null)}
-              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-            >
-              Wrong email? Sign up again
-            </button>
-            <Link
-              href="/login"
-              className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
-            >
-              Back to sign in
-            </Link>
-          </div>
-        </div>
-      </AuthShell>
-    );
+    router.push("/onboarding");
+    router.refresh();
   }
 
   return (
     <AuthShell
-      title="Start your job search OS"
-      subtitle="Create an account, add your base CV, choose API or manual execution mode, and evaluate the first role right away."
-      showTrialBanner
+      title="Create account"
+      subtitle="Free for 14 days. No card needed."
     >
+      {/* Emoji benefits */}
+      <div className="mt-6 flex flex-col gap-3.5">
+        {SIGNUP_BENEFITS.map(([emoji, text]) => (
+          <div key={text} className="flex items-center gap-4">
+            <span className="text-2xl">{emoji}</span>
+            <p className="text-sm text-[var(--foreground)]">{text}</p>
+          </div>
+        ))}
+      </div>
+
       {error && <Alert tone="error" message={error} />}
       <form onSubmit={handleSubmit}>
-        <div className="mt-8 space-y-4">
+        <div className="mt-7 space-y-4">
           <InputField
             label="Email"
             name="email"
@@ -402,7 +343,7 @@ export function SignupPage() {
           <PasswordInput
             label="Password"
             name="password"
-            placeholder="8+ chars, one number"
+            placeholder="8+ characters"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -438,24 +379,10 @@ export function SignupPage() {
             .
           </span>
         </label>
-        <div className="mt-6 grid gap-4 sm:grid-cols-3">
-          {[
-            ["1", "Add your CV"],
-            ["2", "Choose AI mode"],
-            ["3", "Evaluate first role"],
-          ].map(([s, label]) => (
-            <Surface key={s} className="p-4 text-center">
-              <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-                Step {s}
-              </p>
-              <p className="mt-2 text-sm font-bold">{label}</p>
-            </Surface>
-          ))}
-        </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <SubmitButton
             loading={loading}
-            label="Create account"
+            label="Start free trial →"
             pendingLabel="Creating account..."
           />
           <Button href="/login" ghost>
@@ -463,6 +390,7 @@ export function SignupPage() {
           </Button>
         </div>
       </form>
+      <OAuthButtons next="/onboarding" />
     </AuthShell>
   );
 }

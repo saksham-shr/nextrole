@@ -60,5 +60,23 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  // For OAuth sign-ins the caller passes next=/dashboard (login page) or
+  // next=/onboarding (signup page). But a first-time OAuth user arriving from
+  // the login page would land on /dashboard without completing onboarding.
+  // Override: if onboarding isn't done yet, always send them to /onboarding.
+  if (next !== "/onboarding" && !next.startsWith("/reset-password")) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("id", user.id)
+        .single();
+      if (profile && !profile.onboarding_completed) {
+        return NextResponse.redirect(`${origin}/onboarding`);
+      }
+    }
+  }
+
   return response;
 }

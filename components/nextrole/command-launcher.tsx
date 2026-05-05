@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { navGroups, quickActions } from "@/lib/nextrole-data";
+import { canAccess } from "@/lib/ai/gates";
+import type { UserTier } from "@/lib/db/types";
 
 // ─── Item index ───────────────────────────────────────────────────────────────
 
@@ -13,26 +15,25 @@ type CommandItem = {
   keywords?: string;
 };
 
-const NAV_ITEMS: CommandItem[] = navGroups.flatMap((group) =>
-  group.items.map((item) => ({
-    label: item.label,
-    href: item.href,
-    group: group.title,
-  })),
-);
-
 const ACTION_ITEMS: CommandItem[] = quickActions.map((a) => ({
   label: a.label,
   href: a.href,
   group: "Quick actions",
 }));
 
-const ALL_ITEMS: CommandItem[] = [...ACTION_ITEMS, ...NAV_ITEMS];
+function buildNavItems(tier: UserTier): CommandItem[] {
+  return navGroups.flatMap((group) =>
+    group.items
+      .filter((item) => !item.feature || canAccess(tier, item.feature))
+      .map((item) => ({ label: item.label, href: item.href, group: group.title })),
+  );
+}
 
-function filterItems(query: string): CommandItem[] {
-  if (!query.trim()) return ALL_ITEMS;
+function filterItems(query: string, tier: UserTier): CommandItem[] {
+  const all = [...ACTION_ITEMS, ...buildNavItems(tier)];
+  if (!query.trim()) return all;
   const q = query.toLowerCase();
-  return ALL_ITEMS.filter(
+  return all.filter(
     (item) =>
       item.label.toLowerCase().includes(q) ||
       item.group.toLowerCase().includes(q) ||
@@ -45,8 +46,10 @@ function filterItems(query: string): CommandItem[] {
 
 function LauncherModal({
   onClose,
+  tier,
 }: {
   onClose: () => void;
+  tier: UserTier;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -54,7 +57,7 @@ function LauncherModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  const results = filterItems(query);
+  const results = filterItems(query, tier);
 
   // Auto-focus input on open
   useEffect(() => {
@@ -202,9 +205,9 @@ function LauncherModal({
 
 /**
  * Drop into DashboardShell. Registers ⌘K / Ctrl+K globally.
- * Returns a `triggerOpen` function for wiring to a button.
+ * Pass the user's effective tier so locked features are excluded.
  */
-export function useCommandLauncher() {
+export function useCommandLauncher(tier: UserTier = "free") {
   const [open, setOpen] = useState(false);
 
   const triggerOpen = useCallback(() => setOpen(true), []);
@@ -221,7 +224,7 @@ export function useCommandLauncher() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  const modal = open ? <LauncherModal onClose={close} /> : null;
+  const modal = open ? <LauncherModal onClose={close} tier={tier} /> : null;
 
   return { modal, triggerOpen };
 }

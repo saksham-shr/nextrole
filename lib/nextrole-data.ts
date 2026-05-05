@@ -1,47 +1,49 @@
 export const navGroups: Array<{
   title: string;
-  items: Array<{ label: string; href: string }>;
+  items: Array<{ label: string; href: string; feature?: string }>;
 }> = [
   {
-    title: "Overview",
+    title: "Core",
     items: [
       { label: "Dashboard", href: "/dashboard" },
-      { label: "Activity", href: "/dashboard/activity" },
-    ],
-  },
-  {
-    title: "Pipeline",
-    items: [
       { label: "Evaluate", href: "/dashboard/evaluate" },
-      { label: "Compare", href: "/dashboard/compare" },
-      { label: "Batch", href: "/dashboard/batch" },
-      { label: "Pipeline", href: "/dashboard/pipeline" },
-      { label: "Scanner", href: "/dashboard/scanner" },
       { label: "Tracker", href: "/dashboard/tracker" },
+      { label: "Scanner", href: "/dashboard/scanner" },
+      { label: "Activity", href: "/dashboard/activity" },
     ],
   },
   {
     title: "Documents",
     items: [
-      { label: "Reports", href: "/dashboard/reports" },
-      { label: "Resumes", href: "/dashboard/resumes" },
+      { label: "Resumes", href: "/dashboard/resumes", feature: "resume_tailor" },
+      { label: "Cover Letter", href: "/dashboard/cover-letter", feature: "cover_letter" },
+      { label: "Templates", href: "/dashboard/templates", feature: "templates" },
       { label: "CV", href: "/dashboard/cv" },
+      { label: "Reports", href: "/dashboard/reports", feature: "export" },
+    ],
+  },
+  {
+    title: "Job Tools",
+    items: [
+      { label: "Compare", href: "/dashboard/compare", feature: "job_comparison" },
+      { label: "Pipeline", href: "/dashboard/pipeline", feature: "auto_evaluate" },
+      { label: "Batch", href: "/dashboard/batch", feature: "batch" },
     ],
   },
   {
     title: "Coaching",
     items: [
-      { label: "Interview Prep", href: "/dashboard/interview-prep" },
-      { label: "Story Bank", href: "/dashboard/story-bank" },
-      { label: "Apply", href: "/dashboard/apply" },
-      { label: "Follow-up", href: "/dashboard/followup" },
-      { label: "Negotiate", href: "/dashboard/negotiate" },
-      { label: "Patterns", href: "/dashboard/patterns" },
+      { label: "Interview Prep", href: "/dashboard/interview-prep", feature: "interview_prep" },
+      { label: "Story Bank", href: "/dashboard/story-bank", feature: "story" },
+      { label: "Apply", href: "/dashboard/apply", feature: "apply" },
+      { label: "Follow-up", href: "/dashboard/followup", feature: "followup" },
+      { label: "Contact", href: "/dashboard/contact", feature: "contact_draft" },
+      { label: "Training", href: "/dashboard/training", feature: "training_eval" },
+      { label: "Negotiate", href: "/dashboard/negotiate", feature: "negotiate" },
+      { label: "Deep Research", href: "/dashboard/deep", feature: "deep_research" },
+      { label: "Project", href: "/dashboard/project", feature: "deep_research" },
+      { label: "Patterns", href: "/dashboard/patterns", feature: "priority_queue" },
       { label: "Prompts", href: "/dashboard/prompts" },
-      { label: "Deep Research", href: "/dashboard/deep" },
-      { label: "Contact", href: "/dashboard/contact" },
-      { label: "Training", href: "/dashboard/training" },
-      { label: "Project", href: "/dashboard/project" },
     ],
   },
   {
@@ -49,6 +51,7 @@ export const navGroups: Array<{
     items: [
       { label: "Profile", href: "/dashboard/profile" },
       { label: "Providers", href: "/dashboard/providers" },
+      { label: "Billing", href: "/dashboard/billing" },
       { label: "Settings", href: "/dashboard/settings" },
     ],
   },
@@ -371,6 +374,14 @@ const dashboardRouteInfo = {
     title: "Resume Detail",
     subtitle: "Review one tailored resume and its alignment to the target role.",
   },
+  "cover-letter": {
+    title: "Cover Letter",
+    subtitle: "Generate tailored cover letters aligned to the role, company, and your story.",
+  },
+  templates: {
+    title: "Templates",
+    subtitle: "Manage reusable document and prompt templates across all workflows.",
+  },
   cv: {
     title: "CV",
     subtitle: "Maintain the base CV and proof-point source that powers the system.",
@@ -382,6 +393,10 @@ const dashboardRouteInfo = {
   providers: {
     title: "Providers",
     subtitle: "Choose API or manual execution mode and manage provider defaults.",
+  },
+  billing: {
+    title: "Billing",
+    subtitle: "Manage your plan, credits, and subscription.",
   },
   settings: {
     title: "Settings",

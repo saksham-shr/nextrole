@@ -1,208 +1,172 @@
-/**
- * Auto-pipeline orchestration
- * POST /api/pipeline
- *
- * Chains: evaluate → update job status → (optionally) trigger resume tailoring
- * in a single HTTP call. Returns a combined result object.
- *
- * Body:
- *   job_id        string   — required
- *   steps         string[] — which steps to run (default: ["evaluate", "status_update"])
- *                            valid values: "evaluate" | "status_update" | "deep_research"
- *   mode          "api" | "prompt_only"  — applies to all AI steps
- */
-
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decrypt } from "@/lib/crypto";
 import { callProvider, parseJSON } from "@/lib/evaluate/providers";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { DEEP_SYSTEM_PROMPT, buildDeepPrompt } from "@/lib/deep/prompt";
+import { requireFeature, requireJobSlot } from "@/lib/ai/guard";
+import { resolveAIRoute } from "@/lib/ai/router";
 
 export const maxDuration = 120;
 
 type PipelineStep = "evaluate" | "status_update" | "deep_research";
 
-type EvalResult = {
-  score?: number;
-  decision?: string;
-  [key: string]: unknown;
+type EvalResult = { score?: number; decision?: string; [key: string]: unknown };
+
+type PipelineJobInput = {
+  title: string;
+  company: string;
+  url?: string | null;
+  description?: string | null;
+  source?: string | null;
 };
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireFeature("auto_evaluate");
+  if (guard instanceof NextResponse) return guard;
+  const { userId } = guard;
 
-  const body = await request.json() as {
-    job_id: string;
+  const supabase = await createClient();
+
+  const body = (await request.json()) as {
+    job_id?: string;
+    job?: PipelineJobInput;
     steps?: PipelineStep[];
     mode?: "api" | "prompt_only";
   };
+  const { steps = ["evaluate", "status_update"], mode = "api" } = body;
+  let jobId = body.job_id;
 
-  const { job_id, steps = ["evaluate", "status_update"], mode = "api" } = body;
+  if (!jobId && body.job) {
+    const slot = await requireJobSlot();
+    if (slot instanceof NextResponse) return slot;
 
-  if (!job_id) return NextResponse.json({ error: "job_id required" }, { status: 400 });
+    const title = (body.job.title ?? "").trim();
+    const company = (body.job.company ?? "").trim();
 
-  // Load job
-  const { data: job } = await supabase
-    .from("jobs").select("*").eq("id", job_id).eq("user_id", user.id).single();
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    if (!title || !company) {
+      return NextResponse.json({ error: "job.title and job.company are required" }, { status: 400 });
+    }
 
-  if (!job.description) {
-    return NextResponse.json(
-      { error: "Job has no description — add one before running the pipeline" },
-      { status: 400 },
-    );
+    const { data: createdJob, error: createError } = await supabase
+      .from("jobs")
+      .insert({
+        user_id: userId,
+        title,
+        company,
+        url: body.job.url?.trim() || null,
+        description: body.job.description?.trim() || null,
+        source: body.job.source?.trim() || "browser_extension",
+        status: "pending",
+      })
+      .select("*")
+      .single();
+
+    if (createError || !createdJob) {
+      return NextResponse.json({ error: createError?.message ?? "Could not create job" }, { status: 500 });
+    }
+
+    jobId = createdJob.id;
   }
 
-  // Load profile (used by evaluate)
-  const { data: profile } = await supabase
-    .from("profiles").select("*").eq("id", user.id).single();
+  if (!jobId) return NextResponse.json({ error: "job_id or job payload required" }, { status: 400 });
 
-  // Resolve AI provider
-  const { data: providers } = await supabase
-    .from("provider_credentials").select("*").eq("user_id", user.id)
-    .eq("is_active", true).in("provider", ["anthropic", "openai", "gemini"])
-    .order("updated_at", { ascending: false }).limit(1);
+  const { data: job } = await supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", userId).single();
+  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+  if (!job.description) return NextResponse.json({ error: "Job has no description; add one before running the pipeline" }, { status: 400 });
 
-  const cred = providers?.[0];
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single();
 
-  const results: Record<string, unknown> = { job_id, steps };
+  const results: Record<string, unknown> = { job_id: jobId, steps };
 
-  // ── Step: evaluate ────────────────────────────────────────────
+  if (mode === "prompt_only") {
+    if (steps.includes("evaluate")) {
+      const userPrompt = buildUserPrompt({ title: job.title, company: job.company, description: job.description, base_cv: profile?.base_cv ?? "" });
+      results.evaluate = { prompt: `SYSTEM\n${"-".repeat(60)}\n${SYSTEM_PROMPT}\n\nUSER\n${"-".repeat(60)}\n${userPrompt}` };
+    }
+    if (steps.includes("deep_research")) {
+      const deepPrompt = buildDeepPrompt({ company: job.company, title: job.title, description: job.description });
+      results.deep_research = { prompt: `SYSTEM\n${"-".repeat(60)}\n${DEEP_SYSTEM_PROMPT}\n\nUSER\n${"-".repeat(60)}\n${deepPrompt}` };
+    }
+    return NextResponse.json(results);
+  }
+
+  const route = await resolveAIRoute(userId).catch(() => null);
+  if (!route) return NextResponse.json({ error: "AI provider error" }, { status: 500 });
+
+  if (!route.byok) {
+    const evalCredits = steps.includes("evaluate") ? 5 : 0;
+    const deepCredits = steps.includes("deep_research") ? 15 : 0;
+    const total = evalCredits + deepCredits;
+    if (total > 0) {
+      const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: total });
+      if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+    }
+  }
+
   if (steps.includes("evaluate")) {
-    const userPrompt = buildUserPrompt({
-      title: job.title,
-      company: job.company,
-      description: job.description,
-      base_cv: profile?.base_cv ?? "",
-    });
+    const userPrompt = buildUserPrompt({ title: job.title, company: job.company, description: job.description, base_cv: profile?.base_cv ?? "" });
+    try {
+      const raw = await callProvider(route.provider, route.apiKey, route.model, SYSTEM_PROMPT, userPrompt);
+      const evaluation = parseJSON(raw) as EvalResult;
+      const score = typeof evaluation?.score === "number" ? evaluation.score : null;
+      const decision = typeof evaluation?.decision === "string" ? evaluation.decision : null;
 
-    if (mode === "prompt_only") {
-      results.evaluate = {
-        prompt: `SYSTEM\n${"─".repeat(60)}\n${SYSTEM_PROMPT}\n\nUSER\n${"─".repeat(60)}\n${userPrompt}`,
-      };
-    } else {
-      if (!cred?.encrypted_key) {
-        return NextResponse.json(
-          { error: "No AI provider configured — needed for evaluate step" },
-          { status: 400 },
-        );
+      await supabase.from("evaluations").insert({
+        user_id: userId,
+        job_id: jobId,
+        score,
+        decision: decision as "apply" | "skip" | "watch" | null,
+        role_fit: (evaluation?.role_fit as Record<string, unknown>) ?? null,
+        compensation_analysis: (evaluation?.compensation_analysis as Record<string, unknown>) ?? null,
+        cv_match: (evaluation?.cv_match as Record<string, unknown>) ?? null,
+        personalization_guidance: (evaluation?.personalization_guidance as Record<string, unknown>) ?? null,
+        interview_signals: (evaluation?.interview_signals as Record<string, unknown>) ?? null,
+        legitimacy_check: (evaluation?.legitimacy_check as Record<string, unknown>) ?? null,
+        raw_output: raw,
+        provider: route.provider,
+        model: route.model,
+      });
+
+      results.evaluate = { score, decision, evaluation };
+
+      if (steps.includes("status_update") && decision) {
+        const newStatus = decision === "skip" ? "archived" : "evaluated";
+        await supabase.from("jobs").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", jobId).eq("user_id", userId);
+        results.status_update = { previous_status: job.status, new_status: newStatus, reason: decision };
       }
-      const apiKey = decrypt(cred.encrypted_key);
-      const model =
-        cred.model ??
-        (cred.provider === "anthropic"
-          ? "claude-opus-4-7"
-          : cred.provider === "gemini"
-          ? "gemini-2.0-flash"
-          : "gpt-4o");
 
-      try {
-        const raw = await callProvider(cred.provider, apiKey, model, SYSTEM_PROMPT, userPrompt);
-
-        const evaluation = parseJSON(raw) as EvalResult;
-        const score = typeof evaluation?.score === "number" ? evaluation.score : null;
-        const decision = typeof evaluation?.decision === "string" ? evaluation.decision : null;
-
-        // Persist evaluation
-        await supabase.from("evaluations").insert({
-          user_id: user.id,
-          job_id,
-          score,
-          decision: decision as "apply" | "skip" | "watch" | null,
-          role_fit: (evaluation?.role_fit as Record<string, unknown>) ?? null,
-          compensation_analysis: (evaluation?.compensation_analysis as Record<string, unknown>) ?? null,
-          cv_match: (evaluation?.cv_match as Record<string, unknown>) ?? null,
-          personalization_guidance: (evaluation?.personalization_guidance as Record<string, unknown>) ?? null,
-          interview_signals: (evaluation?.interview_signals as Record<string, unknown>) ?? null,
-          legitimacy_check: (evaluation?.legitimacy_check as Record<string, unknown>) ?? null,
-          raw_output: raw,
-          provider: cred.provider,
-          model,
-        });
-
-        results.evaluate = { score, decision, evaluation };
-
-        // Auto status_update is bundled into evaluate when both are requested
-        if (steps.includes("status_update") && decision) {
-          const newStatus = decision === "apply" ? "evaluated"
-            : decision === "skip" ? "archived"
-            : "evaluated"; // "watch" stays evaluated
-
-          await supabase.from("jobs").update({ status: newStatus, updated_at: new Date().toISOString() })
-            .eq("id", job_id).eq("user_id", user.id);
-
-          results.status_update = { previous_status: job.status, new_status: newStatus, reason: decision };
-        }
-
-        await supabase.from("provider_credentials")
-          .update({ last_used_at: new Date().toISOString() }).eq("id", cred.id);
-
-      } catch (err) {
-        results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
-      }
+      supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: route.byok ? 0 : 5, byok: route.byok }).then(() => {});
+    } catch (err) {
+      results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
     }
   } else if (steps.includes("status_update")) {
-    // Standalone status update — use latest evaluation if present
-    const { data: latestEval } = await supabase
-      .from("evaluations").select("decision").eq("job_id", job_id)
-      .eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).single();
-
+    const { data: latestEval } = await supabase.from("evaluations").select("decision").eq("job_id", jobId).eq("user_id", userId).order("created_at", { ascending: false }).limit(1).single();
     if (latestEval?.decision) {
-      const newStatus = latestEval.decision === "apply" ? "evaluated"
-        : latestEval.decision === "skip" ? "archived"
-        : "evaluated";
-
-      await supabase.from("jobs").update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq("id", job_id).eq("user_id", user.id);
-
+      const newStatus = latestEval.decision === "skip" ? "archived" : "evaluated";
+      await supabase.from("jobs").update({ status: newStatus, updated_at: new Date().toISOString() }).eq("id", jobId).eq("user_id", userId);
       results.status_update = { previous_status: job.status, new_status: newStatus };
     } else {
       results.status_update = { skipped: true, reason: "No evaluation found for this job" };
     }
   }
 
-  // ── Step: deep_research ──────────────────────────────────────
   if (steps.includes("deep_research")) {
-    const deepPrompt = buildDeepPrompt({
-      company: job.company,
-      title: job.title,
-      description: job.description,
-    });
-
-    if (mode === "prompt_only") {
-      results.deep_research = {
-        prompt: `SYSTEM\n${"─".repeat(60)}\n${DEEP_SYSTEM_PROMPT}\n\nUSER\n${"─".repeat(60)}\n${deepPrompt}`,
-      };
-    } else if (cred?.encrypted_key) {
-      const apiKey = decrypt(cred.encrypted_key);
-      const model =
-        cred.model ??
-        (cred.provider === "anthropic"
-          ? "claude-opus-4-7"
-          : cred.provider === "gemini"
-          ? "gemini-2.0-flash"
-          : "gpt-4o");
-      try {
-        const raw = await callProvider(cred.provider, apiKey, model, DEEP_SYSTEM_PROMPT, deepPrompt);
-        results.deep_research = { dossier: parseJSON(raw) };
-      } catch (err) {
-        results.deep_research = { error: err instanceof Error ? err.message : "AI call failed" };
-      }
-    } else {
-      results.deep_research = { skipped: true, reason: "No AI provider — use mode: prompt_only" };
+    const deepPrompt = buildDeepPrompt({ company: job.company, title: job.title, description: job.description });
+    try {
+      const raw = await callProvider(route.provider, route.apiKey, route.model, DEEP_SYSTEM_PROMPT, deepPrompt);
+      results.deep_research = { dossier: parseJSON(raw) };
+      supabase.from("usage_log").insert({ user_id: userId, task_type: "deep_research", model: route.model, credits_used: route.byok ? 0 : 15, byok: route.byok }).then(() => {});
+    } catch (err) {
+      results.deep_research = { error: err instanceof Error ? err.message : "AI call failed" };
     }
   }
 
-  // ── Log to task_runs ─────────────────────────────────────────
   await supabase.from("task_runs").insert({
-    user_id: user.id,
-    type: "evaluate",  // primary type — covers the pipeline orchestration
+    user_id: userId,
+    type: "evaluate",
     status: "completed",
-    linked_job_id: job_id,
-    input: { job_id, steps, mode, provider: cred?.provider ?? "none" },
+    linked_job_id: jobId,
+    input: { job_id: jobId, steps, mode, provider: route.provider },
     output: { steps_run: steps, company: job.company },
   });
 

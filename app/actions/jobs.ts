@@ -3,15 +3,21 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { requireJobSlot } from "@/lib/ai/guard";
+import { NextResponse } from "next/server";
 import type { JobStatus } from "@/lib/db/types";
 
 export async function createJob(formData: FormData) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  const slot = await requireJobSlot();
+  if (slot instanceof NextResponse) {
+    const body = await slot.json() as { error: string; limit?: number };
+    if (body.error === "JOB_LIMIT_REACHED") {
+      redirect(`/dashboard/pipeline?error=Job+limit+reached+(${body.limit}+jobs).+Upgrade+to+add+more.`);
+    }
+    redirect("/dashboard/pipeline?error=Access+denied");
+  }
 
+  const supabase = await createClient();
   const title = (formData.get("title") as string)?.trim();
   const company = (formData.get("company") as string)?.trim();
 
@@ -20,7 +26,7 @@ export async function createJob(formData: FormData) {
   }
 
   const { error } = await supabase.from("jobs").insert({
-    user_id: user.id,
+    user_id: slot.userId,
     title,
     company,
     url: (formData.get("url") as string)?.trim() || null,

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decrypt } from "@/lib/crypto";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { callProvider, parseJSON } from "@/lib/evaluate/providers";
+import { requireFeature } from "@/lib/ai/guard";
+import { resolveAIRoute } from "@/lib/ai/router";
 
 export const maxDuration = 60;
 
@@ -30,9 +31,11 @@ function clampScore(score: unknown): number {
 }
 
 export async function POST(request: NextRequest) {
+  const guard = await requireFeature("job_match_score");
+  if (guard instanceof NextResponse) return guard;
+  const { userId } = guard;
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json() as {
     job_id?: string;
@@ -43,10 +46,10 @@ export async function POST(request: NextRequest) {
 
   if (!jobId) return NextResponse.json({ error: "job_id required" }, { status: 400 });
 
-  const { data: job } = await supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", user.id).single();
+  const { data: job } = await supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", userId).single();
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
 
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single();
 
   // ── Manual mode ───────────────────────────────────────────────
   if (mode === "manual") {
@@ -63,7 +66,7 @@ export async function POST(request: NextRequest) {
     const archetype = result.archetype ?? null;
 
     const { data: evaluation } = await supabase.from("evaluations").insert({
-      user_id: user.id, job_id: jobId, score, decision,
+      user_id: userId, job_id: jobId, score, decision,
       role_fit: result.blocks.role_fit as Record<string, unknown>,
       compensation_analysis: result.blocks.compensation_analysis as Record<string, unknown>,
       cv_match: result.blocks.cv_match as Record<string, unknown>,
@@ -78,17 +81,17 @@ export async function POST(request: NextRequest) {
       status: "evaluated",
       archetype: archetype ?? job.archetype,
       updated_at: new Date().toISOString(),
-    }).eq("id", jobId).eq("user_id", user.id);
+    }).eq("id", jobId).eq("user_id", userId);
 
     await supabase.from("task_runs").insert({
-      user_id: user.id, type: "evaluate", status: "completed", linked_job_id: jobId,
+      user_id: userId, type: "evaluate", status: "completed", linked_job_id: jobId,
       input: { job_id: jobId, mode: "manual" },
       output: { evaluation_id: evaluation?.id, score, decision },
     });
 
     if (evaluation?.id) {
       await supabase.from("reports").insert({
-        user_id: user.id, job_id: jobId, evaluation_id: evaluation.id,
+        user_id: userId, job_id: jobId, evaluation_id: evaluation.id,
         title: `${job.title} at ${job.company}`,
         type: "evaluation",
         content: { score, decision, archetype, job_title: job.title, job_company: job.company, provider: "manual", model: "manual", blocks: result.blocks } as unknown as Record<string, unknown>,
@@ -105,24 +108,27 @@ export async function POST(request: NextRequest) {
   if (!profile?.base_cv)
     return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
 
-  const { data: creds } = await supabase
-    .from("provider_credentials").select("*").eq("user_id", user.id)
-    .eq("is_active", true).in("provider", ["anthropic", "openai", "gemini"])
-    .order("updated_at", { ascending: false }).limit(1);
+  let route: Awaited<ReturnType<typeof resolveAIRoute>>;
+  try {
+    route = await resolveAIRoute(userId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "AI route error";
+    if (msg === "BYOK_KEY_MISSING")
+      return NextResponse.json({ error: "Add your API key in Settings → Providers" }, { status: 400 });
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
 
-  const cred = creds?.[0];
-  if (!cred?.encrypted_key)
-    return NextResponse.json({ error: "No AI provider configured — add an API key in Providers" }, { status: 400 });
+  const { provider, apiKey, model, byok } = route;
 
-  const apiKey = decrypt(cred.encrypted_key);
-  const defaultModel = cred.provider === "anthropic" ? "claude-opus-4-7"
-    : cred.provider === "gemini" ? "gemini-2.0-flash"
-    : "gpt-4o";
-  const model = cred.model ?? defaultModel;
+  // Deduct credits before the call (skipped for BYOK)
+  if (!byok) {
+    const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: 5 });
+    if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+  }
 
   const { data: taskRun } = await supabase.from("task_runs").insert({
-    user_id: user.id, type: "evaluate", status: "running", linked_job_id: jobId,
-    input: { job_id: jobId, provider: cred.provider, model },
+    user_id: userId, type: "evaluate", status: "running", linked_job_id: jobId,
+    input: { job_id: jobId, provider, model },
   }).select("id").single();
 
   // Build personalised system prompt
@@ -151,7 +157,7 @@ export async function POST(request: NextRequest) {
 
   let rawOutput: string;
   try {
-    rawOutput = await callProvider(cred.provider, apiKey, model, systemPrompt, userPrompt);
+    rawOutput = await callProvider(provider, apiKey, model, systemPrompt, userPrompt);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
     if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", taskRun.id);
@@ -170,7 +176,7 @@ export async function POST(request: NextRequest) {
   const archetype = result.archetype ?? null;
 
   const { data: evaluation } = await supabase.from("evaluations").insert({
-    user_id: user.id, job_id: jobId, score, decision,
+    user_id: userId, job_id: jobId, score, decision,
     role_fit: result.blocks.role_fit as Record<string, unknown>,
     compensation_analysis: result.blocks.compensation_analysis as Record<string, unknown>,
     cv_match: result.blocks.cv_match as Record<string, unknown>,
@@ -178,15 +184,18 @@ export async function POST(request: NextRequest) {
     interview_signals: result.blocks.interview_signals as Record<string, unknown>,
     legitimacy_check: result.blocks.legitimacy_check as Record<string, unknown>,
     level_strategy: result.blocks.level_strategy as Record<string, unknown>,
-    raw_output: rawOutput, provider: cred.provider, model,
+    raw_output: rawOutput, provider, model,
   }).select("id").single();
+
+  // Log usage
+  supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model, credits_used: byok ? 0 : 5, byok }).then(() => {});
 
   // Save archetype back to the job
   await supabase.from("jobs").update({
     status: "evaluated",
     archetype: archetype ?? job.archetype,
     updated_at: new Date().toISOString(),
-  }).eq("id", jobId).eq("user_id", user.id);
+  }).eq("id", jobId).eq("user_id", userId);
 
   if (taskRun) await supabase.from("task_runs").update({
     status: "completed",
@@ -196,14 +205,12 @@ export async function POST(request: NextRequest) {
 
   if (evaluation?.id) {
     await supabase.from("reports").insert({
-      user_id: user.id, job_id: jobId, evaluation_id: evaluation.id,
+      user_id: userId, job_id: jobId, evaluation_id: evaluation.id,
       title: `${job.title} at ${job.company}`,
       type: "evaluation",
-      content: { score, decision, archetype, job_title: job.title, job_company: job.company, provider: cred.provider, model, blocks: result.blocks } as unknown as Record<string, unknown>,
+      content: { score, decision, archetype, job_title: job.title, job_company: job.company, provider, model, blocks: result.blocks } as unknown as Record<string, unknown>,
     });
   }
-
-  await supabase.from("provider_credentials").update({ last_used_at: new Date().toISOString() }).eq("id", cred.id);
 
   return NextResponse.json({ evaluation_id: evaluation?.id, score, decision, archetype, blocks: result.blocks });
 }

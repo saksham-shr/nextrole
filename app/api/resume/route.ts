@@ -1,145 +1,72 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decrypt } from "@/lib/crypto";
 import { callProvider, parseJSON } from "@/lib/evaluate/providers";
 import { RESUME_SYSTEM_PROMPT, buildResumePrompt } from "@/lib/resume/prompt";
 import { renderResumeHtml } from "@/lib/resume/template";
 import type { ResumeData } from "@/lib/resume/template";
+import { requireFeature } from "@/lib/ai/guard";
+import { resolveAIRoute } from "@/lib/ai/router";
 
 export const maxDuration = 120;
 
 export async function POST(request: NextRequest) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await requireFeature("resume_tailor");
+  if (guard instanceof NextResponse) return guard;
+  const { userId } = guard;
 
-  const body = (await request.json()) as {
-    job_id?: string;
-    evaluation_id?: string;
-  };
+  const supabase = await createClient();
+
+  const body = (await request.json()) as { job_id?: string; evaluation_id?: string };
   const jobId = body.job_id;
   if (!jobId) return NextResponse.json({ error: "job_id required" }, { status: 400 });
 
-  // Load job
   const { data: job } = await supabase
-    .from("jobs")
-    .select("*")
-    .eq("id", jobId)
-    .eq("user_id", user.id)
-    .single();
+    .from("jobs").select("*").eq("id", jobId).eq("user_id", userId).single();
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  if (!job.description)
-    return NextResponse.json(
-      { error: "Job has no description — paste the JD first" },
-      { status: 400 },
-    );
+  if (!job.description) return NextResponse.json({ error: "Job has no description — paste the JD first" }, { status: 400 });
 
-  // Load profile (CV)
   const { data: profile } = await supabase
-    .from("profiles")
-    .select("base_cv")
-    .eq("id", user.id)
-    .single();
-  if (!profile?.base_cv)
-    return NextResponse.json(
-      { error: "No CV in your profile — add it in Settings first" },
-      { status: 400 },
-    );
+    .from("profiles").select("base_cv").eq("id", userId).single();
+  if (!profile?.base_cv) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
 
-  // Load latest evaluation (use specified or most recent)
-  let evalData: {
-    cv_match: Record<string, unknown> | null;
-    personalization_guidance: Record<string, unknown> | null;
-  } | null = null;
-
+  let evalData: { cv_match: Record<string, unknown> | null; personalization_guidance: Record<string, unknown> | null } | null = null;
   if (body.evaluation_id) {
-    const { data } = await supabase
-      .from("evaluations")
-      .select("cv_match, personalization_guidance")
-      .eq("id", body.evaluation_id)
-      .eq("user_id", user.id)
-      .single();
+    const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("id", body.evaluation_id).eq("user_id", userId).single();
     evalData = data ?? null;
   } else {
-    const { data } = await supabase
-      .from("evaluations")
-      .select("cv_match, personalization_guidance")
-      .eq("job_id", jobId)
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .single();
+    const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("job_id", jobId).eq("user_id", userId).order("created_at", { ascending: false }).limit(1).single();
     evalData = data ?? null;
   }
 
-  // Extract eval intelligence if available
-  const cvMatch = evalData?.cv_match as {
-    strengths?: string[];
-    gaps?: string[];
-  } | null;
-  const personGuidance = evalData?.personalization_guidance as {
-    angle?: string;
-    tactics?: string[];
-  } | null;
+  const cvMatch = evalData?.cv_match as { strengths?: string[]; gaps?: string[] } | null;
+  const personGuidance = evalData?.personalization_guidance as { angle?: string; tactics?: string[] } | null;
 
-  // Load active provider
-  const { data: providers } = await supabase
-    .from("provider_credentials")
-    .select("*")
-    .eq("user_id", user.id)
-    .eq("is_active", true)
-    .in("provider", ["anthropic", "openai", "gemini"])
-    .order("updated_at", { ascending: false })
-    .limit(1);
+  const route = await resolveAIRoute(userId).catch(() => null);
+  if (!route) return NextResponse.json({ error: "AI provider error" }, { status: 500 });
 
-  const cred = providers?.[0];
-  if (!cred?.encrypted_key)
-    return NextResponse.json(
-      { error: "No AI provider configured — add a key in Providers" },
-      { status: 400 },
-    );
+  if (!route.byok) {
+    const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: 5 });
+    if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+  }
 
-  const apiKey = decrypt(cred.encrypted_key);
-  const model = cred.model ?? (cred.provider === "anthropic" ? "claude-opus-4-7" : cred.provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o");
-
-  // Create task_run
-  const { data: taskRun } = await supabase
-    .from("task_runs")
-    .insert({
-      user_id: user.id,
-      type: "pdf",
-      status: "running",
-      linked_job_id: jobId,
-      input: { job_id: jobId, provider: cred.provider, model },
-    })
-    .select("id")
-    .single();
+  const { data: taskRun } = await supabase.from("task_runs").insert({
+    user_id: userId, type: "pdf", status: "running", linked_job_id: jobId,
+    input: { job_id: jobId, provider: route.provider, model: route.model },
+  }).select("id").single();
 
   const userPrompt = buildResumePrompt({
-    title: job.title,
-    company: job.company,
-    description: job.description,
+    title: job.title, company: job.company, description: job.description,
     base_cv: profile.base_cv,
-    eval_strengths: cvMatch?.strengths,
-    eval_gaps: cvMatch?.gaps,
-    personalization_angle: personGuidance?.angle,
-    personalization_tactics: personGuidance?.tactics,
+    eval_strengths: cvMatch?.strengths, eval_gaps: cvMatch?.gaps,
+    personalization_angle: personGuidance?.angle, personalization_tactics: personGuidance?.tactics,
   });
 
   let rawOutput: string;
   try {
-    rawOutput =
-      await callProvider(cred.provider, apiKey, model, RESUME_SYSTEM_PROMPT, userPrompt);
+    rawOutput = await callProvider(route.provider, route.apiKey, route.model, RESUME_SYSTEM_PROMPT, userPrompt);
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI call failed";
-    if (taskRun) {
-      await supabase
-        .from("task_runs")
-        .update({ status: "failed", error: message, updated_at: new Date().toISOString() })
-        .eq("id", taskRun.id);
-    }
+    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: message, updated_at: new Date().toISOString() }).eq("id", taskRun.id);
     return NextResponse.json({ error: message }, { status: 502 });
   }
 
@@ -147,53 +74,27 @@ export async function POST(request: NextRequest) {
   try {
     resumeData = parseJSON(rawOutput) as ResumeData;
   } catch {
-    if (taskRun) {
-      await supabase
-        .from("task_runs")
-        .update({
-          status: "failed",
-          error: "AI returned invalid JSON",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", taskRun.id);
-    }
+    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: "AI returned invalid JSON", updated_at: new Date().toISOString() }).eq("id", taskRun.id);
     return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 });
   }
 
   const html = renderResumeHtml(resumeData);
   const coverage = Math.max(0, Math.min(100, resumeData.coverage ?? 0));
 
-  // Persist resume
-  const { data: resume } = await supabase
-    .from("resumes")
-    .insert({
-      user_id: user.id,
-      job_id: jobId,
-      title: `${job.title} at ${job.company}`,
-      content: JSON.stringify(resumeData),
-      html,
-      coverage,
-      status: "draft",
-      version: 1,
-    })
-    .select("id")
-    .single();
+  const { data: resume } = await supabase.from("resumes").insert({
+    user_id: userId, job_id: jobId,
+    title: `${job.title} at ${job.company}`,
+    content: JSON.stringify(resumeData), html, coverage, status: "draft", version: 1,
+  }).select("id").single();
 
   if (taskRun) {
-    await supabase
-      .from("task_runs")
-      .update({
-        status: "completed",
-        output: { resume_id: resume?.id, coverage },
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", taskRun.id);
+    await supabase.from("task_runs").update({
+      status: "completed", output: { resume_id: resume?.id, coverage },
+      updated_at: new Date().toISOString(),
+    }).eq("id", taskRun.id);
   }
 
-  await supabase
-    .from("provider_credentials")
-    .update({ last_used_at: new Date().toISOString() })
-    .eq("id", cred.id);
+  supabase.from("usage_log").insert({ user_id: userId, task_type: "resume_tailor", model: route.model, credits_used: route.byok ? 0 : 5, byok: route.byok }).then(() => {});
 
   return NextResponse.json({ resume_id: resume?.id, coverage });
 }

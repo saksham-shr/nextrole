@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>NextRole</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- Header -->
+    <header class="header">
+      <div class="brand">
+        <svg width="18" height="18" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="16" fill="#C84A1F"/>
+          <path d="M20 14L44 32L20 50" stroke="#FFFDF8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="brand-name">NextRole</span>
+      </div>
+      <button id="btn-options" class="icon-btn" title="Settings">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- State: login -->
+    <div id="state-login" class="state hidden">
+      <p class="login-title">Sign in to NextRole</p>
+      <p class="login-sub">Use your NextRole account email and password.</p>
+      <form id="login-form" class="login-form" autocomplete="on">
+        <div class="field">
+          <label for="login-email">Email</label>
+          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="login-password">Password</label>
+          <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        </div>
+        <div id="login-error" class="login-error hidden"></div>
+        <button type="submit" id="btn-login" class="btn btn-primary btn-login">Sign in</button>
+      </form>
+      <a id="link-signup" href="#" class="login-link" target="_blank">No account? Sign up free →</a>
+    </div>
+
+    <!-- State: loading -->
+    <div id="state-loading" class="state hidden">
+      <div class="spinner"></div>
+      <p class="loading-text">Detecting job…</p>
+    </div>
+
+    <!-- State: job detected -->
+    <div id="state-job" class="state hidden">
+      <div class="source-row">
+        <span class="dot dot-high" id="confidence-dot"></span>
+        <span id="confidence-text" class="source-label">Detected</span>
+      </div>
+
+      <div class="job-card">
+        <p class="job-title" id="display-title">—</p>
+        <p class="job-company" id="display-company">—</p>
+        <p class="job-url" id="display-url">—</p>
+      </div>
+
+      <div class="jd-preview" id="jd-preview"></div>
+
+      <div class="actions">
+        <button id="btn-evaluate" class="btn btn-primary btn-evaluate">
+          Evaluate with AI
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </button>
+        <div class="btn-row-2">
+          <button id="btn-pipeline" class="btn btn-secondary">Save to Pipeline</button>
+          <button id="btn-resume" class="btn btn-secondary">Custom Resume</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- State: submitting -->
+    <div id="state-submitting" class="state hidden">
+      <div class="spinner"></div>
+      <p class="loading-text" id="submitting-text">Saving…</p>
+    </div>
+
+    <!-- State: success -->
+    <div id="state-success" class="state hidden">
+      <div class="success-icon">✓</div>
+      <p class="empty-title">Added to pipeline</p>
+      <p class="empty-sub" id="success-job-name"></p>
+      <div class="actions">
+        <button id="btn-mark-applied" class="btn btn-applied">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          Mark as Applied
+        </button>
+        <button id="btn-open-nextrole" class="btn btn-secondary">Open NextRole</button>
+        <button id="btn-add-another" class="btn btn-ghost">Add another</button>
+      </div>
+    </div>
+
+    <!-- State: no job detected -->
+    <div id="state-no-job" class="state hidden">
+      <div class="empty-icon">🔍</div>
+      <p class="empty-title">No job detected</p>
+      <p class="empty-sub">Navigate to a job posting page and click the extension again.</p>
+      <button id="btn-open-nextrole-nojob" class="btn btn-secondary">Open NextRole Dashboard</button>
+    </div>
+
+    <!-- State: error -->
+    <div id="state-error" class="state hidden">
+      <div class="empty-icon">⚠️</div>
+      <p class="empty-title">Something went wrong</p>
+      <p class="empty-sub" id="error-message"></p>
+      <button id="btn-retry" class="btn btn-primary">Try again</button>
+      <button id="btn-go-options-err" class="btn btn-ghost">Check settings</button>
+    </div>
+
+  </div>
+  <script src="../config.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

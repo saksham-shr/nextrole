@@ -6,7 +6,7 @@ import { Badge, StatCard, Surface } from "@/components/nextrole/ui";
 import { AdminDeleteButton } from "@/components/nextrole/admin-delete-button";
 
 const NOW_MS = Date.now();
-const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Never";

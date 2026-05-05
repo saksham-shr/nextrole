@@ -1,13 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import {
   Badge,
   Button,
-  Display,
   Eyebrow,
-  KanbanBoard,
   SectionTitle,
-  StatCard,
   Surface,
   Timeline,
 } from "@/components/nextrole/ui";
@@ -28,9 +26,12 @@ type TaskRun = {
   created_at: string;
 };
 
-type KanbanCol = {
+type TopJob = {
+  id: string;
   title: string;
-  items: string[];
+  company: string;
+  score: number | null;
+  status: string;
 };
 
 const STATUS_TONE: Record<string, "ok" | "bad" | "warn" | "default"> = {
@@ -51,16 +52,20 @@ function timeAgo(iso: string): string {
   return `${Math.floor(hrs / 24)}d`;
 }
 
+function greeting(name: string): string {
+  const h = new Date().getHours();
+  const salutation = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  return `${salutation}, ${name}.`;
+}
+
 const QUICK_ACTIONS = [
-  { label: "Evaluate job", href: "/dashboard/evaluate", accent: true },
+  { label: "Evaluate a job", href: "/dashboard/evaluate", accent: true },
   { label: "Add to pipeline", href: "/dashboard/pipeline", accent: false },
   { label: "Open tracker", href: "/dashboard/tracker", accent: false },
   { label: "Run scanner", href: "/dashboard/scanner", accent: false },
   { label: "Settings / CV", href: "/dashboard/settings", accent: false },
   { label: "Providers", href: "/dashboard/providers", accent: false },
 ];
-
-// ── Setup checklist ───────────────────────────────────────────────────────────
 
 type SetupStep = {
   label: string;
@@ -71,9 +76,7 @@ type SetupStep = {
 
 function SetupChecklist({ steps }: { steps: SetupStep[] }) {
   const doneCount = steps.filter((s) => s.done).length;
-  const allDone = doneCount === steps.length;
-
-  if (allDone) return null;
+  if (doneCount === steps.length) return null;
 
   return (
     <Surface tone="accent" className="p-5">
@@ -83,49 +86,38 @@ function SetupChecklist({ steps }: { steps: SetupStep[] }) {
           <h2 className="mt-2 text-lg font-bold">
             Complete your setup — {doneCount} of {steps.length} done
           </h2>
-          <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-            Finish these steps to unlock the full evaluation workflow.
-          </p>
         </div>
         <div className="flex items-center gap-1">
           {steps.map((s, i) => (
             <div
               key={i}
-              className={`h-2 w-8 rounded-full transition-colors ${
-                s.done ? "bg-[var(--accent)]" : "bg-[var(--line)]"
-              }`}
+              className={`h-2 w-8 rounded-full transition-colors ${s.done ? "bg-[var(--accent)]" : "bg-[var(--line)]"}`}
             />
           ))}
         </div>
       </div>
-
       <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((step) => (
           <a
             key={step.label}
             href={step.done ? undefined : step.href}
-            className={`group relative rounded-[18px] border p-4 transition ${
+            className={`group rounded-[18px] border p-4 transition ${
               step.done
-                ? "border-[var(--ok)] bg-[#eef8f0] cursor-default"
-                : "border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)] hover:shadow-sm cursor-pointer"
+                ? "cursor-default border-[var(--ok)] bg-[#eef8f0]"
+                : "cursor-pointer border-[var(--line)] bg-[var(--surface)] hover:border-[var(--accent)]"
             }`}
           >
-            {/* Status dot */}
             <div
               className={`mb-3 flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold ${
                 step.done
                   ? "bg-[var(--ok)] text-white"
-                  : "bg-[var(--surface-soft)] text-[var(--muted-foreground)] border border-[var(--line)]"
+                  : "border border-[var(--line)] bg-[var(--surface-soft)] text-[var(--muted-foreground)]"
               }`}
             >
               {step.done ? "✓" : "→"}
             </div>
-            <p className={`text-sm font-bold ${step.done ? "text-[var(--ok)]" : ""}`}>
-              {step.label}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">
-              {step.description}
-            </p>
+            <p className={`text-sm font-bold ${step.done ? "text-[var(--ok)]" : ""}`}>{step.label}</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--muted-foreground)]">{step.description}</p>
           </a>
         ))}
       </div>
@@ -133,7 +125,82 @@ function SetupChecklist({ steps }: { steps: SetupStep[] }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+function ProviderBanner() {
+  return (
+    <div
+      className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--accent)] bg-[#fcefe7] px-5 py-4"
+    >
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-white text-sm font-bold">
+          !
+        </div>
+        <div>
+          <p className="text-sm font-bold text-[var(--foreground)]">No AI provider connected</p>
+          <p className="mt-0.5 text-sm text-[var(--muted-foreground)]">
+            Add an Anthropic, OpenAI, or Gemini API key to unlock evaluations, resume tailoring, and all AI workflows.
+          </p>
+        </div>
+      </div>
+      <Button href="/dashboard/providers" tone="accent">
+        Connect API key →
+      </Button>
+    </div>
+  );
+}
+
+function ExtensionCard() {
+  return (
+    <Surface className="p-5">
+      <SectionTitle
+        title="Browser extension"
+        subtitle="One-click job save + auto-fill"
+      />
+      <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)]">
+        Install the NextRole extension to save jobs from any site and auto-fill application forms using your profile.
+      </p>
+      <div className="mt-4 space-y-2 text-sm text-[var(--muted-foreground)]">
+        {[
+          ["1", "Install the Chrome extension"],
+          ["2", "Open NextRole settings → API Key tab"],
+          ["3", "Copy your key and paste it in the extension"],
+          ["4", "Visit any job page and click the orange button"],
+        ].map(([n, step]) => (
+          <div key={n} className="flex items-start gap-2.5">
+            <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-soft)] font-mono text-[10px] font-bold text-[var(--muted-foreground)]">
+              {n}
+            </span>
+            <span>{step}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-col gap-2">
+        <Button disabled tone="accent" className="w-full justify-center opacity-50 cursor-not-allowed">
+          Download — coming soon
+        </Button>
+        <Button href="/dashboard/providers" ghost className="w-full justify-center">
+          Connect AI provider
+        </Button>
+      </div>
+    </Surface>
+  );
+}
+
+function ScorePill({ score }: { score: number }) {
+  const pct = Math.round((score / 5) * 100);
+  const isOk = pct >= 75;
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em]"
+      style={{
+        background: isOk ? "rgba(47,122,58,0.08)" : "rgba(176,122,24,0.08)",
+        border: `1px solid ${isOk ? "var(--ok)" : "var(--warn)"}`,
+        color: isOk ? "var(--ok)" : "var(--warn)",
+      }}
+    >
+      {pct}% fit
+    </span>
+  );
+}
 
 export function DashboardHome({
   userName,
@@ -142,7 +209,7 @@ export function DashboardHome({
   hasJobs,
   kpis,
   attentionItems,
-  kanban,
+  topJobs,
   recentRuns,
 }: {
   userName: string;
@@ -157,7 +224,7 @@ export function DashboardHome({
     pending: number;
   };
   attentionItems: AttentionItem[];
-  kanban: KanbanCol[];
+  topJobs: TopJob[];
   recentRuns: TaskRun[];
 }) {
   const setupComplete = hasCV && hasProvider;
@@ -185,69 +252,72 @@ export function DashboardHome({
       label: "Run an evaluation",
       description: "Score your first role and see how well it fits your profile.",
       href: "/dashboard/evaluate",
-      done: kpis.active > 0 || kpis.pending === 0 && hasJobs,
+      done: kpis.active > 0,
     },
   ];
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-2">
-        <Eyebrow>NextRole workspace</Eyebrow>
-        <Display className="mt-2 text-4xl sm:text-5xl">
-          {setupComplete
-            ? `Good to see you, ${userName}.`
-            : `Hi ${userName} — let's get you set up.`}
-        </Display>
-        {setupComplete && kpis.active > 0 && (
-          <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--muted-foreground)]">
-            {kpis.active} active {kpis.active === 1 ? "role" : "roles"} in the pipeline.
-            {kpis.interviews > 0 && ` ${kpis.interviews} in interview.`}
-            {kpis.highScore > 0 && ` ${kpis.highScore} high-score ${kpis.highScore === 1 ? "role" : "roles"} not yet applied.`}
+      {/* ── Greeting row ── */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
+            NextRole workspace
           </p>
-        )}
+          <h1
+            className="mt-2 text-[clamp(28px,4vw,40px)] font-normal leading-[1.1] tracking-[-0.01em]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {setupComplete ? greeting(userName) : `Hi ${userName} — let's get you set up.`}
+          </h1>
+          {setupComplete && kpis.active > 0 && (
+            <p className="mt-2 text-sm text-[var(--muted-foreground)]">
+              {kpis.active} active {kpis.active === 1 ? "role" : "roles"} in the pipeline.
+              {kpis.interviews > 0 && ` ${kpis.interviews} in interview.`}
+            </p>
+          )}
+        </div>
+        <Button href="/dashboard/pipeline" tone="accent">
+          + Add a job
+        </Button>
       </div>
 
-      {/* Setup checklist — visible until all 4 steps are done */}
+      {/* ── Provider banner ── */}
+      {!hasProvider && <ProviderBanner />}
+
+      {/* ── Setup checklist ── */}
       <SetupChecklist steps={setupSteps} />
 
-      {/* KPI row */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard
-          label="Active"
-          value={String(kpis.active)}
-          sublabel="in pipeline"
-          tone={kpis.active > 0 ? "accent" : "default"}
-        />
-        <StatCard
-          label="Interviews"
-          value={String(kpis.interviews)}
-          sublabel="in flight"
-          tone={kpis.interviews > 0 ? "warn" : "default"}
-        />
-        <StatCard
-          label="Offers"
-          value={String(kpis.offers)}
-          sublabel="received"
-          tone={kpis.offers > 0 ? "ok" : "default"}
-        />
-        <StatCard
-          label="High score"
-          value={String(kpis.highScore)}
-          sublabel="score ≥4 not applied"
-          tone={kpis.highScore > 0 ? "accent" : "default"}
-        />
-        <StatCard
-          label="Pending triage"
-          value={String(kpis.pending)}
-          sublabel="in intake"
-          tone="default"
-        />
+      {/* ── Metric cards ── */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          { label: "Active", value: kpis.active, sub: "in pipeline", accent: kpis.active > 0 },
+          { label: "Interviews", value: kpis.interviews, sub: "in flight", accent: kpis.interviews > 0 },
+          { label: "Offers", value: kpis.offers, sub: "received", accent: kpis.offers > 0 },
+          { label: "Pending triage", value: kpis.pending, sub: "to review", accent: false },
+        ].map((m) => (
+          <div
+            key={m.label}
+            className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5"
+            style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.06)" }}
+          >
+            <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+              {m.label}
+            </p>
+            <p
+              className={`mt-2 text-[38px] leading-none ${m.accent ? "text-[var(--accent)]" : ""}`}
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              {m.value}
+            </p>
+            <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">{m.sub}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Main two-column layout */}
+      {/* ── Main two-column ── */}
       <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        {/* Left column */}
+        {/* Left: attention items + worth a look */}
         <div className="space-y-6">
           {/* Attention items */}
           {attentionItems.length > 0 && (
@@ -269,59 +339,58 @@ export function DashboardHome({
                         </Badge>
                         <p className="text-sm font-bold">{item.title}</p>
                       </div>
-                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">
-                        {item.body}
-                      </p>
+                      <p className="mt-1 text-sm text-[var(--muted-foreground)]">{item.body}</p>
                     </div>
-                    <Button href={item.href} ghost tone={item.tone}>
-                      Open
-                    </Button>
+                    <Button href={item.href} ghost tone={item.tone}>Open</Button>
                   </div>
                 ))}
               </div>
             </Surface>
           )}
 
-          {/* All clear state */}
-          {attentionItems.length === 0 && setupComplete && hasJobs && (
-            <Surface tone="ok" className="p-5">
-              <SectionTitle
-                title="All clear"
-                subtitle="No open action items — pipeline is healthy"
-              />
-            </Surface>
-          )}
-
-          {/* Pipeline Kanban snapshot */}
+          {/* Worth a look */}
           <Surface className="p-5">
             <SectionTitle
-              title="Pipeline snapshot"
-              subtitle="Current jobs across active stages"
-              action={<Button href="/dashboard/tracker">Open tracker</Button>}
+              title="Worth a look"
+              subtitle="Your top-scored evaluated roles"
+              action={<Button href="/dashboard/tracker">View all</Button>}
             />
-            {kanban.every((col) => col.items.length === 0) ? (
+            {topJobs.length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-sm text-[var(--muted-foreground)]">
-                  No active jobs yet — add roles to the pipeline and run evaluations to populate this.
+                  No evaluated roles yet — add jobs to the pipeline and run an evaluation.
                 </p>
                 <div className="mt-4 flex justify-center gap-3">
-                  <Button tone="accent" href="/dashboard/pipeline">
-                    Add to pipeline
-                  </Button>
-                  <Button href="/dashboard/evaluate" ghost>
-                    Evaluate a job
-                  </Button>
+                  <Button tone="accent" href="/dashboard/evaluate">Evaluate a job</Button>
+                  <Button href="/dashboard/pipeline" ghost>Add to pipeline</Button>
                 </div>
               </div>
             ) : (
-              <KanbanBoard columns={kanban} />
+              <div className="mt-4 flex flex-col gap-3">
+                {topJobs.map((job) => (
+                  <Link
+                    key={job.id}
+                    href={`/dashboard/tracker`}
+                    className="grid items-center gap-4 rounded-2xl border border-[var(--line-soft)] bg-[var(--background)] px-5 py-4 transition hover:border-[var(--accent)]"
+                    style={{ gridTemplateColumns: "1fr auto auto" }}
+                  >
+                    <div>
+                      <p className="text-[14px] font-semibold">{job.title}</p>
+                      <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{job.company}</p>
+                    </div>
+                    {job.score !== null && <ScorePill score={job.score} />}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
+                    </svg>
+                  </Link>
+                ))}
+              </div>
             )}
           </Surface>
         </div>
 
-        {/* Right column */}
+        {/* Right: quick actions + activity */}
         <div className="space-y-6">
-          {/* Quick actions */}
           <Surface className="p-5">
             <SectionTitle title="Quick actions" subtitle="Fast entry points" />
             <div className="grid gap-2">
@@ -338,25 +407,22 @@ export function DashboardHome({
             </div>
           </Surface>
 
-          {/* Recent task runs */}
+          <ExtensionCard />
+
           <Surface className="p-5">
             <SectionTitle
               title="Recent activity"
               subtitle="Task runs and background jobs"
-              action={<Button href="/dashboard/activity" ghost>All activity</Button>}
+              action={<Button href="/dashboard/activity" ghost>All</Button>}
             />
             {recentRuns.length === 0 ? (
-              <p className="py-4 text-center text-sm text-[var(--muted-foreground)]">
-                No tasks run yet.
-              </p>
+              <p className="py-4 text-center text-sm text-[var(--muted-foreground)]">No tasks run yet.</p>
             ) : (
               <Timeline
                 items={recentRuns.map((run) => ({
                   title: (
                     <span className="flex items-center gap-2">
-                      <Badge tone={STATUS_TONE[run.status] ?? "default"}>
-                        {run.status}
-                      </Badge>
+                      <Badge tone={STATUS_TONE[run.status] ?? "default"}>{run.status}</Badge>
                       <span>{run.type}</span>
                     </span>
                   ) as unknown as string,

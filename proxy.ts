@@ -8,7 +8,7 @@ import { getSupabaseEnv } from "@/lib/supabase/config";
 // while authenticated — the user just arrived from a recovery email and is
 // signed in to a temporary recovery session.
 const authOnlyPaths = ["/login", "/signup", "/forgot-password"];
-const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
 /**
  * Copy any Set-Cookie headers that updateSession wrote onto `source` into
@@ -43,44 +43,38 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  // Read auth-cookie presence from the request (pre-refresh). The sb-* cookie
-  // names don't change during a refresh — only their values do — so this check
-  // is reliable regardless of whether updateSession just rotated the tokens.
-  const hasAuthCookies = request.cookies
-    .getAll()
-    .some((cookie) => cookie.name.startsWith("sb-"));
+  // Validate the session server-side. Cookie presence alone is not reliable:
+  // stale sb-* cookies can exist even when the session is invalid, which can
+  // cause login/signup redirect loops.
+  const supabase = createServerClient(url, publishableKey, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) => {
+          response.cookies.set(name, value, options);
+        });
+      },
+    },
+  });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAuthenticated = !!user;
 
   const { pathname } = request.nextUrl;
 
-  if (pathname.startsWith("/dashboard") && !hasAuthCookies) {
+  if (pathname.startsWith("/dashboard") && !isAuthenticated) {
     return redirectWithCookies(new URL("/login", request.url), response);
   }
 
-  if (authOnlyPaths.includes(pathname) && hasAuthCookies) {
+  if (authOnlyPaths.includes(pathname) && isAuthenticated) {
     return redirectWithCookies(new URL("/dashboard", request.url), response);
   }
 
   if (pathname.startsWith("/dashboard/admin")) {
-    // Re-use the already-refreshed response cookies so we don't trigger a
-    // second token exchange. Read from request (pre-refresh) to get the
-    // session; getUser() validates the JWT server-side.
-    const supabase = createServerClient(url, publishableKey, {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set(name, value, options);
-          });
-        },
-      },
-    });
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
     if ((user?.email ?? "").toLowerCase() !== ADMIN_EMAIL) {
       return redirectWithCookies(new URL("/dashboard", request.url), response);
     }

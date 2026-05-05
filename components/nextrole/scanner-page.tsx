@@ -14,6 +14,8 @@ import {
 import { addScanSource, deleteScanSource, addPortalFromLibrary, toggleAutoEvaluate } from "@/app/actions/scanner";
 import type { ScanSourceRow, ScanRunRow } from "@/lib/db/types";
 import type { ScanResult } from "@/app/api/scan/route";
+import type { SmartScanResult } from "@/app/api/scan/smart/route";
+import type { UserTier } from "@/lib/db/types";
 import {
   PORTALS,
   PORTAL_CATEGORIES,
@@ -33,7 +35,7 @@ export type SourceWithLatestRun = ScanSourceRow & {
   scan_runs: ScanRunRow[];
 };
 
-type Tab = "my_sources" | "portal_library" | "company_library";
+type Tab = "my_sources" | "portal_library" | "company_library" | "smart_scan";
 
 const TYPE_LABELS: Record<string, string> = {
   greenhouse: "Greenhouse",
@@ -379,14 +381,182 @@ function AutoEvalToggle({
   );
 }
 
+// ── Smart Scan panel ─────────────────────────────────────────
+
+const TIER_LIMITS: Record<UserTier, number> = {
+  free: 10,
+  starter: 50,
+  pro: 200,
+  team: 200,
+  byok: 200,
+};
+
+function SmartScanPanel({
+  tier,
+  targetRoles,
+  targetLocations,
+}: {
+  tier: UserTier;
+  targetRoles: string[];
+  targetLocations: string[];
+}) {
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<SmartScanResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [dailyLimitReached, setDailyLimitReached] = useState(false);
+
+  const limit = TIER_LIMITS[tier];
+  const hasPrefs = targetRoles.length > 0;
+
+  async function runSmartScan() {
+    setRunning(true);
+    setError(null);
+    setResult(null);
+    setDailyLimitReached(false);
+    try {
+      const res = await fetch("/api/scan/smart", { method: "POST" });
+      const data = await res.json() as SmartScanResult;
+      if (!res.ok || data.error) {
+        setError(data.error ?? "Smart scan failed");
+        if (data.daily_limit_reached) setDailyLimitReached(true);
+      } else {
+        setResult(data);
+      }
+    } catch {
+      setError("Network error — please try again");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Info card */}
+      <Surface className="p-5">
+        <SectionTitle
+          title="Smart Scan"
+          subtitle="Fetch jobs from all Greenhouse & Lever companies at once — filtered to your target roles"
+        />
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="rounded-[14px] border border-[var(--line-soft)] bg-[var(--surface-soft)] p-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">Target Roles</p>
+            <p className="mt-1 text-sm text-[var(--foreground)]">
+              {targetRoles.length > 0 ? targetRoles.join(", ") : (
+                <span className="text-[var(--muted-foreground)]">Not set — <a href="/dashboard/settings" className="underline">add in Settings</a></span>
+              )}
+            </p>
+          </div>
+          <div className="rounded-[14px] border border-[var(--line-soft)] bg-[var(--surface-soft)] p-3">
+            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">Target Locations</p>
+            <p className="mt-1 text-sm text-[var(--foreground)]">
+              {targetLocations.length > 0 ? targetLocations.join(", ") : (
+                <span className="text-[var(--muted-foreground)]">Any location</span>
+              )}
+            </p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Button tone="accent" onClick={runSmartScan} disabled={running}>
+            {running ? "Scanning all companies…" : "Run Smart Scan"}
+          </Button>
+          <span className="font-mono text-[10px] text-[var(--muted-foreground-2)]">
+            Up to {limit} new jobs · {COMPANIES.filter((c) => c.ats === "greenhouse" || c.ats === "lever").length} companies · no AI credits used
+          </span>
+        </div>
+        {!hasPrefs && (
+          <p className="mt-3 rounded-[12px] border border-[var(--warn)] bg-[var(--warn-bg)] px-3 py-2 text-xs text-[var(--warn)]">
+            Set target roles in Settings for better results. Without them, all jobs from all companies will be included.
+          </p>
+        )}
+      </Surface>
+
+      {/* Running state */}
+      {running && (
+        <Surface className="p-5">
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+            <p className="font-mono text-[10px] uppercase tracking-widest text-[var(--muted-foreground)]">
+              Fetching jobs from Greenhouse and Lever APIs…
+            </p>
+          </div>
+        </Surface>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div className="rounded-[14px] border border-[var(--bad)] bg-[#faebeb] px-4 py-3">
+          <p className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--bad)]">{error}</p>
+          {dailyLimitReached && (
+            <a href="/pricing" className="mt-2 inline-block font-mono text-[10px] font-medium uppercase tracking-widest text-[var(--accent)] underline underline-offset-2">
+              View upgrade options →
+            </a>
+          )}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && (
+        <Surface className="p-5">
+          <div className="mb-4 flex flex-wrap gap-5 font-mono text-[10px] uppercase tracking-widest">
+            <span className="text-[var(--muted-foreground)]">{result.fetched} fetched</span>
+            <span className="text-[var(--accent)]">{result.matched} matched your roles</span>
+            <span className="text-[var(--ok)]">{result.added} added to pipeline</span>
+            <span className="text-[var(--muted-foreground)]">{result.duplicates} already in pipeline</span>
+            {result.limited && (
+              <span className="text-[var(--warn)]">Limit reached ({limit}) — upgrade for more</span>
+            )}
+          </div>
+
+          {result.added === 0 && result.matched === 0 && (
+            <p className="text-sm text-[var(--muted-foreground)]">
+              No new jobs matched your criteria. Try broadening your target roles in Settings.
+            </p>
+          )}
+
+          {result.discoveries.filter((d) => d.status === "added").length > 0 && (
+            <div className="space-y-2">
+              {result.discoveries.filter((d) => d.status === "added").map((d) => (
+                <div
+                  key={d.id}
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-2"
+                >
+                  <div>
+                    <p className="text-xs font-medium">{d.title}</p>
+                    <p className="text-[10px] text-[var(--muted-foreground)]">
+                      {d.company}{d.location ? ` · ${d.location}` : ""}{d.department ? ` · ${d.department}` : ""}
+                    </p>
+                  </div>
+                  <Badge tone="ok">added</Badge>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {result.added > 0 && (
+            <div className="mt-3">
+              <Button href="/dashboard/pipeline" ghost>View in pipeline →</Button>
+            </div>
+          )}
+        </Surface>
+      )}
+    </div>
+  );
+}
+
 // ── Main scanner component ───────────────────────────────────
 
 export function ScannerPageContent({
   sources: initialSources,
+  tier,
+  targetRoles,
+  targetLocations,
   error: pageError,
   message: pageMessage,
 }: {
   sources: SourceWithLatestRun[];
+  tier: UserTier;
+  targetRoles: string[];
+  targetLocations: string[];
   error?: string;
   message?: string;
 }) {
@@ -487,7 +657,7 @@ export function ScannerPageContent({
 
       {/* Tab bar */}
       <div className="flex gap-2 border-b border-[var(--line)] pb-0">
-        {(["my_sources", "portal_library", "company_library"] as Tab[]).map((t) => (
+        {(["my_sources", "portal_library", "company_library", "smart_scan"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -501,7 +671,9 @@ export function ScannerPageContent({
               ? `My Sources (${sources.length})`
               : t === "portal_library"
               ? `Job Boards (${PORTALS.length})`
-              : `Companies (${COMPANIES.length})`}
+              : t === "company_library"
+              ? `Companies (${COMPANIES.length})`
+              : "⚡ Smart Scan"}
           </button>
         ))}
       </div>
@@ -673,6 +845,15 @@ export function ScannerPageContent({
           </Surface>
           <CompanyLibrary enabledUrls={enabledUrls} onAdd={handlePortalAdded} />
         </div>
+      )}
+
+      {/* ── Smart Scan tab ── */}
+      {tab === "smart_scan" && (
+        <SmartScanPanel
+          tier={tier}
+          targetRoles={targetRoles}
+          targetLocations={targetLocations}
+        />
       )}
     </div>
   );

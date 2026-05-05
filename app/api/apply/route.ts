@@ -1,65 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { decrypt } from "@/lib/crypto";
-import {
-  APPLY_SYSTEM_PROMPT,
-  buildApplyPrompt,
-  type ApplyQuestion,
-} from "@/lib/apply/prompt";
+import { APPLY_SYSTEM_PROMPT, buildApplyPrompt, type ApplyQuestion } from "@/lib/apply/prompt";
+import { callProvider } from "@/lib/evaluate/providers";
+import { requireFeature } from "@/lib/ai/guard";
+import { resolveAIRoute } from "@/lib/ai/router";
 
 export const maxDuration = 60;
 
-async function callAI(
-  provider: string,
-  apiKey: string,
-  model: string,
-  system: string,
-  user: string,
-): Promise<string> {
-  if (provider === "anthropic") {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1024,
-        system,
-        messages: [{ role: "user", content: user }],
-      }),
-    });
-    if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
-    const data = await res.json() as { content: Array<{ text: string }> };
-    return data.content[0].text;
-  } else {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 1024,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-      }),
-    });
-    if (!res.ok) throw new Error(`OpenAI ${res.status}: ${await res.text()}`);
-    const data = await res.json() as { choices: Array<{ message: { content: string } }> };
-    return data.choices[0].message.content;
-  }
-}
-
 export async function POST(request: NextRequest) {
+  const guard = await requireFeature("apply");
+  if (guard instanceof NextResponse) return guard;
+  const { userId } = guard;
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await request.json() as {
     job_id?: string;
@@ -71,18 +24,15 @@ export async function POST(request: NextRequest) {
   if (!job_id) return NextResponse.json({ error: "job_id required" }, { status: 400 });
   if (!question) return NextResponse.json({ error: "question required" }, { status: 400 });
 
-  // Load job
   const { data: job } = await supabase
-    .from("jobs").select("*").eq("id", job_id).eq("user_id", user.id).single();
+    .from("jobs").select("*").eq("id", job_id).eq("user_id", userId).single();
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   if (!job.description) return NextResponse.json({ error: "Job has no description" }, { status: 400 });
 
-  // Load profile
   const { data: profile } = await supabase
-    .from("profiles").select("base_cv, comp_min, comp_max, full_name").eq("id", user.id).single();
+    .from("profiles").select("base_cv, comp_min, comp_max, full_name").eq("id", userId).single();
   if (!profile?.base_cv) return NextResponse.json({ error: "No CV in profile — add it in Settings" }, { status: 400 });
 
-  // Load latest evaluation for context (optional)
   const { data: evals } = await supabase
     .from("evaluations")
     .select("personalization_guidance, cv_match")
@@ -106,45 +56,37 @@ export async function POST(request: NextRequest) {
     comp_max: profile.comp_max,
   });
 
-  // Prompt-only mode — return the prompt for manual use
   if (mode === "prompt_only") {
     return NextResponse.json({
       prompt: `SYSTEM\n${"─".repeat(60)}\n${APPLY_SYSTEM_PROMPT}\n\n${"─".repeat(60)}\nUSER\n${"─".repeat(60)}\n${userPrompt}`,
     });
   }
 
-  // Load provider
-  const { data: providers } = await supabase
-    .from("provider_credentials").select("*")
-    .eq("user_id", user.id).eq("is_active", true)
-    .in("provider", ["anthropic", "openai", "gemini"])
-    .order("updated_at", { ascending: false }).limit(1);
+  const route = await resolveAIRoute(userId).catch((err) => {
+    throw err instanceof Error && err.message === "BYOK_KEY_MISSING"
+      ? new Error("Add your API key in Settings → Providers")
+      : err;
+  });
 
-  const cred = providers?.[0];
-  if (!cred?.encrypted_key) return NextResponse.json({ error: "No AI provider configured" }, { status: 400 });
-
-  const apiKey = decrypt(cred.encrypted_key);
-  const model = cred.model ?? (cred.provider === "anthropic" ? "claude-opus-4-7" : cred.provider === "gemini" ? "gemini-2.0-flash" : "gpt-4o");
+  if (!route.byok) {
+    const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: 5 });
+    if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+  }
 
   let draft: string;
   try {
-    draft = await callAI(cred.provider, apiKey, model, APPLY_SYSTEM_PROMPT, userPrompt);
+    draft = await callProvider(route.provider, route.apiKey, route.model, APPLY_SYSTEM_PROMPT, userPrompt, 1024);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "AI call failed";
-    return NextResponse.json({ error: message }, { status: 502 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "AI call failed" }, { status: 502 });
   }
 
   await supabase.from("task_runs").insert({
-    user_id: user.id,
-    type: "apply",
-    status: "completed",
-    linked_job_id: job_id,
-    input: { job_id, question, provider: cred.provider, model },
+    user_id: userId, type: "apply", status: "completed", linked_job_id: job_id,
+    input: { job_id, question, provider: route.provider, model: route.model },
     output: { draft: draft.slice(0, 500) },
   });
 
-  await supabase.from("provider_credentials")
-    .update({ last_used_at: new Date().toISOString() }).eq("id", cred.id);
+  supabase.from("usage_log").insert({ user_id: userId, task_type: "apply", model: route.model, credits_used: route.byok ? 0 : 5, byok: route.byok }).then(() => {});
 
   return NextResponse.json({ draft });
 }

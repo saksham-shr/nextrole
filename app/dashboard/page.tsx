@@ -54,17 +54,18 @@ export default async function DashboardPage() {
   );
   const pending = allJobs.filter((j) => j.status === "pending");
 
-  // Pipeline kanban data
-  const kanbanStatuses = ["evaluated", "applied", "interview", "offer"] as const;
-  const kanban = kanbanStatuses.map((status) => ({
-    title: status.charAt(0).toUpperCase() + status.slice(1),
-    items: allJobs
-      .filter((j) => j.status === status)
-      .slice(0, 5)
-      .map((j) => `${j.title} — ${j.company}`),
-  }));
+  // Top jobs for "Worth a look" — scored, sorted by score desc
+  const topJobs = allJobs
+    .map((j) => {
+      const evals = j.evaluations as Array<{ score: number | null }>;
+      const score = evals[0]?.score ?? null;
+      return { id: j.id, title: j.title, company: j.company, status: j.status, score };
+    })
+    .filter((j) => j.score !== null)
+    .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
+    .slice(0, 4);
 
-  // Attention items (non-setup items only — setup is handled by the checklist)
+  // Attention items
   const attentionItems: Array<{ title: string; body: string; href: string; tone: "warn" | "default" }> = [];
   if (highScore.length > 0) {
     attentionItems.push({
@@ -106,7 +107,7 @@ export default async function DashboardPage() {
         pending: pending.length,
       }}
       attentionItems={attentionItems}
-      kanban={kanban}
+      topJobs={topJobs}
       recentRuns={recentRuns ?? []}
     />
   );

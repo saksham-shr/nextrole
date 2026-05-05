@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   Button,
   Display,
@@ -10,6 +11,7 @@ import {
 } from "@/components/nextrole/ui";
 import { updateProfile } from "@/app/actions/profile";
 import type { ProfileRow } from "@/lib/db/types";
+
 
 function Alert({ message, tone }: { message: string; tone: "ok" | "bad" }) {
   const styles = {
@@ -296,6 +298,7 @@ export function SettingsPageContent({
           </Button>
         </div>
       </form>
+
     </div>
   );
 }

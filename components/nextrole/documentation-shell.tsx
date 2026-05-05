@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandWordmark } from "@/components/nextrole/brand";
-import { Badge, Button } from "@/components/nextrole/ui";
+import { Button } from "@/components/nextrole/ui";
+import { PublicHeader } from "@/components/nextrole/public-pages";
 
 const sideNav = [
   {
@@ -53,34 +54,7 @@ const workspaceEntries = [
 ] as const;
 
 function DocsHeader() {
-  return (
-    <header className="border-b border-[var(--line)] bg-[var(--surface)]">
-      <div className="mx-auto flex max-w-[1600px] items-center gap-4 px-5 py-4 sm:px-8">
-        <Link href="/" aria-label="NextRole home">
-          <BrandWordmark labelClassName="text-4xl text-[var(--foreground)]" />
-        </Link>
-        <Badge className="hidden sm:inline-flex" tone="accent">
-          Product Docs
-        </Badge>
-        <nav className="ml-auto hidden items-center gap-6 text-sm font-medium text-[var(--muted-foreground)] md:flex">
-          <Link href="/">Home</Link>
-          <Link href="/documentation" className="text-[var(--foreground)]">
-            Documentation
-          </Link>
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/terms">Terms</Link>
-        </nav>
-        <div className="ml-auto flex gap-3 md:ml-0">
-          <Button href="/login" ghost>
-            Log in
-          </Button>
-          <Button href="/signup" tone="accent">
-            Start free setup
-          </Button>
-        </div>
-      </div>
-    </header>
-  );
+  return <PublicHeader activePage="docs" />;
 }
 
 export function DocumentationShellPage() {

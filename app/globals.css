@@ -1,9 +1,10 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Serif+Display&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap');
 @import "tailwindcss";
 
 :root {
-  --font-body: "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-display: Georgia, "Times New Roman", serif;
-  --font-mono-stack: Consolas, "Courier New", monospace;
+  --font-body: "Inter", "Trebuchet MS", "Segoe UI", sans-serif;
+  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
+  --font-mono-stack: "DM Mono", Consolas, "Courier New", monospace;
   --font-kalam: var(--font-body);
   --font-caveat: var(--font-display);
   --font-jetbrains-mono: var(--font-mono-stack);
@@ -15,12 +16,21 @@
   --surface-soft: #efe9df;
   --surface-ink: #241f19;
   --line: #2a2620;
+  --line-hard: #1a1814;
   --line-soft: #b8aea0;
   --accent: #c84a1f;
   --accent-soft: #f2c4ad;
+  --accent-bg: rgba(200, 74, 31, 0.08);
   --ok: #2f7a3a;
+  --ok-bg: rgba(47, 122, 58, 0.08);
   --warn: #b07a18;
+  --warn-bg: rgba(176, 122, 24, 0.08);
   --bad: #b53a3a;
+  --bad-bg: rgba(181, 58, 58, 0.08);
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+  --radius: 16px;
+  --sidebar-w: 240px;
 }
 
 @theme inline {
@@ -78,8 +88,13 @@ select {
   --accent: #e05a28;
   --accent-soft: #7a2a10;
   --ok: #3a9a48;
+  --ok-bg: rgba(58, 154, 72, 0.1);
   --warn: #c08a28;
+  --warn-bg: rgba(192, 138, 40, 0.1);
   --bad: #c54040;
+  --bad-bg: rgba(197, 64, 64, 0.1);
+  --accent-bg: rgba(224, 90, 40, 0.1);
+  --line-hard: #f0ebe0;
 }
 
 [data-theme="dark"] html {

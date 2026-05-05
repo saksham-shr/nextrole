@@ -5,7 +5,7 @@ import { createClient as createSupabaseAdminClient } from "@supabase/supabase-js
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/lib/db/types";
 
-const ADMIN_EMAIL = "sakshamsharma614@gmail.com";
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
 async function assertAdmin() {
   const supabase = await createClient();

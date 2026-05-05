@@ -39,6 +39,10 @@ export type TaskType =
 
 export type ProviderType = "anthropic" | "openai" | "gemini" | "manual";
 
+export type UserTier = "free" | "starter" | "pro" | "team" | "byok";
+
+export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired" | "paused";
+
 // Row types (what you get back from SELECT) -------------------
 
 export type ProfileRow = {
@@ -59,13 +63,32 @@ export type ProfileRow = {
   seniority: "junior" | "mid" | "senior" | "staff" | "principal" | null;
   languages: string[] | null;
   // Extended fields (migration 006)
-  preferred_language: string | null;       // ISO 639-1, e.g. "en", "es", "fr"
-  eval_score_apply: number | null;         // custom apply threshold (default 3.5)
-  eval_score_watch: number | null;         // custom watch threshold (default 2.5)
-  custom_eval_focus: string | null;        // extra instructions injected into evaluate prompt
-  custom_archetypes: string[] | null;      // overrides default archetype list
+  preferred_language: string | null;
+  eval_score_apply: number | null;
+  eval_score_watch: number | null;
+  custom_eval_focus: string | null;
+  custom_archetypes: string[] | null;
+  // Monetization fields (migration 010)
+  tier: UserTier;
+  credits_remaining: number;
+  credits_reset_at: string;
+  lemon_squeezy_customer_id: string | null;
+  lemon_squeezy_subscription_id: string | null;
+  subscription_status: SubscriptionStatus | null;
+  subscription_ends_at: string | null;
+  onboarding_completed: boolean;
   created_at: string;
   updated_at: string;
+};
+
+export type UsageLogRow = {
+  id: string;
+  user_id: string;
+  task_type: string;
+  model: string;
+  credits_used: number;
+  byok: boolean;
+  created_at: string;
 };
 
 export type ProviderCredentialRow = {
@@ -280,6 +303,14 @@ export type Database = {
           eval_score_watch?: number | null;
           custom_eval_focus?: string | null;
           custom_archetypes?: string[] | null;
+          tier?: UserTier;
+          credits_remaining?: number;
+          credits_reset_at?: string;
+          lemon_squeezy_customer_id?: string | null;
+          lemon_squeezy_subscription_id?: string | null;
+          subscription_status?: SubscriptionStatus | null;
+          subscription_ends_at?: string | null;
+          onboarding_completed?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -304,6 +335,14 @@ export type Database = {
           eval_score_watch?: number | null;
           custom_eval_focus?: string | null;
           custom_archetypes?: string[] | null;
+          tier?: UserTier;
+          credits_remaining?: number;
+          credits_reset_at?: string;
+          lemon_squeezy_customer_id?: string | null;
+          lemon_squeezy_subscription_id?: string | null;
+          subscription_status?: SubscriptionStatus | null;
+          subscription_ends_at?: string | null;
+          onboarding_completed?: boolean;
           updated_at?: string;
         };
         Relationships: [];
@@ -447,7 +486,22 @@ export type Database = {
           type?: string;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "reports_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "reports_evaluation_id_fkey";
+            columns: ["evaluation_id"];
+            isOneToOne: false;
+            referencedRelation: "evaluations";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       resumes: {
         Row: ResumeRow;
@@ -551,7 +605,15 @@ export type Database = {
           error?: string | null;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "scan_runs_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "scan_sources";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       scan_discoveries: {
         Row: ScanDiscoveryRow;
@@ -574,7 +636,29 @@ export type Database = {
           job_id?: string | null;
           status?: "new" | "added" | "duplicate" | "skipped";
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "scan_discoveries_scan_run_id_fkey";
+            columns: ["scan_run_id"];
+            isOneToOne: false;
+            referencedRelation: "scan_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "scan_discoveries_source_id_fkey";
+            columns: ["source_id"];
+            isOneToOne: false;
+            referencedRelation: "scan_sources";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "scan_discoveries_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       story_bank_entries: {
         Row: StoryBankEntryRow;
@@ -607,7 +691,15 @@ export type Database = {
           status?: "draft" | "ready";
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "story_bank_entries_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       interview_prep_packs: {
         Row: InterviewPrepPackRow;
@@ -631,7 +723,15 @@ export type Database = {
           model?: string | null;
           updated_at?: string;
         };
-        Relationships: [];
+        Relationships: [
+          {
+            foreignKeyName: "interview_prep_packs_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       prompt_templates: {
         Row: PromptTemplateRow;
@@ -654,14 +754,110 @@ export type Database = {
         };
         Relationships: [];
       };
-    };
+      usage_log: {
+        Row: UsageLogRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          task_type: string;
+          model: string;
+          credits_used?: number;
+          byok?: boolean;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+      extension_tokens: {
+        Row: {
+          id: string;
+          user_id: string;
+          token_hash: string;
+          name: string;
+          last_used_at: string | null;
+          created_at: string;
+          expires_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          token_hash: string;
+          name?: string;
+          last_used_at?: string | null;
+          created_at?: string;
+          expires_at?: string;
+        };
+        Update: {
+          name?: string;
+          last_used_at?: string | null;
+          expires_at?: string;
+        };
+        Relationships: [];
+      };
+      team_members: {
+        Row: {
+          id: string;
+          owner_id: string;
+          member_id: string | null;
+          invited_email: string;
+          status: "pending" | "active" | "removed";
+          invited_at: string;
+          joined_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          owner_id: string;
+          member_id?: string | null;
+          invited_email: string;
+          status?: "pending" | "active" | "removed";
+          invited_at?: string;
+          joined_at?: string | null;
+        };
+        Update: {
+          member_id?: string | null;
+          status?: "pending" | "active" | "removed";
+          joined_at?: string | null;
+        };
+        Relationships: [];
+      };
+      waitlist: {
+        Row: {
+          id: string;
+          email: string;
+          tier: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          tier?: string;
+          created_at?: string;
+        };
+        Update: Record<string, never>;
+        Relationships: [];
+      };
+    }; // end Tables
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      deduct_credit: {
+        Args: { p_user_id: string; p_amount?: number };
+        Returns: boolean;
+      };
+      reset_credits_for_tier: {
+        Args: { p_user_id: string; p_tier: UserTier };
+        Returns: void;
+      };
+      revoke_team_members: {
+        Args: { p_owner_id: string };
+        Returns: void;
+      };
+    };
     Enums: {
       job_status: JobStatus;
       task_status: TaskStatus;
       task_type: TaskType;
       provider_type: ProviderType;
+      user_tier: UserTier;
     };
   };
 };
