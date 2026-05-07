@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/nextrole/ui";
 import type { ResumeRow, JobRow, UserTier } from "@/lib/db/types";
@@ -345,14 +346,30 @@ export function ResumesPageContent({
   jobs: Array<Pick<JobRow, "id" | "title" | "company" | "description">>;
   tier?: UserTier;
 }) {
+  const router = useRouter();
   const [selectedId, setSelectedId] = useState<string | null>(resumes[0]?.id ?? null);
   const [showGenerate, setShowGenerate] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const selected = resumes.find((r) => r.id === selectedId) ?? null;
 
   function handleGenerated(resumeId: string) {
     setShowGenerate(false);
     setSelectedId(resumeId);
+    router.refresh();
+  }
+
+  async function handleDelete(resumeId: string) {
+    setDeletingId(resumeId);
+    try {
+      await fetch(`/api/resume/${resumeId}`, { method: "DELETE" });
+      if (selectedId === resumeId) setSelectedId(null);
+      setConfirmDeleteId(null);
+      router.refresh();
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -390,28 +407,72 @@ export function ResumesPageContent({
             resumes.map((r) => {
               const active = r.id === selectedId;
               const company = r.jobs?.company ?? "";
+              const isConfirming = confirmDeleteId === r.id;
+              const isDeleting = deletingId === r.id;
               return (
-                <button
+                <div
                   key={r.id}
-                  onClick={() => { setSelectedId(r.id); setShowGenerate(false); }}
-                  className="mb-1 w-full rounded-[6px] p-3 text-left transition"
+                  className="mb-1 relative rounded-[6px] transition"
                   style={{
                     background: active ? "var(--accent-soft)" : "transparent",
                     border: `1px solid ${active ? "rgba(200,74,31,0.2)" : "transparent"}`,
                   }}
                 >
-                  <div className="mb-1 flex items-center gap-2">
-                    {company && <CompanyLogo name={company} size={20} />}
-                    <span className="text-[13px] font-medium">{company || r.title}</span>
-                  </div>
-                  <div className="text-[12.5px] text-[var(--muted-foreground)]">
-                    {r.jobs?.title ?? r.title}
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
-                    <span>{formatRelative(r.created_at)}</span>
-                    <span className="font-mono">PDF</span>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => { setSelectedId(r.id); setShowGenerate(false); setConfirmDeleteId(null); }}
+                    className="w-full p-3 text-left"
+                  >
+                    <div className="mb-1 flex items-center gap-2">
+                      {company && <CompanyLogo name={company} size={20} />}
+                      <span className="text-[13px] font-medium">{company || r.title}</span>
+                    </div>
+                    <div className="text-[12.5px] text-[var(--muted-foreground)]">
+                      {r.jobs?.title ?? r.title}
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between text-[11px] text-[var(--muted-foreground)]">
+                      <span>{formatRelative(r.created_at)}</span>
+                      <span className="font-mono">PDF</span>
+                    </div>
+                  </button>
+
+                  {/* Delete controls */}
+                  {isConfirming ? (
+                    <div className="flex items-center gap-1.5 px-3 pb-2.5">
+                      <span className="flex-1 text-[11px] text-[var(--muted-foreground)]">Delete?</span>
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        disabled={isDeleting}
+                        className="rounded px-2 py-0.5 text-[11px] font-medium text-white transition disabled:opacity-50"
+                        style={{ background: "var(--bad)" }}
+                      >
+                        {isDeleting ? "…" : "Yes, delete"}
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+                        className="rounded px-2 py-0.5 text-[11px] text-[var(--muted-foreground)] transition"
+                        style={{ background: "var(--surface-soft)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(r.id); }}
+                      className="absolute right-2 top-2.5 rounded p-1 transition"
+                      style={{ color: "var(--muted-foreground)" }}
+                      title="Delete resume"
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--bad)"; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.color = "var(--muted-foreground)"; }}
+                    >
+                      <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                        <path d="M10 11v6M14 11v6" />
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               );
             })
           )}
