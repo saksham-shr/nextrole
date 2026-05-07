@@ -3,11 +3,8 @@
  * Supports OpenRouter, Anthropic, OpenAI, Google Gemini, and Sarvam AI.
  * All API keys come from .env — no user-supplied keys.
  *
- * Cost optimizations applied here:
- *  - Anthropic: prompt caching via cache_control (ephemeral) on system prompt
- *  - Gemini: system_instruction with cachedContent support (provider-side)
- *  - max_output_tokens enforced on every call
- *  - Token-efficient JSON-only prompts expected from callers
+ * OpenRouter is the primary provider. On 429/503 it automatically walks
+ * through `fallbackModels` (free-tier models) before giving up.
  */
 
 export type Provider = "openrouter" | "anthropic" | "openai" | "gemini" | "sarvam";
@@ -21,8 +18,13 @@ export interface CallOptions {
   maxTokens?: number;
   /** Enables Anthropic prompt caching on the system message */
   cache?: boolean;
-  /** Expect JSON back — adds response_format: json_object for OpenAI */
+  /** Expect JSON back — adds response_format: json_object where supported */
   json?: boolean;
+  /**
+   * OpenRouter only — models to try in order if the primary is rate-limited.
+   * Each entry is attempted once before moving to the next.
+   */
+  fallbackModels?: string[];
 }
 
 // ── Anthropic ──────────────────────────────────────────────────────────────────
@@ -90,27 +92,27 @@ async function callOpenAI(opts: CallOptions): Promise<string> {
   return data.choices[0].message.content;
 }
 
-// ── OpenRouter ────────────────────────────────────────────────────────────────
+// ── OpenRouter ─────────────────────────────────────────────────────────────────
 // OpenAI-compatible endpoint that proxies 300+ models.
-// JSON mode is only passed for models that declare it; others rely on system prompt.
+// Retries with `fallbackModels` on 429 (rate limit) or 503 (overload).
 
-async function callOpenRouter(opts: CallOptions): Promise<string> {
-  const { apiKey, model, system, user, maxTokens = 2048, json = true } = opts;
-
-  const supportsJsonMode =
+function supportsJsonMode(model: string): boolean {
+  return (
     model.startsWith("openai/") ||
     model.startsWith("anthropic/") ||
-    model.startsWith("google/gemini");
+    model.startsWith("google/gemini") ||
+    model.startsWith("deepseek/")
+  );
+}
 
-  const body: Record<string, unknown> = {
-    model,
-    max_tokens: maxTokens,
-    messages: [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-  };
-  if (json && supportsJsonMode) body.response_format = { type: "json_object" };
+async function callOpenRouterOnce(
+  apiKey: string,
+  model: string,
+  baseBody: Record<string, unknown>,
+  json: boolean,
+): Promise<{ ok: boolean; status: number; text: string }> {
+  const body = { ...baseBody, model } as Record<string, unknown>;
+  if (json && supportsJsonMode(model)) body.response_format = { type: "json_object" };
 
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
@@ -123,12 +125,56 @@ async function callOpenRouter(opts: CallOptions): Promise<string> {
     body: JSON.stringify(body),
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`OpenRouter ${res.status}: ${err}`);
+  const text = await res.text();
+  return { ok: res.ok, status: res.status, text };
+}
+
+async function callOpenRouter(opts: CallOptions): Promise<string> {
+  const {
+    apiKey,
+    model,
+    system,
+    user,
+    maxTokens = 2048,
+    json = true,
+    fallbackModels = [],
+  } = opts;
+
+  const baseBody: Record<string, unknown> = {
+    max_tokens: maxTokens,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+
+  const modelsToTry = [model, ...fallbackModels];
+  const rateLimitStatuses = new Set([429, 503, 529]);
+  let lastError = "";
+
+  for (const m of modelsToTry) {
+    const { ok, status, text } = await callOpenRouterOnce(apiKey, m, baseBody, json);
+
+    if (ok) {
+      const data = JSON.parse(text) as {
+        choices: Array<{ message: { content: string } }>;
+      };
+      const content = data.choices[0]?.message?.content;
+      if (!content) throw new Error(`OpenRouter: empty response from ${m}`);
+      return content;
+    }
+
+    if (rateLimitStatuses.has(status)) {
+      console.warn(`[OpenRouter] ${m} rate-limited (${status}), trying next model...`);
+      lastError = `${m} → ${status}`;
+      continue;
+    }
+
+    // Non-retryable error
+    throw new Error(`OpenRouter ${status} (${m}): ${text}`);
   }
-  const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
-  return data.choices[0].message.content;
+
+  throw new Error(`OpenRouter: all models rate-limited. Last: ${lastError}`);
 }
 
 // ── Google Gemini ──────────────────────────────────────────────────────────────

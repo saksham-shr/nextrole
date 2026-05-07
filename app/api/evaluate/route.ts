@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { requireFeature } from "@/lib/ai/guard";
-import { resolveRoute, EVAL_LITE_MODEL, EVAL_LITE_PROVIDER } from "@/lib/ai/router";
+import { resolveRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS } from "@/lib/ai/gates";
 
 export const maxDuration = 60;
@@ -98,13 +98,13 @@ export async function POST(request: NextRequest) {
   // "full" or default "api" uses the standard arbitrated model and deducts credits
   const isLitePass = mode === "lite";
 
-  let route: { provider: string; apiKey: string; model: string };
+  let route: { provider: string; apiKey: string; model: string; fallbackModels?: string[] };
   if (isLitePass) {
-    const liteKey = (process.env.OPENROUTER_API_KEY ?? process.env.GEMINI_API_KEY ?? "").trim();
-    if (!liteKey) return NextResponse.json({ error: "Lite evaluation not available" }, { status: 503 });
-    const liteProvider = process.env.OPENROUTER_API_KEY?.trim() ? EVAL_LITE_PROVIDER : "gemini";
-    const liteModel    = process.env.OPENROUTER_API_KEY?.trim() ? EVAL_LITE_MODEL : "gemini-1.5-flash-8b";
-    route = { provider: liteProvider, apiKey: liteKey, model: liteModel };
+    try {
+      route = resolveRoute("evaluate"); // lite pass reuses same route — free fallbacks handle rate limits
+    } catch (err) {
+      return NextResponse.json({ error: "Lite evaluation not available" }, { status: 503 });
+    }
   } else {
     try {
       route = resolveRoute("evaluate");

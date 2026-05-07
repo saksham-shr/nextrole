@@ -1,53 +1,45 @@
 /**
  * Centralized AI routing layer.
  *
- * All API keys come from server .env — no user-supplied (BYOK) keys.
+ * Primary model: google/gemini-2.0-flash-001 (via OpenRouter) for ALL tasks.
  *
- * Task routing strategy:
- *  - premium_resume  → best quality model (OpenRouter Sonnet → direct Anthropic → GPT-4o)
- *  - autofill        → cheapest model (OpenRouter Gemini Flash Lite → Gemini direct)
- *  - everything else → cheap+fast model (OpenRouter Gemini Flash → Gemini direct → Haiku)
+ * On 429 / 503 rate-limit, callOpenRouter automatically walks through
+ * OR_FREE_FALLBACKS in order until one responds successfully.
  *
- * OpenRouter is preferred when OPENROUTER_API_KEY is set — one key routes to any model.
- * Direct provider keys are used as fallbacks.
- *
- * Cost tactics:
- *  - Prompt caching enabled for direct Anthropic calls
- *  - max_output_tokens enforced (passed by caller)
- *  - Two-pass evaluation: callers initiate with "lite" model, escalate on request
+ * Direct provider keys (Gemini, Anthropic, OpenAI) are used only if
+ * OPENROUTER_API_KEY is not set.
  */
 
 import { type Provider, callProvider, parseJSON } from "@/lib/ai/providers";
-import { CREDIT_COSTS, isPremiumTask, type CreditTask } from "@/lib/ai/gates";
+import { CREDIT_COSTS, type CreditTask } from "@/lib/ai/gates";
 import { createClient } from "@/lib/supabase/server";
 
-// ── OpenRouter model IDs ───────────────────────────────────────────────────────
-// Full list: https://openrouter.ai/models
+// ── Primary model ──────────────────────────────────────────────────────────────
+// Used for every task type — fast, cheap, and capable enough for all features.
 
-// Premium — highest quality
-const OR_PREMIUM_MODEL  = "anthropic/claude-sonnet-4-5";
+const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-001";
 
-// Standard — fast & cheap
-const OR_STANDARD_MODEL = "google/gemini-2.0-flash-001";
+// ── Free fallback chain ────────────────────────────────────────────────────────
+// Tried in order when the primary model returns 429 or 503.
+// All are free-tier on OpenRouter (rate-limited but no cost).
 
-// Autofill — cheapest (lite)
-const OR_AUTOFILL_MODEL = "google/gemini-2.0-flash-lite-001";
+export const OR_FREE_FALLBACKS = [
+  "google/gemini-2.0-flash-exp:free",        // Gemini Flash free tier
+  "google/gemini-2.5-pro-exp-03-25:free",    // Gemini 2.5 Pro free (high quality)
+  "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3
+  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B
+  "mistralai/mistral-7b-instruct:free",      // Mistral 7B (last resort)
+];
 
-// Two-pass eval lite model (via OpenRouter)
-const OR_EVAL_LITE_MODEL = "google/gemini-2.0-flash-lite-001";
+// ── Direct provider fallback models (used when OPENROUTER_API_KEY is absent) ──
 
-// ── Direct provider fallback models ───────────────────────────────────────────
+const DIRECT_GEMINI_MODEL    = "gemini-2.0-flash";
+const DIRECT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
+const DIRECT_OPENAI_MODEL    = "gpt-4o-mini";
 
-const PREMIUM_ANTHROPIC_MODEL  = "claude-sonnet-4-6";
-const PREMIUM_OPENAI_MODEL     = "gpt-4o";
-const STANDARD_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
-const STANDARD_OPENAI_MODEL    = "gpt-4o-mini";
-const STANDARD_GEMINI_MODEL    = "gemini-1.5-flash";
-const AUTOFILL_GEMINI_MODEL    = "gemini-1.5-flash-8b";
-
-// Two-pass evaluation screening model (direct Gemini fallback)
-export const EVAL_LITE_MODEL    = OR_EVAL_LITE_MODEL;
-export const EVAL_LITE_PROVIDER = "openrouter";
+// Two-pass eval lite (same model, exported so evaluate/route.ts can reference it)
+export const EVAL_LITE_MODEL    = OR_PRIMARY_MODEL;
+export const EVAL_LITE_PROVIDER: Provider = "openrouter";
 
 // ── Route result ───────────────────────────────────────────────────────────────
 
@@ -55,6 +47,7 @@ export interface AIRoute {
   provider: Provider;
   apiKey: string;
   model: string;
+  fallbackModels?: string[];
 }
 
 // ── Provider availability check ────────────────────────────────────────────────
@@ -65,75 +58,33 @@ function getKey(envVar: string): string | null {
 }
 
 /**
- * Pick the cheapest healthy provider for standard (non-premium) tasks.
- * Priority: OpenRouter Gemini Flash → Gemini direct → Anthropic Haiku → OpenAI mini
+ * Resolve route for any task — Gemini Flash via OpenRouter with free fallbacks.
+ * Falls back to direct Gemini → Anthropic → OpenAI if no OpenRouter key is set.
  */
-function arbitrateStandard(): AIRoute {
+export function resolveRoute(_task: CreditTask): AIRoute {
   const orKey        = getKey("OPENROUTER_API_KEY");
   const geminiKey    = getKey("GEMINI_API_KEY");
   const anthropicKey = getKey("ANTHROPIC_API_KEY");
   const openaiKey    = getKey("OPENAI_API_KEY");
 
   if (orKey) {
-    return { provider: "openrouter", apiKey: orKey, model: OR_STANDARD_MODEL };
+    return {
+      provider:       "openrouter",
+      apiKey:         orKey,
+      model:          OR_PRIMARY_MODEL,
+      fallbackModels: OR_FREE_FALLBACKS,
+    };
   }
   if (geminiKey) {
-    return { provider: "gemini", apiKey: geminiKey, model: STANDARD_GEMINI_MODEL };
+    return { provider: "gemini", apiKey: geminiKey, model: DIRECT_GEMINI_MODEL };
   }
   if (anthropicKey) {
-    return { provider: "anthropic", apiKey: anthropicKey, model: STANDARD_ANTHROPIC_MODEL };
+    return { provider: "anthropic", apiKey: anthropicKey, model: DIRECT_ANTHROPIC_MODEL };
   }
   if (openaiKey) {
-    return { provider: "openai", apiKey: openaiKey, model: STANDARD_OPENAI_MODEL };
+    return { provider: "openai", apiKey: openaiKey, model: DIRECT_OPENAI_MODEL };
   }
   throw new Error("NO_AI_PROVIDER_CONFIGURED");
-}
-
-/**
- * Pick provider for premium (expensive) tasks.
- * Priority: OpenRouter Claude Sonnet → Anthropic direct → OpenAI GPT-4o
- */
-function routePremium(): AIRoute {
-  const orKey        = getKey("OPENROUTER_API_KEY");
-  const anthropicKey = getKey("ANTHROPIC_API_KEY");
-  const openaiKey    = getKey("OPENAI_API_KEY");
-
-  if (orKey) {
-    return { provider: "openrouter", apiKey: orKey, model: OR_PREMIUM_MODEL };
-  }
-  if (anthropicKey) {
-    return { provider: "anthropic", apiKey: anthropicKey, model: PREMIUM_ANTHROPIC_MODEL };
-  }
-  if (openaiKey) {
-    return { provider: "openai", apiKey: openaiKey, model: PREMIUM_OPENAI_MODEL };
-  }
-  throw new Error("NO_PREMIUM_AI_PROVIDER_CONFIGURED");
-}
-
-/**
- * Route for autofill — cheapest available model.
- * Priority: OpenRouter Gemini Flash Lite → Gemini direct → standard fallback
- */
-function routeAutofill(): AIRoute {
-  const orKey     = getKey("OPENROUTER_API_KEY");
-  const geminiKey = getKey("GEMINI_API_KEY");
-
-  if (orKey) {
-    return { provider: "openrouter", apiKey: orKey, model: OR_AUTOFILL_MODEL };
-  }
-  if (geminiKey) {
-    return { provider: "gemini", apiKey: geminiKey, model: AUTOFILL_GEMINI_MODEL };
-  }
-  return arbitrateStandard();
-}
-
-/**
- * Resolve the correct AI route for a given task type.
- */
-export function resolveRoute(task: CreditTask): AIRoute {
-  if (task === "resume_premium") return routePremium();
-  if (task === "autofill")       return routeAutofill();
-  return arbitrateStandard();
 }
 
 // ── Credit deduction + AI call ─────────────────────────────────────────────────
@@ -167,14 +118,15 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
   if (!ok) throw new Error("INSUFFICIENT_CREDITS");
 
   const result = await callProvider({
-    provider:  route.provider,
-    apiKey:    route.apiKey,
-    model:     route.model,
-    system:    opts.system,
-    user:      opts.user,
-    maxTokens: opts.maxTokens ?? 2048,
-    cache:     route.provider === "anthropic", // prompt caching only for direct Anthropic calls
-    json:      true,
+    provider:       route.provider,
+    apiKey:         route.apiKey,
+    model:          route.model,
+    system:         opts.system,
+    user:           opts.user,
+    maxTokens:      opts.maxTokens ?? 2048,
+    cache:          route.provider === "anthropic",
+    json:           true,
+    fallbackModels: route.fallbackModels,
   });
 
   // Fire-and-forget usage log
