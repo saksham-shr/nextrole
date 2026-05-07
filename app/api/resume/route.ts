@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
     user_id: userId,
     task_type: isPremium ? "resume_premium" : "resume_standard",
     model: route.model,
-    credits_used: isAdmin ? 0 : (isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard),
+    credits_used: isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard,
     byok: false,
   }).then(() => {});
 

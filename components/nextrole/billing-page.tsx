@@ -110,7 +110,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
   }
 
   const totalSpent = entries
-    .filter((e) => e.task_type !== "topup")
+    .filter((e) => e.task_type !== "topup" && e.credits_used > 0)
     .reduce((s, e) => s + e.credits_used, 0);
 
   return (
@@ -146,6 +146,8 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
                   <td className="px-4 py-3">{taskLabel(e.task_type)}</td>
                   {e.task_type === "topup" ? (
                     <td className="px-4 py-3 text-right font-mono text-[var(--ok)]">+{Math.abs(e.credits_used)}</td>
+                  ) : e.credits_used === 0 ? (
+                    <td className="px-4 py-3 text-right font-mono text-[var(--muted-foreground)]">—</td>
                   ) : (
                     <td className="px-4 py-3 text-right font-mono text-[var(--accent)]">−{e.credits_used}</td>
                   )}

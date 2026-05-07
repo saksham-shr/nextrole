@@ -194,7 +194,7 @@ export async function POST(request: NextRequest) {
     raw_output: rawOutput, provider: route.provider, model: route.model,
   }).select("id").single();
 
-  supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate, byok: false }).then(() => {});
+  supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: CREDIT_COSTS.evaluate, byok: false }).then(() => {});
 
   await supabase.from("jobs").update({ status: "evaluated", archetype: archetype ?? job.archetype, updated_at: new Date().toISOString() })
     .eq("id", jobId).eq("user_id", userId);

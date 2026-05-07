@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
             results.status_update = { new_status: newStatus };
           }
 
-          supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: isAdmin || tier === "free" ? 0 : CREDIT_COSTS.evaluate, byok: false }).then(() => {});
+          supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: CREDIT_COSTS.evaluate, byok: false }).then(() => {});
         } catch (err) {
           results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
         }
