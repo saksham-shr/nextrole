@@ -19,7 +19,6 @@ export const navGroups: Array<{
   {
     title: "Account",
     items: [
-      { label: "Profile",  href: "/dashboard/profile" },
       { label: "Billing",  href: "/dashboard/billing" },
       { label: "Settings", href: "/dashboard/settings" },
     ],
@@ -30,7 +29,7 @@ export const quickActions = [
   { label: "Add Job to Pipeline",     href: "/dashboard/pipeline" },
   { label: "Evaluate Job",            href: "/dashboard/evaluate" },
   { label: "Generate Tailored Resume",href: "/dashboard/resumes" },
-  { label: "Edit CV",                 href: "/dashboard/profile" },
+  { label: "Edit CV",                 href: "/dashboard/settings" },
 ] as const;
 
 export const kpis: Array<{
@@ -65,10 +64,6 @@ const dashboardRouteInfo = {
   "resumes.detail": {
     title: "Resume Detail",
     subtitle: "Review one tailored resume and its alignment to the target role.",
-  },
-  profile: {
-    title: "Profile",
-    subtitle: "Configure role targets, compensation boundaries, and targeting logic.",
   },
   billing: {
     title: "Billing",

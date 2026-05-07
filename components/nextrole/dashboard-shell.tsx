@@ -39,7 +39,6 @@ function getActiveNav(pathname: string): NavId {
   if (
     pathname.startsWith("/dashboard/settings") ||
     pathname.startsWith("/dashboard/billing") ||
-    pathname.startsWith("/dashboard/profile") ||
     pathname.startsWith("/dashboard/admin")
   ) return "settings";
   return "home";

@@ -455,7 +455,7 @@ const QUICK_ACTIONS = [
     title: "Tailor your resume",
     desc: "Generate a job-specific resume from your CV.",
     cta: "Open resume →",
-    href: "/dashboard/profile",
+    href: "/dashboard/resumes",
   },
 ] as const;
 
@@ -508,7 +508,7 @@ export function DashboardHome({
     {
       label: "Add your CV",
       description: "Paste your base CV for AI evaluations.",
-      href: "/dashboard/profile",
+      href: "/dashboard/settings",
       done: hasCV,
     },
     {

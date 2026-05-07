@@ -6,9 +6,9 @@ import { TOPUP_PACKS, type TopupPackId } from "@/lib/ai/gates";
 // Base subscription prices in INR
 export const INR_PRICES = {
   starter_monthly:  749,
-  pro_monthly:     1599,
+  pro_monthly:     1999,
   starter_yearly:  7200,
-  pro_yearly:     15200,
+  pro_yearly:     17999,
 } as const;
 
 // Top-up prices already defined in gates.ts (INR)

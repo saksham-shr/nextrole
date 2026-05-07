@@ -20,6 +20,7 @@ export default async function OnboardingPage() {
   return (
     <OnboardingPricing
       trialEndsAt={(profile?.subscription_ends_at as string | null) ?? null}
+      email={user.email ?? ""}
     />
   );
 }

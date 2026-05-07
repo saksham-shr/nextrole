@@ -54,6 +54,7 @@ export default async function Billing() {
   return (
     <BillingPage
       tier={tier}
+      email={user.email ?? ""}
       trialEndsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}
       subscriptionStatus={isAdmin ? "active" : ((profile?.subscription_status as string | null) ?? null)}
       renewsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}

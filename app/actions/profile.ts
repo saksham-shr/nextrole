@@ -95,7 +95,6 @@ export async function updateProfile(formData: FormData) {
   redirect("/dashboard/settings?message=Profile+saved");
 }
 
-// ── Focused CV save (used by /dashboard/cv) ──────────────────────────────────
 export async function saveCV(formData: FormData) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -109,12 +108,12 @@ export async function saveCV(formData: FormData) {
     .eq("id", user.id);
 
   if (error) {
-    redirect(`/dashboard/cv?error=${encodeURIComponent(error.message)}`);
+    redirect(`/dashboard/settings?error=${encodeURIComponent(error.message)}`);
   }
 
-  revalidatePath("/dashboard/cv");
+  revalidatePath("/dashboard/settings");
   revalidatePath("/dashboard");
-  redirect("/dashboard/cv?message=CV+saved");
+  redirect("/dashboard/settings?message=CV+saved");
 }
 
 // ── Partial profile save — no redirect, used by onboarding wizard ─────────────
@@ -160,6 +159,6 @@ export async function saveProfileStep(fields: {
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/dashboard");
-  revalidatePath("/dashboard/profile");
+  revalidatePath("/dashboard/settings");
   return { ok: true };
 }

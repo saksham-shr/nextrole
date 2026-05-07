@@ -6,7 +6,10 @@ import type { UserTier } from "@/lib/db/types";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
 import { TOPUP_PACKS } from "@/lib/ai/gates";
 
-const LS_BASE = process.env.NEXT_PUBLIC_LS_CHECKOUT_URL ?? "";
+const LS_URLS = {
+  starter: process.env.NEXT_PUBLIC_LS_STARTER_URL ?? "",
+  pro:     process.env.NEXT_PUBLIC_LS_PRO_URL     ?? "",
+};
 
 const VARIANT_IDS = {
   starter_monthly: process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID ?? "",
@@ -15,10 +18,12 @@ const VARIANT_IDS = {
   pro_yearly:      process.env.NEXT_PUBLIC_LS_PRO_YEARLY_ID      ?? "",
 };
 
-function checkoutUrl(plan: "starter" | "pro", period: "monthly" | "yearly"): string | null {
+function checkoutUrl(plan: "starter" | "pro", period: "monthly" | "yearly", email: string): string | null {
+  const base = LS_URLS[plan];
   const id = VARIANT_IDS[`${plan}_${period}`];
-  if (!id || !LS_BASE) return null;
-  return `${LS_BASE}?variant=${id}`;
+  if (!base || !id) return null;
+  const emailParam = email ? `&checkout[email]=${encodeURIComponent(email)}` : "";
+  return `${base}?variant=${id}${emailParam}`;
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -56,6 +61,7 @@ interface CreditLogEntry {
 
 interface BillingPageProps {
   tier: UserTier;
+  email: string;
   trialEndsAt: string | null;
   subscriptionStatus: string | null;
   renewsAt: string | null;
@@ -147,7 +153,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
   );
 }
 
-export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, usage, portalUrl, creditLog = [] }: BillingPageProps) {
+export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, renewsAt, usage, portalUrl, creditLog = [] }: BillingPageProps) {
   const [period, setPeriod]       = useState<"monthly" | "yearly">("monthly");
   const [topupLoading, setTopupLoading] = useState<string | null>(null);
   const { price, loading: currencyLoading } = useCurrency();
@@ -156,7 +162,6 @@ export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, u
   // Only show trial badge for paid tiers — free accounts have subscription_ends_at set by old migration but are not on a trial
   const inTrial  = daysLeft !== null && daysLeft > 0 && tier !== "free";
   const dailyBase = DAILY_BASE[tier] ?? 0;
-  const creditPct = dailyBase > 0 ? Math.min(100, (usage.creditsRemaining / dailyBase) * 100) : 0;
 
   async function handleTopup(packId: string) {
     setTopupLoading(packId);
@@ -232,17 +237,27 @@ export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, u
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {/* Credit bar */}
-            <div className="col-span-2 sm:col-span-1 rounded-xl border border-[var(--line-soft)] p-4">
-              <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits today</div>
-              <div className="flex items-baseline gap-1.5">
-                <span className="font-mono text-[22px] font-medium leading-none">{usage.creditsRemaining}</span>
-                <span className="text-[13px] text-[var(--muted-foreground)]">/ {dailyBase}</span>
-              </div>
-              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
-                <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${creditPct}%` }} />
-              </div>
-              <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">resets at midnight · no rollover</div>
-            </div>
+            {(() => {
+              const topup = Math.max(0, usage.creditsRemaining - dailyBase);
+              const daily = Math.min(usage.creditsRemaining, dailyBase);
+              const dailyPct = dailyBase > 0 ? Math.min(100, (daily / dailyBase) * 100) : 0;
+              return (
+                <div className="col-span-2 sm:col-span-1 rounded-xl border border-[var(--line-soft)] p-4">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits remaining</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-[22px] font-medium leading-none">{usage.creditsRemaining}</span>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">total</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
+                    <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${dailyPct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
+                    {daily} / {dailyBase} daily
+                    {topup > 0 && <span className="ml-1.5 rounded-full bg-[var(--ok-bg)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[var(--ok)]">+{topup} top-up</span>}
+                  </div>
+                </div>
+              );
+            })()}
             <UsageCell
               label="Autofills today"
               value={tier === "pro" ? "∞" : `${Math.max(0, 1 - usage.autofillsToday)} / 1`}
@@ -295,7 +310,7 @@ export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, u
               onClick={() => setPeriod(p)}
               className={`rounded-md px-3 py-1 capitalize transition ${period === p ? "bg-[var(--accent)] text-white font-medium" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}
             >
-              {p}{p === "yearly" && <span className="ml-1.5 text-[10px] opacity-80">save 20%</span>}
+              {p}{p === "yearly" && <span className="ml-1.5 text-[10px] opacity-80">save up to 25%</span>}
             </button>
           ))}
         </div>
@@ -321,9 +336,9 @@ export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, u
           current={tier === "starter"}
           features={["100 credits / day", "1 autofill / day", "Standard resumes", "Pipeline tracking"]}
           locked={["Unlimited autofill", "Premium resumes", "Credit top-ups"]}
-          cta={tier === "starter" ? "Current plan" : "Get Starter"}
-          ctaHref={tier === "starter" ? undefined : (checkoutUrl("starter", period) ?? undefined)}
-          ctaDisabled={tier === "starter"}
+          cta={tier === "starter" ? "Current plan" : tier === "pro" ? "Downgrade" : "Get Starter"}
+          ctaHref={tier === "free" ? (checkoutUrl("starter", period, email) ?? undefined) : tier === "pro" && portalUrl ? portalUrl : undefined}
+          ctaDisabled={tier === "starter" || (tier === "pro" && !portalUrl)}
         />
         <PlanCard
           name="Pro"
@@ -333,7 +348,7 @@ export function BillingPage({ tier, trialEndsAt, subscriptionStatus, renewsAt, u
           current={tier === "pro"}
           features={["300 credits / day", "Unlimited autofill", "Premium resumes", "Credit top-ups"]}
           cta={tier === "pro" ? "Current plan" : "Go Pro"}
-          ctaHref={tier === "pro" ? undefined : (checkoutUrl("pro", period) ?? undefined)}
+          ctaHref={tier === "pro" ? undefined : (checkoutUrl("pro", period, email) ?? undefined)}
           ctaDisabled={tier === "pro"}
         />
       </div>

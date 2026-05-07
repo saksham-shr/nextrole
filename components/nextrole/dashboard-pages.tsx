@@ -73,35 +73,6 @@ function DashboardOverview() {
 }
 
 
-function ProfilePage() {
-  return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
-      <Surface className="p-5">
-        <SectionTitle title="Targeting profile" subtitle="Role families, geographies, compensation, and exclusions" />
-        <div className="grid gap-4 md:grid-cols-2">
-          <InputField label="Target role families" placeholder="Platform, product eng, staff IC" />
-          <InputField label="Role exclusions" placeholder="Pure EM, agency-heavy roles" />
-          <InputField label="Geography" placeholder="US remote, NYC, EU optional" />
-          <InputField label="Work preference" placeholder="Remote, hybrid, occasional onsite" />
-          <InputField label="Compensation target" placeholder="$220k+ total comp" />
-          <InputField label="Industry targets" placeholder="Developer tools, fintech infra, product-led SaaS" />
-        </div>
-      </Surface>
-      <Surface tone="accent" className="p-5">
-        <SectionTitle title="System impact" subtitle="How profile choices affect the rest of the product" />
-        <div className="grid gap-4">
-          {[
-            "Evaluation weighting and scoring",
-            "Resume tailoring keyword emphasis",
-          ].map((item) => (
-            <MiniMetric key={item} label="Used by" value={item} />
-          ))}
-        </div>
-      </Surface>
-    </div>
-  );
-}
-
 function SettingsPage() {
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_0.9fr]">
@@ -140,8 +111,6 @@ function renderRoute(route: DashboardRoute) {
   switch (route.key) {
     case "dashboard":
       return <DashboardOverview />;
-    case "profile":
-      return <ProfilePage />;
     case "settings":
       return <SettingsPage />;
     default:

@@ -9,6 +9,26 @@ type Period = "monthly" | "yearly";
 
 // ─── Tier definitions ─────────────────────────────────────────────────────────
 
+const LS_URLS = {
+  starter: process.env.NEXT_PUBLIC_LS_STARTER_URL ?? "",
+  pro:     process.env.NEXT_PUBLIC_LS_PRO_URL     ?? "",
+};
+
+const VARIANT_IDS = {
+  starter_monthly: process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID ?? "",
+  starter_yearly:  process.env.NEXT_PUBLIC_LS_STARTER_YEARLY_ID  ?? "",
+  pro_monthly:     process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID     ?? "",
+  pro_yearly:      process.env.NEXT_PUBLIC_LS_PRO_YEARLY_ID      ?? "",
+};
+
+function buildCheckoutUrl(plan: "starter" | "pro", period: Period, email: string): string {
+  const base = LS_URLS[plan];
+  const id = VARIANT_IDS[`${plan}_${period}`];
+  if (!base || !id) return "";
+  const emailParam = email ? `&checkout[email]=${encodeURIComponent(email)}` : "";
+  return `${base}?variant=${id}${emailParam}`;
+}
+
 const TIERS = [
   {
     id: "free",
@@ -27,7 +47,6 @@ const TIERS = [
     ],
     cta: "Start free",
     ctaStyle: "secondary" as const,
-    checkoutUrl: null,
   },
   {
     id: "starter",
@@ -38,20 +57,14 @@ const TIERS = [
     badge: null,
     features: [
       "Everything in Free",
-      "Tailored resumes",
-      "Interview prep",
-      "Apply assistant",
-      "Follow-up drafts",
-      "Contact outreach",
-      "Story bank",
-      "Export reports",
+      "100 credits / day",
+      "Tailored resumes (10 cr)",
+      "Job evaluation (5 cr)",
+      "1 autofill / day",
       "25 job slots",
     ],
     cta: "Get Starter",
     ctaStyle: "secondary" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_CHECKOUT_URL && process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID
-      ? `${process.env.NEXT_PUBLIC_LS_CHECKOUT_URL}?variant=${process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID}`
-      : "",
   },
   {
     id: "pro",
@@ -62,18 +75,14 @@ const TIERS = [
     badge: "Most Popular",
     features: [
       "Everything in Starter",
-      "Cover letters",
-      "Salary negotiation",
-      "Deep research",
-      "Batch processing",
-      "Auto-evaluate pipeline",
+      "300 credits / day",
+      "Unlimited autofill",
+      "Premium resumes (25 cr)",
+      "Credit top-ups",
       "Unlimited job slots",
     ],
     cta: "Get Pro",
     ctaStyle: "primary" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_CHECKOUT_URL && process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID
-      ? `${process.env.NEXT_PUBLIC_LS_CHECKOUT_URL}?variant=${process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID}`
-      : "",
   },
 ] as const;
 
@@ -81,6 +90,7 @@ type TierId = (typeof TIERS)[number]["id"];
 
 interface Props {
   trialEndsAt: string | null;
+  email: string;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -108,14 +118,14 @@ function CheckIcon({ accent }: { accent?: boolean }) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OnboardingPricing({ trialEndsAt }: Props) {
+export function OnboardingPricing({ trialEndsAt, email }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState<TierId | null>(null);
   const [period, setPeriod] = useState<Period>("monthly");
   const daysLeft = trialDaysLeft(trialEndsAt);
   const { price, currency, loading: currencyLoading } = useCurrency();
 
-  const toggleDiscount = yearlyDiscount(INR_PRICES.starter_monthly, INR_PRICES.starter_yearly);
+  const toggleDiscount = yearlyDiscount(INR_PRICES.pro_monthly, INR_PRICES.pro_yearly);
 
   async function completeOnboarding() {
     await fetch("/api/onboarding", {
@@ -190,7 +200,8 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
             const isByok    = false;
             const isPaid    = ["starter", "pro"].includes(tier.id);
             const isLoading = loading === tier.id;
-            const hasUrl    = !!tier.checkoutUrl;
+            const checkoutUrl = isPaid ? buildCheckoutUrl(tier.id as "starter" | "pro", period, email) : "";
+            const hasUrl    = !!checkoutUrl;
             const discount  = period === "yearly" && tier.inrMonthly > 0
               ? yearlyDiscount(tier.inrMonthly, tier.inrYearly)
               : null;
@@ -285,7 +296,7 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
                     </button>
                   ) : isPaid && hasUrl ? (
                     <button
-                      onClick={() => handlePaidTier(tier.id as TierId, tier.checkoutUrl as string)}
+                      onClick={() => handlePaidTier(tier.id as TierId, checkoutUrl)}
                       disabled={isLoading}
                       className={[
                         "w-full rounded-full py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition disabled:opacity-50",

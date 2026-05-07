@@ -27,7 +27,8 @@ function buildTopupVariantMap(): Record<string, number> {
 }
 const VARIANT_TO_TOPUP = buildTopupVariantMap();
 
-const LS_SECRET = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
+const LS_SECRET    = process.env.LEMONSQUEEZY_WEBHOOK_SECRET ?? "";
+const ADMIN_EMAIL  = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
 function verifySignature(rawBody: string, signature: string): boolean {
   if (!LS_SECRET) return false;
@@ -66,6 +67,7 @@ interface LSPayload {
       renews_at?: string | null;
       current_period_end?: string | null;
       first_subscription_item?: { variant_id?: number } | null;
+      first_order_item?: { variant_id?: number } | null;
     };
   };
 }
@@ -85,7 +87,12 @@ export async function POST(request: NextRequest) {
   const { event_name } = payload.meta;
   const attrs          = payload.data.attributes;
   const subscriptionId = payload.data.id;
-  const variantId      = String(attrs.variant_id ?? attrs.first_subscription_item?.variant_id ?? "");
+  const variantId      = String(
+    attrs.variant_id ??
+    attrs.first_order_item?.variant_id ??
+    attrs.first_subscription_item?.variant_id ??
+    ""
+  );
   const customerId     = attrs.customer_id ? String(attrs.customer_id) : undefined;
 
   const admin = createAdminClient();
@@ -215,10 +222,13 @@ export async function POST(request: NextRequest) {
     // ── Top-up order — Pro only, valid until subscription ends ────────────────
     case "order_created": {
       const topupCredits = VARIANT_TO_TOPUP[variantId];
-      if (!topupCredits) return NextResponse.json({ received: true, note: "unknown topup variant" });
+      if (!topupCredits) {
+        console.warn("[LS webhook] order_created: unknown variant", variantId, "known:", Object.keys(VARIANT_TO_TOPUP));
+        return NextResponse.json({ received: true, note: "unknown topup variant" });
+      }
 
-      // Silently reject if user is not currently Pro
-      if (profile.tier !== "pro") {
+      const isAdmin = attrs.user_email.toLowerCase() === ADMIN_EMAIL;
+      if (!isAdmin && profile.tier !== "pro") {
         return NextResponse.json({ received: true, note: "top-up requires Pro subscription" });
       }
 

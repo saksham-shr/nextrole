@@ -312,8 +312,8 @@ function SiteFooter() {
         className="mx-auto mt-10 flex max-w-[1100px] items-center justify-between pt-5 text-[12px] text-[var(--muted-foreground)]"
         style={{ borderTop: "1px solid var(--line-soft)" }}
       >
-        <span>Â© 2026 NextRole</span>
-        <span className="font-['DM_Mono']">v1.0.0 Â· made for the next role</span>
+        <span>© 2026 NextRole</span>
+        <span className="font-['DM_Mono']">v1.0.0 · made for the next role</span>
       </div>
     </footer>
   );
@@ -473,16 +473,16 @@ function ScoreRing({ value = 4.2, size = 110 }: { value?: number; size?: number 
 export function LandingPage() {
   return (
     <div className="min-h-screen text-[var(--foreground)]" style={{ background: "var(--background)" }}>
-      {/* â”€â”€ Header â”€â”€ */}
+      {/* ── Header ── */}
       <PublicHeader />
 
-      {/* â”€â”€ Hero â”€â”€ */}
+      {/* ── Hero ── */}
       <section style={{ padding: "88px 56px 64px", maxWidth: 1100, margin: "0 auto" }}>
         <p
           className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]"
           style={{ marginBottom: 24, color: "var(--accent)" }}
         >
-          Â· AI Job Search Assistant
+          · AI Job Search Assistant
         </p>
 
         <h1
@@ -508,7 +508,7 @@ export function LandingPage() {
             lineHeight: 1.55,
           }}
         >
-          Detect jobs as you browse, evaluate fit instantly, autofill applications, and tailor your resume â€” all in one flow.
+          Detect jobs as you browse, evaluate fit instantly, autofill applications, and tailor your resume — all in one flow.
         </p>
         <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
           <Link
@@ -529,11 +529,11 @@ export function LandingPage() {
         </div>
         <div className="flex items-center gap-2.5" style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
-          Free forever â€” no card required. Upgrade for daily AI credits.
+          Free forever — no card required. Upgrade for daily AI credits.
         </div>
       </section>
 
-      {/* â”€â”€ Hero visual â”€â”€ */}
+      {/* ── Hero visual ── */}
       <section style={{ padding: "0 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
         {/* Browser mock + extension card */}
         <div className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)", background: "var(--surface)" }}>
@@ -562,16 +562,16 @@ export function LandingPage() {
                     <BrandMark size={16} />
                     Job Detected
                   </div>
-                  <span style={{ opacity: 0.7, fontSize: 14 }}>Ã—</span>
+                  <span style={{ opacity: 0.7, fontSize: 14 }}>×</span>
                 </div>
                 <div style={{ padding: 16 }}>
                   <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Senior Backend Engineer</div>
-                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>Stripe Â· Remote</div>
+                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>Stripe · Remote</div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--background)", borderRadius: 5, marginBottom: 14 }}>
                     <span className="inline-flex items-center justify-center font-['DM_Mono'] font-medium text-[12px]" style={{ width: 26, height: 22, borderRadius: 4, background: "var(--ok-bg)", color: "var(--ok)", border: "1px solid rgba(47,122,58,0.2)" }}>4</span>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 500 }}>Strong fit</div>
-                      <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>4.2/5 Â· CV match 87%</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>4.2/5 · CV match 87%</div>
                     </div>
                   </div>
                   <Link href="/signup" className="flex items-center justify-center rounded-md text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90" style={{ width: "100%", padding: "8px 12px", marginBottom: 6, background: "var(--accent)" }}>
@@ -587,7 +587,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* â”€â”€ How it works â”€â”€ */}
+      {/* ── How it works ── */}
       <section id="how-it-works" style={{ padding: "64px 56px", maxWidth: 1100, margin: "0 auto" }}>
         <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
           <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>01</span>
@@ -601,7 +601,7 @@ export function LandingPage() {
           {[
             { n: "01", icon: "M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z", t: "Install extension", d: "Add NextRole to Chrome in one click." },
             { n: "02", icon: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36M21 3l-3 3m0 0l-3-3m3 3v7", t: "Browse normally", d: "A card pops up the moment we detect a job posting." },
-            { n: "03", icon: "M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8", t: "AI scores fit", d: "Get a 1â€“5 fit score with reasoning before you apply." },
+            { n: "03", icon: "M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8", t: "AI scores fit", d: "Get a 1—5 fit score with reasoning before you apply." },
             { n: "04", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4", t: "Tailor & apply", d: "Generate a tailored resume and autofill in seconds." },
           ].map((s) => (
             <div key={s.n} style={{ background: "var(--surface)", padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
@@ -620,7 +620,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* â”€â”€ Features â”€â”€ */}
+      {/* ── Features ── */}
       <section id="features" style={{ padding: "32px 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
         <div className="flex items-center gap-2.5" style={{ marginBottom: 32 }}>
           <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>02</span>
@@ -637,11 +637,11 @@ export function LandingPage() {
                     <span className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--accent)" }}>Job detected</span>
                   </div>
                   <div style={{ fontSize: 12, fontWeight: 600 }}>Product Designer</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Linear Â· San Francisco</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Linear · San Francisco</div>
                 </div>
               ),
               title: "Job detection",
-              body: "Works on every major board. The card appears the moment a posting loads â€” no clicks, no copy-paste.",
+              body: "Works on every major board. The card appears the moment a posting loads — no clicks, no copy-paste.",
             },
             {
               preview: (
@@ -650,7 +650,7 @@ export function LandingPage() {
                 </div>
               ),
               title: "AI evaluation",
-              body: "Score, decision, role-fit summary, CV gaps, comp signals â€” all in one pass.",
+              body: "Score, decision, role-fit summary, CV gaps, comp signals — all in one pass.",
             },
             {
               preview: (
@@ -663,7 +663,7 @@ export function LandingPage() {
                 </div>
               ),
               title: "Resume tailoring",
-              body: "Generates a job-specific resume in your voice â€” keywords, ordering, emphasis tuned to the role.",
+              body: "Generates a job-specific resume in your voice — keywords, ordering, emphasis tuned to the role.",
             },
           ].map((f) => (
             <div key={f.title} className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)" }}>
@@ -681,7 +681,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* â”€â”€ Social proof â”€â”€ */}
+      {/* ── Social proof ── */}
       <div style={{ padding: "40px 56px", borderTop: "1px solid var(--line-soft)", borderBottom: "1px solid var(--line-soft)" }}>
         <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
           <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Works on</span>
@@ -691,7 +691,7 @@ export function LandingPage() {
         </div>
       </div>
 
-      {/* â”€â”€ Pricing teaser â”€â”€ */}
+      {/* ── Pricing teaser ── */}
       <section style={{ padding: "80px 56px", maxWidth: 1100, margin: "0 auto" }}>
         <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
           <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>03</span>
@@ -702,7 +702,7 @@ export function LandingPage() {
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
           {[
             { name: "Free", price: "$0", sub: "per month", items: ["5 evaluations / day", "1 custom resume / day", "Unlimited saved jobs", "Browser extension"] },
-            { name: "Starter", price: "$9", sub: "per month", items: ["Everything in Free", "50 daily credits", "1 autofill / day Â· basic fields", "Refresh at midnight"] },
+            { name: "Starter", price: "$9", sub: "per month", items: ["Everything in Free", "50 daily credits", "1 autofill / day · basic fields", "Refresh at midnight"] },
             { name: "Pro", price: "$19", sub: "per month", recommended: true, items: ["Everything in Starter", "200 daily credits", "Unlimited autofill, all fields", "Direct resume upload to forms"] },
           ].map((p) => (
             <div key={p.name} className="rounded-lg" style={{ padding: 28, border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)", position: "relative" }}>
@@ -727,7 +727,7 @@ export function LandingPage() {
         </div>
         <div style={{ marginTop: 28, textAlign: "center" }}>
           <Link href="/pricing" className="text-[13.5px] font-medium transition hover:opacity-70" style={{ color: "var(--accent)" }}>
-            See full pricing details â†’
+            See full pricing details →
           </Link>
         </div>
       </section>
@@ -1042,9 +1042,9 @@ export function TermsPage() {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // Pricing page
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 function CheckIcon() {
   return (
@@ -1061,7 +1061,7 @@ export function PricingPage() {
 
       {/* Hero */}
       <section className="px-14 pb-16 pt-[72px] text-center" style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]" style={{ marginBottom: 16 }}>Â· Pricing</p>
+        <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]" style={{ marginBottom: 16 }}>· Pricing</p>
         <h1 className="mx-auto max-w-[720px] font-semibold leading-[1.05] tracking-[-0.025em]" style={{ fontSize: 48, marginBottom: 16 }}>
           Three plans.<br />One that fits your search.
         </h1>
@@ -1083,10 +1083,10 @@ export function PricingPage() {
             </div>
             <div className="space-y-3 text-[14px] leading-[1.65] text-[var(--muted-foreground)]">
               <p>
-                Starter and Pro plans include a credit balance that resets at midnight every day. Spend credits on AI evaluations (1 credit each) and custom resumes (3 credits each).
+                Starter and Pro plans include a credit balance that resets at midnight UTC every day. Spend credits on AI job evaluations (5 credits each) and tailored resumes (10 credits each). Premium resumes cost 25 credits and are available on Pro only.
               </p>
               <p>
-                Credits only unlock more of what your plan already includes â€” features outside your plan remain locked regardless of how many credits you have. Unused credits do not roll over to the next day.
+                Unused credits do not roll over to the next day. Pro users can buy top-up packs for extra credits that last until their subscription renews.
               </p>
             </div>
           </div>
@@ -1105,26 +1105,23 @@ export function PricingPage() {
             </thead>
             <tbody>
               {[
-                ["Job pipeline", "Unlimited", "Unlimited", "Unlimited"],
-                ["Browser extension", "âœ“", "âœ“", "âœ“"],
-                ["AI evaluations", "5 / day", "Credits", "Credits"],
-                ["Custom resumes", "1 / day", "Credits", "Credits"],
-                ["Daily credits", "â€”", "50 / day", "200 / day"],
-                ["Autofill (basic fields)", "â€”", "1 / day", "Unlimited"],
-                ["Autofill all fields + AI", "â€”", "â€”", "Unlimited"],
-                ["Direct resume upload", "â€”", "â€”", "âœ“"],
-                ["Interview prep + follow-up", "â€”", "âœ“", "âœ“"],
-                ["Cover letters", "â€”", "â€”", "âœ“"],
-                ["Deep research + batch", "â€”", "â€”", "âœ“"],
+                ["Job pipeline",          "5 slots",  "25 slots",   "Unlimited"],
+                ["Browser extension",     "✓",        "✓",          "✓"],
+                ["AI job evaluation",     "5 / day",  "5 credits",  "5 credits"],
+                ["Tailored resume",       "1 / day",  "10 credits", "10 credits"],
+                ["Premium resume",        "—",        "—",          "25 credits"],
+                ["Daily credits",         "—",        "100 / day",  "300 / day"],
+                ["Autofill",              "—",        "1 / day",    "Unlimited"],
+                ["Credit top-ups",        "—",        "—",          "✓"],
               ].map(([feature, free, starter, pro]) => (
                 <tr key={feature} className="border-b border-[var(--line-soft)] last:border-0">
                   <td className="px-6 py-3.5 font-medium">{feature}</td>
                   {[free, starter, pro].map((val, i) => (
                     <td key={i} className="px-4 py-3.5 text-center text-[var(--muted-foreground)]">
-                      {val === "âœ“" ? (
+                      {val === "✓" ? (
                         <span className="inline-flex justify-center"><CheckIcon /></span>
-                      ) : val === "â€”" ? (
-                        <span className="opacity-30">â€”</span>
+                      ) : val === "—" ? (
+                        <span className="opacity-30">—</span>
                       ) : (
                         <span className="font-mono text-[12px]">{val}</span>
                       )}
@@ -1139,8 +1136,8 @@ export function PricingPage() {
         {/* FAQ */}
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[
-            ["Do unused credits roll over?", "No. Daily credits reset at midnight every day. They're designed to give you a consistent daily budget, not to accumulate."],
-            ["Can I use credits for locked features?", "No. Credits only apply to features already included in your plan. Autofill, for example, requires Starter or Pro â€” credits can't unlock it on Free."],
+            ["Do unused credits roll over?", "No. Daily credits reset at midnight UTC every day. They're designed to give you a consistent daily budget, not to accumulate."],
+            ["What are credit top-ups?", "Pro users can buy extra credit packs (100–2,000 credits) on top of the daily 300. Top-up credits are added instantly and last until your subscription renews."],
             ["Can I cancel any time?", "Yes. Cancel at any time and your plan stays active until the end of the billing period. No long-term commitment required."],
           ].map(([q, a]) => (
             <div key={q} className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">

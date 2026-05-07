@@ -52,28 +52,32 @@ function FeatureRow({ text, kind }: Feature) {
 }
 
 const FREE_FEATURES: Feature[] = [
-  { text: "Job pipeline — save unlimited jobs", kind: "check" },
+  { text: "Job pipeline — save & track applications", kind: "check" },
   { text: "Browser extension — auto job detection", kind: "check" },
   { text: "CV storage", kind: "check" },
   { text: "5 AI evaluations per day", kind: "limit" },
-  { text: "1 custom resume per day", kind: "limit" },
+  { text: "1 tailored resume per day", kind: "limit" },
   { text: "Autofill forms", kind: "lock" },
+  { text: "Premium resumes", kind: "lock" },
 ];
 const STARTER_FEATURES: Feature[] = [
   { text: "Everything in Free", kind: "check" },
-  { text: "50 daily credits — evaluations + resumes", kind: "credit" },
-  { text: "1 autofill per day (name, email, phone, LinkedIn)", kind: "limit" },
-  { text: "Interview prep + follow-up drafts", kind: "check" },
-  { text: "Export + templates", kind: "check" },
-  { text: "Direct resume upload to forms", kind: "lock" },
+  { text: "100 credits / day — resets at midnight", kind: "credit" },
+  { text: "Standard tailored resumes (10 credits)", kind: "check" },
+  { text: "Job evaluation & fit scoring (5 credits)", kind: "check" },
+  { text: "1 autofill per day", kind: "limit" },
+  { text: "Up to 25 jobs in pipeline", kind: "limit" },
+  { text: "Unlimited autofill", kind: "lock" },
+  { text: "Premium resumes", kind: "lock" },
+  { text: "Credit top-ups", kind: "lock" },
 ];
 const PRO_FEATURES: Feature[] = [
   { text: "Everything in Starter", kind: "check" },
-  { text: "200 daily credits — evaluations + resumes", kind: "credit" },
-  { text: "Unlimited autofill — all fields + AI-generated", kind: "check" },
-  { text: "Direct resume upload to application forms", kind: "check" },
-  { text: "Cover letters + salary negotiation", kind: "check" },
-  { text: "Deep research + batch evaluation", kind: "check" },
+  { text: "300 credits / day — resets at midnight", kind: "credit" },
+  { text: "Unlimited autofill — all fields", kind: "check" },
+  { text: "Premium resumes (25 credits)", kind: "check" },
+  { text: "Unlimited jobs in pipeline", kind: "check" },
+  { text: "Credit top-ups available", kind: "check" },
 ];
 
 export function PricingCards() {
@@ -122,11 +126,11 @@ export function PricingCards() {
           <span className="text-[13px] text-[var(--muted-foreground)]">/ month</span>
         </div>
         <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-          50 credits / day · resets at midnight
+          100 credits / day · resets at midnight
           {approxNote && <> · <span className="opacity-60">{approxNote}</span></>}
         </p>
         <p className="mt-3 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">
-          Daily credits for evaluations and resumes, plus one autofill per day on application forms.
+          Daily credits for job evaluations and tailored resumes, plus one autofill per day on application forms.
         </p>
         <ul className="mt-6 flex-1 space-y-2.5">
           {STARTER_FEATURES.map((f) => <FeatureRow key={f.text} {...f} />)}
@@ -151,11 +155,11 @@ export function PricingCards() {
           <span className="text-[13px] text-[var(--muted-foreground)]">/ month</span>
         </div>
         <p className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">
-          200 credits / day · resets at midnight
+          300 credits / day · resets at midnight
           {approxNote && <> · <span className="opacity-60">{approxNote}</span></>}
         </p>
         <p className="mt-3 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">
-          Everything unlocked — unlimited autofill, direct resume upload to forms, deep research, and batch evaluation.
+          Full access — unlimited autofill, premium resumes, unlimited pipeline, and the ability to top up credits anytime.
         </p>
         <ul className="mt-6 flex-1 space-y-2.5">
           {PRO_FEATURES.map((f) => <FeatureRow key={f.text} {...f} />)}
