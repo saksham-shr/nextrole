@@ -12,7 +12,7 @@ import { resolveUserFromJWT } from "@/lib/extension-auth";
 import { callProvider } from "@/lib/ai/providers";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, CREDIT_COSTS, STARTER_DAILY_LIMITS } from "@/lib/ai/gates";
-import { resolveRoute } from "@/lib/ai/router";
+import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 
 const SUGGEST_MAX_TOKENS = 600;
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
   // Increment daily usage
   await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
 
-  let route: { provider: string; apiKey: string; model: string };
+  let route: AIRoute;
   try { route = resolveRoute("autofill"); }
   catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
 
@@ -117,9 +117,10 @@ export async function POST(req: NextRequest) {
   let suggestion: string;
   try {
     suggestion = await callProvider({
-      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      provider: route.provider,
       apiKey: route.apiKey, model: route.model,
-      system, user: userPrompt, maxTokens: SUGGEST_MAX_TOKENS, json: false,
+      system, user: userPrompt, maxTokens: SUGGEST_MAX_TOKENS,
+      json: false, fallbackModels: route.fallbackModels,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI error" }, { status: 502 });

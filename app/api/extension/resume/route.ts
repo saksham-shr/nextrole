@@ -15,7 +15,7 @@ import { renderResumeHtml } from "@/lib/resume/template";
 import type { ResumeData } from "@/lib/resume/template";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, FREE_DAILY_LIMITS, CREDIT_COSTS } from "@/lib/ai/gates";
-import { resolveRoute } from "@/lib/ai/router";
+import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 
 export const maxDuration = 120;
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
     jobId = newJob?.id ?? null;
   }
 
-  let route: { provider: string; apiKey: string; model: string };
+  let route: AIRoute;
   try { route = resolveRoute("resume_standard"); }
   catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
 
@@ -111,10 +111,11 @@ export async function POST(req: NextRequest) {
   let rawOutput: string;
   try {
     rawOutput = await callProvider({
-      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      provider: route.provider,
       apiKey: route.apiKey, model: route.model,
       system: RESUME_SYSTEM_PROMPT, user: userPrompt,
-      maxTokens: RESUME_MAX_TOKENS, cache: route.provider === "anthropic", json: true,
+      maxTokens: RESUME_MAX_TOKENS, cache: route.provider === "anthropic",
+      json: true, fallbackModels: route.fallbackModels,
     });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI call failed" }, { status: 502 });

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { requireFeature } from "@/lib/ai/guard";
-import { resolveRoute } from "@/lib/ai/router";
+import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS } from "@/lib/ai/gates";
 
 export const maxDuration = 60;
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
   // "full" or default "api" uses the standard arbitrated model and deducts credits
   const isLitePass = mode === "lite";
 
-  let route: { provider: string; apiKey: string; model: string; fallbackModels?: string[] };
+  let route: AIRoute;
   if (isLitePass) {
     try {
       route = resolveRoute("evaluate"); // lite pass reuses same route — free fallbacks handle rate limits
@@ -151,12 +151,13 @@ export async function POST(request: NextRequest) {
   let rawOutput: string;
   try {
     rawOutput = await callProvider({
-      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      provider: route.provider,
       apiKey: route.apiKey, model: route.model,
       system: systemPrompt, user: userPrompt,
       maxTokens: EVAL_MAX_TOKENS,
       cache: route.provider === "anthropic",
       json: true,
+      fallbackModels: route.fallbackModels,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";

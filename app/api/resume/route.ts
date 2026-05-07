@@ -5,7 +5,7 @@ import { RESUME_SYSTEM_PROMPT, buildResumePrompt } from "@/lib/resume/prompt";
 import { renderResumeHtml } from "@/lib/resume/template";
 import type { ResumeData } from "@/lib/resume/template";
 import { requireFeature } from "@/lib/ai/guard";
-import { resolveRoute } from "@/lib/ai/router";
+import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS, PREMIUM_RESUME_LIFETIME_CAP } from "@/lib/ai/gates";
 
 export const maxDuration = 120;
@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
   const personGuidance = evalData?.personalization_guidance as { angle?: string; tactics?: string[] } | null;
 
   // Resolve AI route based on premium vs standard
-  let route: { provider: string; apiKey: string; model: string };
+  let route: AIRoute;
   try {
     route = resolveRoute(isPremium ? "resume_premium" : "resume_standard");
   } catch (err) {
@@ -101,12 +101,13 @@ export async function POST(request: NextRequest) {
   let rawOutput: string;
   try {
     rawOutput = await callProvider({
-      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      provider: route.provider,
       apiKey: route.apiKey, model: route.model,
       system: RESUME_SYSTEM_PROMPT, user: userPrompt,
       maxTokens: isPremium ? PREMIUM_MAX_TOKENS : STANDARD_MAX_TOKENS,
       cache: route.provider === "anthropic",
       json: true,
+      fallbackModels: route.fallbackModels,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI call failed";

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { requireFeature, requireJobSlot } from "@/lib/ai/guard";
-import { resolveRoute } from "@/lib/ai/router";
+import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS } from "@/lib/ai/gates";
 
 export const maxDuration = 120;
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
       } else {
         const { data: profile } = await supabase.from("profiles").select("*").eq("id", userId).single();
 
-        let route: { provider: string; apiKey: string; model: string };
+        let route: AIRoute;
         try { route = resolveRoute("evaluate"); }
         catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
 
@@ -108,10 +108,11 @@ export async function POST(request: NextRequest) {
 
         try {
           const raw = await callProvider({
-            provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+            provider: route.provider,
             apiKey: route.apiKey, model: route.model,
             system: systemPrompt, user: userPrompt,
-            maxTokens: 3000, cache: route.provider === "anthropic", json: true,
+            maxTokens: 3000, cache: route.provider === "anthropic",
+            json: true, fallbackModels: route.fallbackModels,
           });
           const evaluation = parseJSON(raw) as EvalResult;
           const score    = typeof evaluation?.score    === "number" ? evaluation.score : null;
