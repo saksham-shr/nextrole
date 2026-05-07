@@ -31,15 +31,8 @@ export default async function EvaluatePage({
   let pastEvals: PastEval[] = [];
 
   if (user) {
-    const [{ data: profile }, { data: providers }, { data: evalRows }] = await Promise.all([
+    const [{ data: profile }, { data: evalRows }] = await Promise.all([
       supabase.from("profiles").select("base_cv").eq("id", user.id).single(),
-      supabase
-        .from("provider_credentials")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .in("provider", ["anthropic", "openai"])
-        .limit(1),
       supabase
         .from("evaluations")
         .select("id, score, decision, role_fit, cv_match, compensation_analysis, personalization_guidance, interview_signals, legitimacy_check, created_at, jobs:job_id(id, title, company)")
@@ -49,7 +42,13 @@ export default async function EvaluatePage({
     ]);
 
     hasCV = Boolean(profile?.base_cv);
-    hasProvider = (providers?.length ?? 0) > 0;
+    // Provider is server-side — check env keys, not user BYOK credentials
+    hasProvider = Boolean(
+      process.env.OPENROUTER_API_KEY?.trim() ||
+      process.env.ANTHROPIC_API_KEY?.trim() ||
+      process.env.OPENAI_API_KEY?.trim() ||
+      process.env.GEMINI_API_KEY?.trim()
+    );
     pastEvals = (evalRows ?? []) as PastEval[];
 
     if (job?.description) {

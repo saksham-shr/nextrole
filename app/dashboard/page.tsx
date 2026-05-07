@@ -15,18 +15,10 @@ export default async function DashboardPage() {
   // All queries in parallel
   const [
     { data: profile },
-    { data: providerRows },
     { data: jobs },
     { data: recentRuns },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, base_cv, tier, credits_remaining").eq("id", user.id).single(),
-    supabase
-      .from("provider_credentials")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .in("provider", ["anthropic", "openai", "gemini"])
-      .limit(1),
     supabase
       .from("jobs")
       .select(`id, title, company, status, archetype, evaluations(score, decision)`)
@@ -103,7 +95,12 @@ export default async function DashboardPage() {
     <DashboardHome
       userName={profile?.full_name ?? user.email?.split("@")[0] ?? "there"}
       hasCV={Boolean(profile?.base_cv)}
-      hasProvider={Boolean(providerRows?.length)}
+      hasProvider={Boolean(
+        process.env.OPENROUTER_API_KEY?.trim() ||
+        process.env.ANTHROPIC_API_KEY?.trim() ||
+        process.env.OPENAI_API_KEY?.trim() ||
+        process.env.GEMINI_API_KEY?.trim()
+      )}
       hasJobs={allJobs.length > 0}
       tier={tier}
       creditsRemaining={creditsRemaining}
