@@ -15,25 +15,26 @@ import { CREDIT_COSTS, type CreditTask } from "@/lib/ai/gates";
 import { createClient } from "@/lib/supabase/server";
 
 // ── Primary model ──────────────────────────────────────────────────────────────
-// Used for every task type — fast, cheap, and capable enough for all features.
+// Free tier first — $0 cost, rate-limited but sufficient for beta traffic.
 
-const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-001";
+const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-exp:free";
 
-// ── Free fallback chain ────────────────────────────────────────────────────────
-// Tried in order when the primary model returns 429 or 503.
-// All are free-tier on OpenRouter (rate-limited but no cost).
+// ── Fallback chain ─────────────────────────────────────────────────────────────
+// Tried in order on 429 / 503. Free models first, cheapest paid last.
+// Paid fallbacks only kick in if every free model is simultaneously rate-limited.
 
 export const OR_FREE_FALLBACKS = [
-  "google/gemini-2.0-flash-exp:free",        // Gemini Flash free tier
-  "google/gemini-2.5-pro-exp-03-25:free",    // Gemini 2.5 Pro free (high quality)
-  "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3
-  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B
-  "mistralai/mistral-7b-instruct:free",      // Mistral 7B (last resort)
+  "google/gemini-2.5-pro-exp-03-25:free",    // Gemini 2.5 Pro — free, high quality
+  "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3 — free
+  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B — free
+  "mistralai/mistral-7b-instruct:free",      // Mistral 7B — free, last free resort
+  "google/gemini-2.0-flash-lite-001",        // $0.075/1M — cheapest paid
+  "google/gemini-2.0-flash-001",             // $0.10/1M  — paid safety net
 ];
 
 // ── Direct provider fallback models (used when OPENROUTER_API_KEY is absent) ──
 
-const DIRECT_GEMINI_MODEL    = "gemini-2.0-flash";
+const DIRECT_GEMINI_MODEL    = "gemini-2.0-flash-lite";
 const DIRECT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const DIRECT_OPENAI_MODEL    = "gpt-4o-mini";
 
