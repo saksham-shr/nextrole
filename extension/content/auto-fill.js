@@ -447,11 +447,12 @@ function findSubmitButton() {
 
 // ─── Core: auto-fill all fields ──────────────────────────────────────────────
 
-async function runAutoFill(panel) {
+// fillMode: "full" (pro — direct + AI), "basic" (starter — direct only)
+async function runAutoFill(panel, fillMode = "full") {
   const session = await getSession();
   if (!session.loggedIn) {
     renderPanel(panel, "error", null, "Not signed in — open extension settings to log in.");
-    return;
+    return 0;
   }
 
   // Fetch profile
@@ -461,7 +462,7 @@ async function runAutoFill(panel) {
 
   if (!profileResult?.ok) {
     renderPanel(panel, "error", null, profileResult?.error ?? "Could not load profile.");
-    return;
+    return 0;
   }
 
   const profile  = profileResult.profile;
@@ -474,23 +475,28 @@ async function runAutoFill(panel) {
 
   if (fields.length === 0) {
     renderPanel(panel, "no_fields", null, null);
-    return;
+    return 0;
   }
 
+  // For basic mode, filter to direct fields only
+  const activeFields = fillMode === "basic"
+    ? fields.filter((f) => f.meta.kind === "direct")
+    : fields;
+
   // Build field status list
-  const statuses = fields.map((f) => ({
+  const statuses = activeFields.map((f) => ({
     label: f.meta.label || f.meta.type,
     kind:  f.meta.kind,
     state: "pending",
   }));
 
-  renderPanel(panel, "filling", { fields: statuses, total: fields.length, done: 0 }, null, { jobTitle, company });
+  renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: 0 }, null, { jobTitle, company });
 
   let doneCount = 0;
 
   // Fill direct fields immediately
-  for (let i = 0; i < fields.length; i++) {
-    const { el, meta } = fields[i];
+  for (let i = 0; i < activeFields.length; i++) {
+    const { el, meta } = activeFields[i];
     if (meta.kind !== "direct") continue;
 
     const value = getDirectValue(meta.type, profile);
@@ -501,48 +507,109 @@ async function runAutoFill(panel) {
       statuses[i].state = "skip";
     }
     doneCount++;
-    renderPanel(panel, "filling", { fields: statuses, total: fields.length, done: doneCount }, null, { jobTitle, company });
+    renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount }, null, { jobTitle, company });
   }
 
-  // Fill AI fields concurrently (max 3 at once)
-  const aiFields = fields.map((f, i) => ({ ...f, index: i })).filter((f) => f.meta.kind === "ai");
   let needsUpgrade = false;
 
-  async function fillAiField(f) {
-    statuses[f.index].state = "filling";
-    renderPanel(panel, "filling", { fields: statuses, total: fields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
+  if (fillMode === "full") {
+    // Fill AI fields concurrently (max 3 at once) — pro only
+    const aiFields = activeFields.map((f, i) => ({ ...f, index: i })).filter((f) => f.meta.kind === "ai");
 
-    const result = await new Promise((resolve) => {
-      chrome.runtime.sendMessage({
-        type: "FILL_SUGGEST",
-        payload: {
-          field_type:      f.meta.type,
-          field_label:     f.meta.label,
-          job_title:       jobTitle,
-          company,
-          job_description: jobDesc,
-          current_value:   f.el.value ?? "",
-        },
-      }, resolve);
-    });
+    async function fillAiField(f) {
+      statuses[f.index].state = "filling";
+      renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
 
-    if (result?.ok && result.suggestion) {
-      nativeFill(f.el, result.suggestion);
-      statuses[f.index].state = "done";
-    } else {
-      if (result?.upgrade) needsUpgrade = true;
-      statuses[f.index].state = "error";
+      const result = await new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          type: "FILL_SUGGEST",
+          payload: {
+            field_type:      f.meta.type,
+            field_label:     f.meta.label,
+            job_title:       jobTitle,
+            company,
+            job_description: jobDesc,
+            current_value:   f.el.value ?? "",
+          },
+        }, resolve);
+      });
+
+      if (result?.ok && result.suggestion) {
+        nativeFill(f.el, result.suggestion);
+        statuses[f.index].state = "done";
+      } else {
+        if (result?.upgrade) needsUpgrade = true;
+        statuses[f.index].state = "error";
+      }
+      doneCount++;
+      renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
     }
-    doneCount++;
-    renderPanel(panel, "filling", { fields: statuses, total: fields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
+
+    // Process AI fields in batches of 3
+    for (let i = 0; i < aiFields.length; i += 3) {
+      await Promise.allSettled(aiFields.slice(i, i + 3).map(fillAiField));
+    }
   }
 
-  // Process AI fields in batches of 3
-  for (let i = 0; i < aiFields.length; i += 3) {
-    await Promise.allSettled(aiFields.slice(i, i + 3).map(fillAiField));
+  renderPanel(panel, "done", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
+  return statuses.filter((s) => s.state === "done").length;
+}
+
+// Silent fill triggered by content.js card — no FAB panel, dispatches result event
+async function runSilentFill(fillMode) {
+  const profileResult = await new Promise((resolve) => {
+    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, resolve);
+  });
+  if (!profileResult?.ok) {
+    document.dispatchEvent(new CustomEvent("nr-autofill-result", { detail: { filled: 0, error: profileResult?.error ?? "profile fetch failed" } }));
+    return;
   }
 
-  renderPanel(panel, "done", { fields: statuses, total: fields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
+  const profile  = profileResult.profile;
+  const fields   = scanFormFields();
+  const lastJob  = await getLastJob();
+  const pageCtx  = getPageJobContext();
+  const jobTitle = lastJob.jobTitle || pageCtx.jobTitle;
+  const company  = lastJob.company  || pageCtx.company;
+  const jobDesc  = pageCtx.jobDescription;
+
+  let filled = 0;
+
+  // Always fill direct fields
+  for (const { el, meta } of fields) {
+    if (meta.kind !== "direct") continue;
+    const value = getDirectValue(meta.type, profile);
+    if (value) { nativeFill(el, value); filled++; }
+  }
+
+  if (fillMode === "full") {
+    // AI fields for pro tier
+    const aiFields = fields.filter((f) => f.meta.kind === "ai");
+    const aiPromises = aiFields.map(({ el, meta }) =>
+      new Promise((resolve) => {
+        chrome.runtime.sendMessage({
+          type: "FILL_SUGGEST",
+          payload: {
+            field_type:      meta.type,
+            field_label:     meta.label,
+            job_title:       jobTitle,
+            company,
+            job_description: jobDesc,
+            current_value:   el.value ?? "",
+          },
+        }, (result) => {
+          if (result?.ok && result.suggestion) { nativeFill(el, result.suggestion); filled++; }
+          resolve();
+        });
+      })
+    );
+    // Process in batches of 3
+    for (let i = 0; i < aiPromises.length; i += 3) {
+      await Promise.allSettled(aiPromises.slice(i, i + 3));
+    }
+  }
+
+  document.dispatchEvent(new CustomEvent("nr-autofill-result", { detail: { filled } }));
 }
 
 // ─── Submit with confirmation modal ──────────────────────────────────────────
@@ -583,15 +650,41 @@ function renderPanel(panel, state, fillData, errorMsg, ctx) {
 
   if (state === "idle") {
     const fields = scanFormFields();
-    body.innerHTML = `
-      ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
-      <div class="nr-field-count">${fields.length} fillable field${fields.length !== 1 ? "s" : ""} detected</div>
-      <button class="nr-af-btn nr-af-primary" id="nr-do-fill">
-        ⚡ Auto-fill all fields
-      </button>
-      <div class="nr-af-note">Fills name, email, phone, LinkedIn + generates cover letter and other text fields using AI.</div>
-    `;
-    body.querySelector("#nr-do-fill")?.addEventListener("click", () => runAutoFill(panel));
+    // Fetch tier to gate buttons
+    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileResult) => {
+      const tier = profileResult?.profile?.tier ?? "free";
+      const directCount = fields.filter((f) => f.meta?.kind === "direct").length;
+
+      if (tier === "free") {
+        body.innerHTML = `
+          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
+          <div class="nr-field-count">${fields.length} fillable field${fields.length !== 1 ? "s" : ""} detected</div>
+          <div class="nr-af-error" style="background:#fff5f0;border:1px solid #f5cfc5;border-radius:8px;padding:10px;color:#c84a1f;margin-bottom:8px;">
+            Autofill is not available on the free plan.
+          </div>
+          <a href="${NEXTROLE_URL}/pricing" target="_blank" class="nr-af-btn nr-af-primary" style="text-decoration:none;display:flex;">Upgrade to Starter →</a>
+          <div class="nr-af-note" style="margin-top:6px">Starter plan: fills name, email, phone, LinkedIn instantly. Pro adds AI-generated cover letters.</div>
+        `;
+      } else if (tier === "starter") {
+        body.innerHTML = `
+          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
+          <div class="nr-field-count">${directCount} direct field${directCount !== 1 ? "s" : ""} detected</div>
+          <button class="nr-af-btn nr-af-primary" id="nr-do-fill">⚡ Fill basic fields</button>
+          <div class="nr-af-note">Fills name, email, phone, LinkedIn and other contact fields instantly.</div>
+          <a href="${NEXTROLE_URL}/pricing" target="_blank" style="display:block;text-align:center;font-size:11px;color:#c84a1f;margin-top:6px;text-decoration:none;">Upgrade to Pro for AI cover letters →</a>
+        `;
+        body.querySelector("#nr-do-fill")?.addEventListener("click", () => runAutoFill(panel, "basic"));
+      } else {
+        // pro+
+        body.innerHTML = `
+          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
+          <div class="nr-field-count">${fields.length} fillable field${fields.length !== 1 ? "s" : ""} detected</div>
+          <button class="nr-af-btn nr-af-primary" id="nr-do-fill">⚡ Auto-fill all fields</button>
+          <div class="nr-af-note">Fills contact fields instantly + generates cover letter and other text fields using AI.</div>
+        `;
+        body.querySelector("#nr-do-fill")?.addEventListener("click", () => runAutoFill(panel, "full"));
+      }
+    });
     return;
   }
 
@@ -716,6 +809,14 @@ function buildFab() {
   document.body.appendChild(fab);
   document.body.appendChild(panel);
 }
+
+// ─── Event: triggered by content.js card ─────────────────────────────────────
+
+document.addEventListener("nr-autofill-trigger", (e) => {
+  const { tier } = e.detail ?? {};
+  const fillMode = tier === "pro" ? "full" : "basic";
+  runSilentFill(fillMode);
+});
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 

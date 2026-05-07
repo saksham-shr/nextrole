@@ -1,53 +1,69 @@
-type Tier = "free" | "starter" | "pro" | "team" | "byok";
+export type Tier = "free" | "starter" | "pro";
 
-// Job pipeline limits per tier (-1 = unlimited)
-export const JOB_LIMITS: Record<Tier, number> = {
-  free:    5,
-  starter: 25,
-  pro:     -1,
-  team:    -1,
-  byok:    -1,
+// Daily credits per plan — reset every midnight while subscription is active.
+// LemonSqueezy only tells us the tier; we manage this counter entirely internally.
+export const DAILY_CREDITS: Record<Tier, number> = {
+  free:    0,
+  starter: 100,
+  pro:     300,
 };
 
-// Features available per tier
+// Credit cost per task type
+export const CREDIT_COSTS = {
+  evaluate:        5,
+  resume_standard: 10,
+  resume_premium:  25,
+  autofill:        8,
+} as const;
+
+export type CreditTask = keyof typeof CREDIT_COSTS;
+
+// Free-tier daily hard limits (no credit system — just usage counters)
+export const FREE_DAILY_LIMITS = {
+  evaluations: 5,
+  resumes:     1,   // standard only; premium not available on free
+  autofills:   0,
+} as const;
+
+// Starter daily limits on top of monthly credits
+export const STARTER_DAILY_LIMITS = {
+  autofills: 1,
+} as const;
+
+// Premium resume lifetime cap per user (regardless of tier)
+export const PREMIUM_RESUME_LIFETIME_CAP = 10;
+
+// Top-up packs — Pro only. Prices stored in INR; USD computed at display time.
+export const TOPUP_PACKS = [
+  { id: "mini",   credits: 100,  inr: 99  },
+  { id: "small",  credits: 300,  inr: 249 },
+  { id: "medium", credits: 750,  inr: 549 },
+  { id: "large",  credits: 2000, inr: 1299 },
+] as const;
+
+export type TopupPackId = typeof TOPUP_PACKS[number]["id"];
+
+// Feature gate matrix
 const GATES: Record<string, Tier[]> = {
-  // Available to all
-  resume_scan:      ["free", "starter", "pro", "team", "byok"],
-  job_match_score:  ["free", "starter", "pro", "team", "byok"],
-  browser_extension:["free", "starter", "pro", "team", "byok"],
+  // All tiers
+  browser_extension: ["free", "starter", "pro"],
+  evaluate:          ["free", "starter", "pro"],
+  resume_standard:   ["free", "starter", "pro"],
+  pipeline:          ["free", "starter", "pro"],
 
   // Starter+
-  job_comparison:   ["starter", "pro", "team", "byok"],
-  resume_tailor:    ["starter", "pro", "team", "byok"],
-  interview_prep:   ["starter", "pro", "team", "byok"],
-  export:           ["starter", "pro", "team", "byok"],
-  templates:        ["starter", "pro", "team", "byok"],
-  apply:            ["starter", "pro", "team", "byok"],
-  followup:         ["starter", "pro", "team", "byok"],
-  contact_draft:    ["starter", "pro", "team", "byok"],
-  story:            ["starter", "pro", "team", "byok"],
-  training_eval:    ["starter", "pro", "team", "byok"],
+  autofill:         ["starter", "pro"],
 
-  // Pro+
-  cover_letter:     ["pro", "team", "byok"],
-  negotiate:        ["pro", "team", "byok"],
-  deep_research:    ["pro", "team", "byok"],
-  batch:            ["pro", "team", "byok"],
-  auto_evaluate:    ["pro", "team", "byok"],
-  priority_queue:   ["pro", "team", "byok"],
-
-  // Team only
-  team_dashboard:   ["team"],
+  // Pro only
+  resume_premium:   ["pro"],
+  topup:            ["pro"],
 };
 
 export function canAccess(tier: Tier, feature: string): boolean {
   return GATES[feature]?.includes(tier) ?? false;
 }
 
-export function isAdvancedAI(tier: Tier): boolean {
-  return tier === "pro" || tier === "team" || tier === "byok";
-}
-
-export function jobLimit(tier: Tier): number {
-  return JOB_LIMITS[tier];
+// Which tasks get expensive model routing
+export function isPremiumTask(task: CreditTask): boolean {
+  return task === "resume_premium";
 }

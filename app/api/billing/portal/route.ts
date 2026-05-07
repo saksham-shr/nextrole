@@ -47,5 +47,5 @@ export async function GET() {
     return NextResponse.json({ error: "Portal URL not returned" }, { status: 502 });
   }
 
-  return NextResponse.redirect(url);
+  return NextResponse.json({ url });
 }

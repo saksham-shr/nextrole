@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Badge,
   Button,
@@ -156,6 +156,34 @@ export function CvPageContent({
   message?: string;
 }) {
   const [cvText, setCvText] = useState(initialCv ?? "");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/cv/parse", { method: "POST", body: fd });
+      const data = await res.json() as { text?: string; error?: string };
+      if (!res.ok || data.error) {
+        setUploadError(data.error ?? "Failed to parse file");
+      } else if (data.text) {
+        setCvText(data.text);
+      }
+    } catch {
+      setUploadError("Upload failed — please try again");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
 
   const analysis = useMemo(() => analyseCv(cvText), [cvText]);
 
@@ -228,8 +256,51 @@ export function CvPageContent({
         <Surface className="p-5">
           <SectionTitle
             title="Base CV"
-            subtitle="Plain text or Markdown — no PDF. The AI reads this directly in every prompt."
+            subtitle="Upload a PDF, DOCX, or MD file — or paste plain text. The AI reads this directly in every prompt."
           />
+
+          {/* Upload strip */}
+          <div className="mt-3 flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".pdf,.docx,.md,.txt"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="flex items-center gap-2 rounded-full border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50"
+            >
+              {uploading ? (
+                <>
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                  Parsing…
+                </>
+              ) : (
+                <>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Upload PDF / DOCX / MD
+                </>
+              )}
+            </button>
+            {uploadError && (
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--bad)]">
+                {uploadError}
+              </span>
+            )}
+            {!uploadError && !uploading && (
+              <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+                or paste below
+              </span>
+            )}
+          </div>
 
           <div className="mt-3">
             <textarea
@@ -299,8 +370,8 @@ export function CvPageContent({
               detail: "Update after each role, project, or cert — the AI only reads what's here",
             },
             {
-              tip: "Plain text only",
-              detail: "No tables, columns, or special formatting — paste the raw text content",
+              tip: "Upload or paste",
+              detail: "Upload a PDF, DOCX, or MD file and the text is extracted automatically — or paste directly",
             },
           ].map(({ tip, detail }) => (
             <div

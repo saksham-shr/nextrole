@@ -1,25 +1,26 @@
 /**
  * POST /api/extension/resume
- * Auth: Bearer <extension_token>
+ * Auth: Bearer <supabase_jwt>
  *
- * Generates a tailored resume for a job application from the browser extension.
- * Accepts either a stored job_id or raw job context (title + company + description).
- * Returns the rendered HTML so the extension can open it as a blob for print-to-PDF.
+ * Generates a standard tailored resume from the browser extension.
+ * Free: 1/day via daily_usage. Starter/Pro: 10 credits.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserFromJWT } from "@/lib/extension-auth";
-import { decrypt } from "@/lib/crypto";
-import { callProvider, parseJSON } from "@/lib/evaluate/providers";
+import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { RESUME_SYSTEM_PROMPT, buildResumePrompt } from "@/lib/resume/prompt";
 import { renderResumeHtml } from "@/lib/resume/template";
 import type { ResumeData } from "@/lib/resume/template";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-import { canAccess } from "@/lib/ai/gates";
+import { canAccess, FREE_DAILY_LIMITS, CREDIT_COSTS } from "@/lib/ai/gates";
+import { resolveRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 
 export const maxDuration = 120;
+
+const RESUME_MAX_TOKENS = 2500;
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -30,13 +31,13 @@ export async function POST(req: NextRequest) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const admin = createAdminClient();
   const resolved = await resolveUserFromJWT(token);
   if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { userId } = resolved;
+  const admin = createAdminClient();
+  const today = new Date().toISOString().slice(0, 10);
 
-  // Parse body
   const body = await req.json().catch(() => ({})) as {
     job_id?: string;
     job_title?: string;
@@ -49,14 +50,43 @@ export async function POST(req: NextRequest) {
   let jobDesc  = (body.job_description ?? "").slice(0, 8000);
   let jobId    = body.job_id ?? null;
 
-  // If job_id provided, load the stored description for richer context
+  if (!jobTitle && !company && !jobId) {
+    return NextResponse.json({ error: "job_title or job_id required" }, { status: 400 });
+  }
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("base_cv, full_name, tier, credits_remaining")
+    .eq("id", userId)
+    .single();
+
+  const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
+
+  if (!canAccess(tier as Parameters<typeof canAccess>[0], "resume_standard")) {
+    return NextResponse.json({ error: "Resume tailoring not available on your plan", upgrade: true }, { status: 402 });
+  }
+
+  if (tier === "free") {
+    const { data: usageRow } = await admin
+      .from("daily_usage").select("resumes_count").eq("user_id", userId).eq("date", today).maybeSingle();
+    const resumesToday = (usageRow as { resumes_count?: number } | null)?.resumes_count ?? 0;
+    if (resumesToday >= FREE_DAILY_LIMITS.resumes) {
+      return NextResponse.json({ error: "Daily resume limit reached — upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
+    }
+    // Increment usage
+    await admin.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
+  } else {
+    const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.resume_standard });
+    if (!ok) return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
+  }
+
+  if (!profile?.base_cv) {
+    return NextResponse.json({ error: "No CV in your profile — add it in NextRole → CV first" }, { status: 400 });
+  }
+
   if (jobId) {
-    const { data: job } = await admin
-      .from("jobs")
-      .select("title, company, description")
-      .eq("id", jobId)
-      .eq("user_id", userId)
-      .single();
+    const { data: job } = await admin.from("jobs").select("title, company, description")
+      .eq("id", jobId).eq("user_id", userId).single();
     if (job) {
       if (!jobTitle) jobTitle = job.title as string;
       if (!company)  company  = job.company as string;
@@ -64,136 +94,45 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!jobTitle && !company) {
-    return NextResponse.json({ error: "job_title or job_id required" }, { status: 400 });
-  }
-
-  // Load profile base CV + tier
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("base_cv, full_name, tier")
-    .eq("id", userId)
-    .single();
-
-  const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
-  const isByok = tier === "byok";
-
-  // Feature gate: resume tailoring requires Starter+
-  if (!canAccess(tier, "resume_tailor")) {
-    return NextResponse.json(
-      { error: "Resume tailoring requires Starter plan or higher", upgrade: true },
-      { status: 402 },
-    );
-  }
-
-  // Credit gate
-  if (!isByok) {
-    const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: 5 });
-    if (!ok) {
-      return NextResponse.json(
-        { error: "No AI credits remaining — upgrade your NextRole plan", upgrade: true },
-        { status: 402 },
-      );
-    }
-  }
-
-  if (!profile?.base_cv) {
-    return NextResponse.json(
-      { error: "No CV in your profile — add it in NextRole → Settings first" },
-      { status: 400 },
-    );
-  }
-
-  // Load active AI provider
-  const { data: providers } = await admin
-    .from("provider_credentials")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("is_active", true)
-    .in("provider", ["anthropic", "openai", "gemini"])
-    .order("updated_at", { ascending: false })
-    .limit(1);
-
-  const cred = providers?.[0];
-  if (!cred?.encrypted_key) {
-    return NextResponse.json(
-      { error: "No AI provider configured — add a key in NextRole → Providers" },
-      { status: 400 },
-    );
-  }
-
-  // If no stored job_id, create a shadow job entry so the resume FK resolves
   if (!jobId) {
-    const { data: newJob } = await admin
-      .from("jobs")
-      .insert({
-        user_id:     userId,
-        title:       jobTitle || "Unknown Role",
-        company:     company  || "Unknown Company",
-        description: jobDesc  || null,
-        source:      "extension_resume",
-        status:      "pending",
-      })
-      .select("id")
-      .single();
+    const { data: newJob } = await admin.from("jobs").insert({
+      user_id: userId, title: jobTitle || "Unknown Role", company: company || "Unknown Company",
+      description: jobDesc || null, source: "extension_resume", status: "pending",
+    }).select("id").single();
     jobId = newJob?.id ?? null;
   }
 
-  // Build and call AI
-  const apiKey = decrypt(cred.encrypted_key);
-  const model  = cred.model ?? (
-    cred.provider === "anthropic" ? "claude-haiku-4-5-20251001" :
-    cred.provider === "gemini"    ? "gemini-2.0-flash" :
-    "gpt-4o-mini"
-  );
+  let route: { provider: string; apiKey: string; model: string };
+  try { route = resolveRoute("resume_standard"); }
+  catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
 
-  const userPrompt = buildResumePrompt({
-    title:       jobTitle,
-    company,
-    description: jobDesc,
-    base_cv:     profile.base_cv as string,
-  });
+  const userPrompt = buildResumePrompt({ title: jobTitle, company, description: jobDesc, base_cv: profile.base_cv as string });
 
   let rawOutput: string;
   try {
-    rawOutput = await callProvider(cred.provider, apiKey, model, RESUME_SYSTEM_PROMPT, userPrompt);
+    rawOutput = await callProvider({
+      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      apiKey: route.apiKey, model: route.model,
+      system: RESUME_SYSTEM_PROMPT, user: userPrompt,
+      maxTokens: RESUME_MAX_TOKENS, cache: route.provider === "anthropic", json: true,
+    });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "AI call failed";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "AI call failed" }, { status: 502 });
   }
 
   let resumeData: ResumeData;
-  try {
-    resumeData = parseJSON(rawOutput) as ResumeData;
-  } catch {
-    return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 });
-  }
+  try { resumeData = parseJSON(rawOutput) as ResumeData; }
+  catch { return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 }); }
 
   const html     = renderResumeHtml(resumeData);
   const coverage = Math.max(0, Math.min(100, (resumeData as { coverage?: number }).coverage ?? 0));
 
-  // Save to resumes table
-  const { data: resume } = await admin
-    .from("resumes")
-    .insert({
-      user_id:  userId,
-      job_id:   jobId,
-      title:    `${jobTitle} at ${company}`,
-      content:  JSON.stringify(resumeData),
-      html,
-      coverage,
-      status:   "draft",
-      version:  1,
-    })
-    .select("id")
-    .single();
+  const { data: resume } = await admin.from("resumes").insert({
+    user_id: userId, job_id: jobId, title: `${jobTitle} at ${company}`,
+    content: JSON.stringify(resumeData), html, coverage, status: "draft", version: 1,
+  }).select("id").single();
 
-  // Return both resume_id and full HTML so extension can open as blob (no session needed)
-  return NextResponse.json({
-    resume_id: resume?.id ?? null,
-    html,
-    coverage,
-    job_title: jobTitle,
-    company,
-  });
+  admin.from("usage_log").insert({ user_id: userId, task_type: "resume_standard", model: route.model, credits_used: tier === "free" ? 0 : CREDIT_COSTS.resume_standard, byok: false }).then(() => {});
+
+  return NextResponse.json({ resume_id: resume?.id ?? null, html, coverage, job_title: jobTitle, company });
 }

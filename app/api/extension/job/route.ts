@@ -9,8 +9,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserFromJWT } from "@/lib/extension-auth";
-import { jobLimit } from "@/lib/ai/gates";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
+
+// Job slot limits per tier (-1 = unlimited)
+const JOB_SLOT_LIMITS: Record<string, number> = { free: 5, starter: 25, pro: -1 };
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
@@ -36,7 +38,7 @@ export async function POST(request: NextRequest) {
   const { userId, tier } = resolved;
 
   // Check job slot limit
-  const limit = jobLimit(tier as Parameters<typeof jobLimit>[0]);
+  const limit = JOB_SLOT_LIMITS[tier as string] ?? 5;
   if (limit !== -1) {
     const { count } = await supabase
       .from("jobs")

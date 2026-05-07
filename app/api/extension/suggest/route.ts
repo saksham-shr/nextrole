@@ -1,108 +1,53 @@
 /**
  * POST /api/extension/suggest
- * Auth: Bearer <extension_token>
+ * Auth: Bearer <supabase_jwt>
  *
- * Generates AI-powered text for a job application form field.
- * Uses the user's stored CV + profile as context.
+ * Generates AI-powered text for a job application form field (Starter+ only).
+ * Uses Gemini Flash Lite via autofill route. Cost: 8 credits.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveUserFromJWT } from "@/lib/extension-auth";
-import { decrypt } from "@/lib/crypto";
-import { callProvider } from "@/lib/evaluate/providers";
+import { callProvider } from "@/lib/ai/providers";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-import { canAccess } from "@/lib/ai/gates";
+import { canAccess, CREDIT_COSTS, STARTER_DAILY_LIMITS } from "@/lib/ai/gates";
+import { resolveRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 
-// ─── Prompts per field type ───────────────────────────────────────────────────
+const SUGGEST_MAX_TOKENS = 600;
 
 function buildPrompt(opts: {
-  fieldType: string;
-  fieldLabel: string;
-  jobTitle: string;
-  company: string;
-  jobDescription: string;
-  currentValue: string;
-  fullName: string;
-  baseCv: string;
-  targetRoles: string[];
-  yearsExperience: number | null;
-  seniority: string | null;
-  email: string;
+  fieldType: string; fieldLabel: string; jobTitle: string; company: string;
+  jobDescription: string; currentValue: string; fullName: string; baseCv: string;
+  targetRoles: string[]; yearsExperience: number | null; seniority: string | null; email: string;
 }) {
   const { fieldType, fieldLabel, jobTitle, company, jobDescription, currentValue, fullName, baseCv, targetRoles, yearsExperience, seniority, email } = opts;
 
-  const cvContext = baseCv
-    ? `\n\nMy resume / CV:\n${baseCv.slice(0, 4000)}`
-    : "";
+  const cvCtx      = baseCv       ? `\nMy CV:\n${baseCv.slice(0, 3000)}`     : "";
+  const jobCtx     = jobTitle     ? `\nJob: ${jobTitle} at ${company}${jobDescription ? `\nJD: ${jobDescription.slice(0, 1000)}` : ""}` : "";
+  const profileCtx = [fullName && `Name: ${fullName}`, email && `Email: ${email}`, yearsExperience && `Experience: ${yearsExperience}yr`, seniority, targetRoles.length > 0 && `Roles: ${targetRoles.slice(0, 3).join(", ")}`].filter(Boolean).join(" | ");
+  const continueNote = currentValue.length > 20 ? `\nExisting: "${currentValue.slice(0, 200)}" — expand or improve.` : "";
 
-  const jobContext = jobTitle || company
-    ? `\n\nJob I'm applying for: ${jobTitle || "this role"} at ${company || "this company"}${jobDescription ? `\n\nJob description excerpt:\n${jobDescription.slice(0, 1500)}` : ""}`
-    : "";
-
-  const profileContext = [
-    fullName && `My name: ${fullName}`,
-    email && `My email: ${email}`,
-    yearsExperience && `Years of experience: ${yearsExperience}`,
-    seniority && `Seniority level: ${seniority}`,
-    targetRoles.length > 0 && `Target roles: ${targetRoles.join(", ")}`,
-  ].filter(Boolean).join("\n");
-
-  const continueNote = currentValue.length > 20
-    ? `\n\nThe field already contains: "${currentValue.slice(0, 300)}"\nExpand or improve on this.`
-    : "";
-
-  const system = `You are a professional job application writing assistant.
-Write concise, authentic, first-person content tailored to the specific role and company.
-Never use generic filler phrases. Be specific. Sound human and confident.
-Return ONLY the text to fill in the field — no preamble, no explanation, no quotes around it.`;
+  const system = `You are a professional job application writer. Write concise, authentic first-person content for a form field. Return ONLY the text — no preamble, no quotes.`;
 
   let userPrompt: string;
-
   switch (fieldType) {
     case "cover_letter":
-      userPrompt = `Write a tailored cover letter (3–4 short paragraphs) for this job application.
-Focus on relevant experience, genuine interest in the company, and a clear value proposition.
-Keep it under 350 words.
-${profileContext}${cvContext}${jobContext}${continueNote}`;
+      userPrompt = `Write a tailored cover letter (3-4 paragraphs, under 320 words) for this application.\n${profileCtx}${cvCtx}${jobCtx}${continueNote}`;
       break;
-
     case "why_company":
-      userPrompt = `Write 2–3 sentences for the field "${fieldLabel || "Why do you want to work here?"}".
-Be specific about this company and role — reference what makes this opportunity compelling.
-Sound genuine, not generic.
-${profileContext}${jobContext}`;
+      userPrompt = `Write 2-3 sentences for "${fieldLabel || "Why do you want to work here?"}". Be specific about this company and role.\n${profileCtx}${jobCtx}`;
       break;
-
     case "about_yourself":
-      userPrompt = `Write a 2–3 sentence professional introduction for the field "${fieldLabel || "Tell us about yourself"}".
-Highlight relevant background and what makes me a strong fit for this role.
-${profileContext}${cvContext}${jobContext}`;
+      userPrompt = `Write a 2-3 sentence professional intro for "${fieldLabel || "Tell us about yourself"}".\n${profileCtx}${cvCtx}${jobCtx}`;
       break;
-
-    case "experience":
-      userPrompt = `Write 2–3 sentences summarising my most relevant experience for the field "${fieldLabel}".
-Be specific and results-oriented.
-${profileContext}${cvContext}${jobContext}`;
-      break;
-
-    case "additional_info":
-      userPrompt = `Write a brief, thoughtful response for the field "${fieldLabel || "Anything else you'd like us to know?"}".
-Keep it under 100 words. Highlight something genuinely valuable not covered elsewhere.
-${profileContext}${cvContext}${jobContext}`;
-      break;
-
     default:
-      userPrompt = `Fill in the application form field: "${fieldLabel || fieldType}".
-Write a concise, professional response in first person.
-${profileContext}${cvContext}${jobContext}${continueNote}`;
+      userPrompt = `Fill in the field "${fieldLabel || fieldType}" with a concise professional response.\n${profileCtx}${cvCtx}${jobCtx}${continueNote}`;
   }
 
   return { system, userPrompt };
 }
-
-// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
@@ -113,98 +58,74 @@ export async function POST(req: NextRequest) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const admin = createAdminClient();
   const resolved = await resolveUserFromJWT(token);
   if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { userId } = resolved;
+  const admin = createAdminClient();
+  const today = new Date().toISOString().slice(0, 10);
 
-  // Load profile + active AI provider in parallel
-  const [{ data: profile }, { data: providers }] = await Promise.all([
-    admin
-      .from("profiles")
-      .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, subscription_ends_at")
-      .eq("id", userId)
-      .single(),
-    admin
-      .from("provider_credentials")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("is_active", true)
-      .in("provider", ["anthropic", "openai", "gemini"])
-      .order("updated_at", { ascending: false })
-      .limit(1),
-  ]);
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, credits_remaining")
+    .eq("id", userId).single();
 
   const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
-  const isByok = tier === "byok";
 
-  // Feature gate: AI field fill requires Starter+
-  if (!canAccess(tier, "apply")) {
-    return NextResponse.json(
-      { error: "AI form fill requires Starter plan or higher", upgrade: true },
-      { status: 402 },
-    );
+  // Autofill requires Starter+
+  if (!canAccess(tier as Parameters<typeof canAccess>[0], "autofill")) {
+    return NextResponse.json({ error: "Autofill requires Starter plan or higher", upgrade: true }, { status: 402 });
   }
 
-  // Credit gate (BYOK users have unlimited credits at -1)
-  if (!isByok) {
-    const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: 1 });
-    if (!ok) {
-      return NextResponse.json(
-        { error: "No AI credits remaining — upgrade your NextRole plan", upgrade: true },
-        { status: 402 },
-      );
+  // Starter: enforce 1 autofill/day
+  if (tier === "starter") {
+    const { data: usageRow } = await admin
+      .from("daily_usage").select("autofills_count").eq("user_id", userId).eq("date", today).maybeSingle();
+    const usedToday = (usageRow as { autofills_count?: number } | null)?.autofills_count ?? 0;
+    if (usedToday >= STARTER_DAILY_LIMITS.autofills) {
+      return NextResponse.json({ error: "Daily autofill limit reached — upgrade to Pro for unlimited", upgrade: true }, { status: 402 });
     }
   }
 
-  const cred = providers?.[0];
-  if (!cred?.encrypted_key) {
-    return NextResponse.json(
-      { error: "No AI provider configured — add a key in NextRole → Providers" },
-      { status: 400 },
-    );
-  }
+  // Deduct credits
+  const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.autofill });
+  if (!ok) return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
 
-  // Parse request body
+  // Increment daily usage
+  await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
+
+  let route: { provider: string; apiKey: string; model: string };
+  try { route = resolveRoute("autofill"); }
+  catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
+
   const body = await req.json().catch(() => ({})) as {
-    field_type?: string;
-    field_label?: string;
-    job_title?: string;
-    company?: string;
-    job_description?: string;
-    current_value?: string;
+    field_type?: string; field_label?: string; job_title?: string;
+    company?: string; job_description?: string; current_value?: string;
   };
 
   const { system, userPrompt } = buildPrompt({
-    fieldType: body.field_type ?? "other",
-    fieldLabel: body.field_label ?? "",
-    jobTitle: body.job_title ?? "",
-    company: body.company ?? "",
-    jobDescription: body.job_description ?? "",
-    currentValue: body.current_value ?? "",
-    fullName: (profile?.full_name as string | null) ?? "",
-    baseCv: (profile?.base_cv as string | null) ?? "",
+    fieldType: body.field_type ?? "other", fieldLabel: body.field_label ?? "",
+    jobTitle: body.job_title ?? "", company: body.company ?? "",
+    jobDescription: body.job_description ?? "", currentValue: body.current_value ?? "",
+    fullName: (profile?.full_name as string | null) ?? "", baseCv: (profile?.base_cv as string | null) ?? "",
     targetRoles: (profile?.target_roles as string[] | null) ?? [],
     yearsExperience: (profile?.years_experience as number | null) ?? null,
     seniority: (profile?.seniority as string | null) ?? null,
     email: (profile?.email as string | null) ?? "",
   });
 
-  const apiKey = decrypt(cred.encrypted_key);
-  const model = cred.model ?? (
-    cred.provider === "anthropic" ? "claude-haiku-4-5-20251001" :
-    cred.provider === "gemini"    ? "gemini-2.0-flash" :
-    "gpt-4o-mini"
-  );
-
   let suggestion: string;
   try {
-    suggestion = await callProvider(cred.provider, apiKey, model, system, userPrompt);
+    suggestion = await callProvider({
+      provider: route.provider as "anthropic" | "openai" | "gemini" | "sarvam",
+      apiKey: route.apiKey, model: route.model,
+      system, user: userPrompt, maxTokens: SUGGEST_MAX_TOKENS, json: false,
+    });
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "AI error";
-    return NextResponse.json({ error: msg }, { status: 502 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : "AI error" }, { status: 502 });
   }
+
+  admin.from("usage_log").insert({ user_id: userId, task_type: "autofill", model: route.model, credits_used: CREDIT_COSTS.autofill, byok: false }).then(() => {});
 
   return NextResponse.json({ suggestion: suggestion.trim() });
 }

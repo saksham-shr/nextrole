@@ -1,12 +1,12 @@
 # Graph Report - C:\Projects\nextrole  (2026-05-05)
 
 ## Corpus Check
-- 171 files · ~139,095 words
+- 178 files · ~149,012 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 525 nodes · 676 edges · 96 communities detected
-- Extraction: 81% EXTRACTED · 19% INFERRED · 0% AMBIGUOUS · INFERRED: 130 edges (avg confidence: 0.8)
+- 561 nodes · 726 edges · 99 communities detected
+- Extraction: 82% EXTRACTED · 18% INFERRED · 0% AMBIGUOUS · INFERRED: 134 edges (avg confidence: 0.8)
 - Token cost: 0 input · 0 output
 
 ## Community Hubs (Navigation)
@@ -106,15 +106,18 @@
 - [[_COMMUNITY_Community 93|Community 93]]
 - [[_COMMUNITY_Community 94|Community 94]]
 - [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_Community 96|Community 96]]
+- [[_COMMUNITY_Community 97|Community 97]]
+- [[_COMMUNITY_Community 98|Community 98]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `POST()` - 57 edges
-2. `createClient()` - 44 edges
-3. `GET()` - 39 edges
-4. `extractJob()` - 15 edges
-5. `cleanText()` - 14 edges
-6. `texts()` - 12 edges
-7. `companyFromDomain()` - 12 edges
+2. `createClient()` - 48 edges
+3. `GET()` - 41 edges
+4. `extractJob()` - 17 edges
+5. `cleanText()` - 15 edges
+6. `texts()` - 13 edges
+7. `companyFromDomain()` - 13 edges
 8. `runAutoFill()` - 8 edges
 9. `text()` - 8 edges
 10. `textFromSelectors()` - 7 edges
@@ -122,72 +125,72 @@
 ## Surprising Connections (you probably didn't know these)
 - `GET()` --calls--> `loadSavedBaseUrl()`  [INFERRED]
   C:\Projects\nextrole\app\auth\callback\route.ts → C:\Projects\nextrole\browser-extension\popup.js
-- `OAuthButtons()` --calls--> `createClient()`  [INFERRED]
-  C:\Projects\nextrole\components\nextrole\auth-pages.tsx → C:\Projects\nextrole\lib\supabase\server.ts
 - `signOut()` --calls--> `createClient()`  [INFERRED]
   C:\Projects\nextrole\app\actions\auth.ts → C:\Projects\nextrole\lib\supabase\server.ts
 - `createJob()` --calls--> `requireJobSlot()`  [INFERRED]
   C:\Projects\nextrole\app\actions\jobs.ts → C:\Projects\nextrole\lib\ai\guard.ts
 - `saveProfileStep()` --calls--> `createClient()`  [INFERRED]
   C:\Projects\nextrole\app\actions\profile.ts → C:\Projects\nextrole\lib\supabase\server.ts
+- `saveProviderKey()` --calls--> `encrypt()`  [INFERRED]
+  C:\Projects\nextrole\app\actions\providers.ts → C:\Projects\nextrole\lib\crypto.ts
 
 ## Communities
 
 ### Community 0 - "Community 0"
 Cohesion: 0.04
-Nodes (46): assertAdmin(), deleteUser(), signOut(), createJob(), deleteJob(), markFollowupSent(), updateJobStatus(), ActivatedPage() (+38 more)
+Nodes (54): assertAdmin(), deleteUser(), signOut(), isSameOrigin(), normalizeOrigin(), createJob(), deleteJob(), markFollowupSent() (+46 more)
 
 ### Community 1 - "Community 1"
-Cohesion: 0.04
-Nodes (26): buildComparePrompt(), EvaluatePage(), buildApplyPrompt(), buildContactPrompt(), buildDeepPrompt(), buildFollowupPrompt(), buildInterviewPrepPrompt(), buildNegotiatePrompt() (+18 more)
+Cohesion: 0.03
+Nodes (31): buildComparePrompt(), canAccess(), jobLimit(), checkTrial(), requireFeature(), requireJobSlot(), EvaluatePage(), buildApplyPrompt() (+23 more)
 
 ### Community 2 - "Community 2"
-Cohesion: 0.37
-Nodes (19): attr(), cleanText(), companyFromDomain(), extractJob(), fromAshby(), fromGlassdoor(), fromGreenhouse(), fromHeuristic() (+11 more)
+Cohesion: 0.16
+Nodes (29): attr(), cleanText(), companyFromDomain(), detectAndShow(), escapeHtml(), extractJob(), fromAshby(), fromGlassdoor() (+21 more)
 
 ### Community 3 - "Community 3"
-Cohesion: 0.14
-Nodes (13): text(), decrypt(), encrypt(), getKey(), callAnthropic(), callGemini(), callOpenAI(), callProvider() (+5 more)
+Cohesion: 0.13
+Nodes (14): text(), decrypt(), encrypt(), getKey(), callAnthropic(), callGemini(), callOpenAI(), callProvider() (+6 more)
 
 ### Community 4 - "Community 4"
-Cohesion: 0.14
-Nodes (7): isAccessible(), canAccess(), jobLimit(), checkTrial(), loadProfile(), requireFeature(), requireJobSlot()
+Cohesion: 0.25
+Nodes (15): buildFab(), classifyField(), confirmAndSubmit(), escapeHtml(), getDirectValue(), getFieldLabel(), getLastJob(), getPageJobContext() (+7 more)
 
 ### Community 5 - "Community 5"
-Cohesion: 0.23
-Nodes (14): buildFab(), classifyField(), confirmAndSubmit(), escapeHtml(), getDirectValue(), getFieldLabel(), getLastJob(), getPageJobContext() (+6 more)
-
-### Community 6 - "Community 6"
 Cohesion: 0.21
 Nodes (10): attachToField(), classifyField(), escapeHtml(), getFieldLabel(), getPageJobContext(), getSession(), positionNear(), removeOverlay() (+2 more)
 
-### Community 7 - "Community 7"
+### Community 6 - "Community 6"
 Cohesion: 0.3
 Nodes (12): getSession(), handleEvaluate(), handleMarkApplied(), handlePipeline(), handleResume(), init(), resetAppliedButton(), saveJob() (+4 more)
 
-### Community 8 - "Community 8"
+### Community 7 - "Community 7"
 Cohesion: 0.26
 Nodes (7): escapeHtml(), getLastJob(), getPageJobContext(), getToken(), removeResumeOverlay(), showResumeOverlay(), tailorAndOpen()
 
-### Community 9 - "Community 9"
-Cohesion: 0.18
-Nodes (1): OAuthButtons()
-
-### Community 10 - "Community 10"
-Cohesion: 0.27
-Nodes (6): createAdminClient(), resolveUserFromJWT(), getClientIp(), pruneBuckets(), rateLimit(), PATCH()
-
-### Community 11 - "Community 11"
+### Community 8 - "Community 8"
 Cohesion: 0.6
 Nodes (9): descriptionFromSelectors(), parseGeneric(), parseGreenhouse(), parseIndeed(), parseJobFromPage(), parseLever(), parseLinkedIn(), parseWorkday() (+1 more)
 
-### Community 12 - "Community 12"
+### Community 9 - "Community 9"
+Cohesion: 0.27
+Nodes (6): createAdminClient(), resolveUserFromJWT(), getClientIp(), pruneBuckets(), rateLimit(), PATCH()
+
+### Community 10 - "Community 10"
 Cohesion: 0.27
 Nodes (6): createClient(), getSupabaseEnv(), copyAuthCookies(), proxy(), redirectWithCookies(), updateSession()
 
-### Community 13 - "Community 13"
+### Community 11 - "Community 11"
 Cohesion: 0.44
 Nodes (8): getActiveTab(), getField(), loadSavedBaseUrl(), normalizeBaseUrl(), parseFromPage(), saveBaseUrl(), sendToPipeline(), setStatus()
+
+### Community 12 - "Community 12"
+Cohesion: 0.25
+Nodes (0): 
+
+### Community 13 - "Community 13"
+Cohesion: 0.29
+Nodes (0): 
 
 ### Community 14 - "Community 14"
 Cohesion: 0.29
@@ -206,32 +209,32 @@ Cohesion: 0.29
 Nodes (0): 
 
 ### Community 18 - "Community 18"
-Cohesion: 0.33
-Nodes (3): robots(), getSiteUrl(), sitemap()
+Cohesion: 0.47
+Nodes (4): buildNavItems(), filterItems(), handleKeyDown(), navigate()
 
 ### Community 19 - "Community 19"
 Cohesion: 0.33
 Nodes (0): 
 
 ### Community 20 - "Community 20"
-Cohesion: 0.47
-Nodes (4): buildNavItems(), filterItems(), handleKeyDown(), navigate()
-
-### Community 21 - "Community 21"
 Cohesion: 0.33
 Nodes (0): 
 
-### Community 22 - "Community 22"
-Cohesion: 0.33
-Nodes (1): handleAdd()
-
-### Community 23 - "Community 23"
+### Community 21 - "Community 21"
 Cohesion: 0.53
 Nodes (4): getSession(), getValidToken(), refreshSession(), saveSession()
 
+### Community 22 - "Community 22"
+Cohesion: 0.33
+Nodes (3): robots(), getSiteUrl(), sitemap()
+
+### Community 23 - "Community 23"
+Cohesion: 0.4
+Nodes (0): 
+
 ### Community 24 - "Community 24"
-Cohesion: 0.5
-Nodes (3): isKnownDashboardRoute(), resolveDashboardRoute(), DashboardCatchAll()
+Cohesion: 0.4
+Nodes (0): 
 
 ### Community 25 - "Community 25"
 Cohesion: 0.4
@@ -246,16 +249,16 @@ Cohesion: 0.4
 Nodes (0): 
 
 ### Community 28 - "Community 28"
+Cohesion: 0.4
+Nodes (0): 
+
+### Community 29 - "Community 29"
 Cohesion: 0.7
 Nodes (4): $(), clearStatus(), setStatus(), showSection()
 
-### Community 29 - "Community 29"
-Cohesion: 0.5
-Nodes (0): 
-
 ### Community 30 - "Community 30"
 Cohesion: 0.5
-Nodes (0): 
+Nodes (3): isKnownDashboardRoute(), resolveDashboardRoute(), DashboardCatchAll()
 
 ### Community 31 - "Community 31"
 Cohesion: 0.5
@@ -274,11 +277,11 @@ Cohesion: 0.5
 Nodes (0): 
 
 ### Community 35 - "Community 35"
-Cohesion: 0.67
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 36 - "Community 36"
-Cohesion: 0.67
+Cohesion: 0.5
 Nodes (0): 
 
 ### Community 37 - "Community 37"
@@ -326,16 +329,16 @@ Cohesion: 0.67
 Nodes (0): 
 
 ### Community 48 - "Community 48"
-Cohesion: 1.0
-Nodes (2): fetchGreenhouseJobs(), greenhouseSlug()
+Cohesion: 0.67
+Nodes (0): 
 
 ### Community 49 - "Community 49"
 Cohesion: 1.0
-Nodes (2): fetchLeverJobs(), leverSlug()
+Nodes (2): fetchGreenhouseJobs(), greenhouseSlug()
 
 ### Community 50 - "Community 50"
 Cohesion: 1.0
-Nodes (2): isSameOrigin(), normalizeOrigin()
+Nodes (2): fetchLeverJobs(), leverSlug()
 
 ### Community 51 - "Community 51"
 Cohesion: 1.0
@@ -517,6 +520,18 @@ Nodes (0):
 Cohesion: 1.0
 Nodes (0): 
 
+### Community 96 - "Community 96"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 97 - "Community 97"
+Cohesion: 1.0
+Nodes (0): 
+
+### Community 98 - "Community 98"
+Cohesion: 1.0
+Nodes (0): 
+
 ## Knowledge Gaps
 - **Thin community `Community 51`** (2 nodes): `layout.tsx`, `RootLayout()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -526,43 +541,43 @@ Nodes (0):
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 54`** (2 nodes): `page.tsx`, `formatDate()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 55`** (2 nodes): `page.tsx`, `Documentation()`
+- **Thin community `Community 55`** (2 nodes): `page.tsx`, `TeamPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 56`** (2 nodes): `page.tsx`, `OpenSourceNotices()`
+- **Thin community `Community 56`** (2 nodes): `page.tsx`, `AcceptInvitePage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 57`** (2 nodes): `page.tsx`, `Page()`
+- **Thin community `Community 57`** (2 nodes): `page.tsx`, `Documentation()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 58`** (2 nodes): `page.tsx`, `Privacy()`
+- **Thin community `Community 58`** (2 nodes): `page.tsx`, `OpenSourceNotices()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 59`** (2 nodes): `page.tsx`, `Terms()`
+- **Thin community `Community 59`** (2 nodes): `page.tsx`, `Page()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 60`** (2 nodes): `page.tsx`, `AuthPage()`
+- **Thin community `Community 60`** (2 nodes): `page.tsx`, `Privacy()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 61`** (2 nodes): `cv-page.tsx`, `analyseCv()`
+- **Thin community `Community 61`** (2 nodes): `page.tsx`, `Terms()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 62`** (2 nodes): `documentation-shell.tsx`, `DocsHeader()`
+- **Thin community `Community 62`** (2 nodes): `page.tsx`, `AuthPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 63`** (2 nodes): `negotiate-page.tsx`, `ResultBlock()`
+- **Thin community `Community 63`** (2 nodes): `handle()`, `accept-invite-page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 64`** (2 nodes): `oss-notices-page.tsx`, `OpenSourceNoticesPage()`
+- **Thin community `Community 64`** (2 nodes): `cv-page.tsx`, `analyseCv()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 65`** (2 nodes): `pipeline-page.tsx`, `onKey()`
+- **Thin community `Community 65`** (2 nodes): `documentation-shell.tsx`, `DocsHeader()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 66`** (2 nodes): `public-pages.tsx`, `PublicHeader()`
+- **Thin community `Community 66`** (2 nodes): `negotiate-page.tsx`, `ResultBlock()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 67`** (1 nodes): `eslint.config.mjs`
+- **Thin community `Community 67`** (2 nodes): `oss-notices-page.tsx`, `OpenSourceNoticesPage()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 68`** (1 nodes): `next-env.d.ts`
+- **Thin community `Community 68`** (2 nodes): `pipeline-page.tsx`, `onKey()`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 69`** (1 nodes): `next.config.ts`
+- **Thin community `Community 69`** (1 nodes): `eslint.config.mjs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 70`** (1 nodes): `postcss.config.mjs`
+- **Thin community `Community 70`** (1 nodes): `next-env.d.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 71`** (1 nodes): `layout.tsx`
+- **Thin community `Community 71`** (1 nodes): `next.config.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 72`** (1 nodes): `page.tsx`
+- **Thin community `Community 72`** (1 nodes): `postcss.config.mjs`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 73`** (1 nodes): `page.tsx`
+- **Thin community `Community 73`** (1 nodes): `layout.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 74`** (1 nodes): `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
@@ -596,33 +611,39 @@ Nodes (0):
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 - **Thin community `Community 89`** (1 nodes): `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 90`** (1 nodes): `dashboard-pages.tsx`
+- **Thin community `Community 90`** (1 nodes): `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 91`** (1 nodes): `providers-page.tsx`
+- **Thin community `Community 91`** (1 nodes): `page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 92`** (1 nodes): `config.js`
+- **Thin community `Community 92`** (1 nodes): `dashboard-pages.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 93`** (1 nodes): `generate-icons.js`
+- **Thin community `Community 93`** (1 nodes): `providers-page.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 94`** (1 nodes): `types.ts`
+- **Thin community `Community 94`** (1 nodes): `public-pages.tsx`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
-- **Thin community `Community 95`** (1 nodes): `index.ts`
+- **Thin community `Community 95`** (1 nodes): `config.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 96`** (1 nodes): `generate-icons.js`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 97`** (1 nodes): `types.ts`
+  Too small to be a meaningful cluster - may be noise or needs more connections extracted.
+- **Thin community `Community 98`** (1 nodes): `index.ts`
   Too small to be a meaningful cluster - may be noise or needs more connections extracted.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `POST()` connect `Community 1` to `Community 0`, `Community 3`, `Community 4`, `Community 10`, `Community 50`?**
-  _High betweenness centrality (0.131) - this node is a cross-community bridge._
-- **Why does `createClient()` connect `Community 0` to `Community 1`, `Community 3`, `Community 4`, `Community 9`, `Community 12`?**
-  _High betweenness centrality (0.105) - this node is a cross-community bridge._
-- **Why does `GET()` connect `Community 0` to `Community 1`, `Community 10`, `Community 50`, `Community 13`?**
-  _High betweenness centrality (0.056) - this node is a cross-community bridge._
+- **Why does `POST()` connect `Community 1` to `Community 0`, `Community 9`, `Community 3`?**
+  _High betweenness centrality (0.107) - this node is a cross-community bridge._
+- **Why does `createClient()` connect `Community 0` to `Community 1`, `Community 10`, `Community 3`?**
+  _High betweenness centrality (0.085) - this node is a cross-community bridge._
+- **Why does `GET()` connect `Community 0` to `Community 1`, `Community 2`, `Community 3`, `Community 9`, `Community 11`?**
+  _High betweenness centrality (0.062) - this node is a cross-community bridge._
 - **Are the 30 inferred relationships involving `POST()` (e.g. with `requireFeature()` and `createClient()`) actually correct?**
   _`POST()` has 30 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 43 inferred relationships involving `createClient()` (e.g. with `assertAdmin()` and `signOut()`) actually correct?**
-  _`createClient()` has 43 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 28 inferred relationships involving `GET()` (e.g. with `deleteUser()` and `createJob()`) actually correct?**
-  _`GET()` has 28 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 47 inferred relationships involving `createClient()` (e.g. with `assertAdmin()` and `signOut()`) actually correct?**
+  _`createClient()` has 47 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 29 inferred relationships involving `GET()` (e.g. with `deleteUser()` and `createJob()`) actually correct?**
+  _`GET()` has 29 INFERRED edges - model-reasoned connections that need verification._
 - **Should `Community 0` be split into smaller, more focused modules?**
   _Cohesion score 0.04 - nodes in this community are weakly interconnected._

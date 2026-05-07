@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { DashboardHome } from "@/components/nextrole/dashboard-home";
 
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
+
 export default async function DashboardPage() {
   const supabase = await createClient();
   const {
@@ -17,7 +19,7 @@ export default async function DashboardPage() {
     { data: jobs },
     { data: recentRuns },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, base_cv").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, base_cv, tier, credits_remaining").eq("id", user.id).single(),
     supabase
       .from("provider_credentials")
       .select("id")
@@ -93,12 +95,18 @@ export default async function DashboardPage() {
     });
   }
 
+  const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
+  const tier = isAdmin ? "pro" : ((profile?.tier as "free" | "starter" | "pro") ?? "free");
+  const creditsRemaining = isAdmin ? 300 : (profile?.credits_remaining ?? 0);
+
   return (
     <DashboardHome
       userName={profile?.full_name ?? user.email?.split("@")[0] ?? "there"}
       hasCV={Boolean(profile?.base_cv)}
       hasProvider={Boolean(providerRows?.length)}
       hasJobs={allJobs.length > 0}
+      tier={tier}
+      creditsRemaining={creditsRemaining}
       kpis={{
         active: activeJobs.length,
         interviews: interviews.length,

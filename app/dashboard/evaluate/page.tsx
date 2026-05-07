@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { EvaluatePageContent } from "@/components/nextrole/evaluate-page";
 import { SYSTEM_PROMPT, buildUserPrompt } from "@/lib/evaluate/prompt";
 import type { JobRow } from "@/lib/db/types";
+import type { PastEval } from "@/components/nextrole/evaluate-page";
 
 export default async function EvaluatePage({
   searchParams,
@@ -11,9 +12,7 @@ export default async function EvaluatePage({
   const { job_id } = await searchParams;
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   let job: JobRow | null = null;
   if (job_id && user) {
@@ -29,9 +28,10 @@ export default async function EvaluatePage({
   let hasCV = false;
   let hasProvider = false;
   let promptText: string | null = null;
+  let pastEvals: PastEval[] = [];
 
   if (user) {
-    const [{ data: profile }, { data: providers }] = await Promise.all([
+    const [{ data: profile }, { data: providers }, { data: evalRows }] = await Promise.all([
       supabase.from("profiles").select("base_cv").eq("id", user.id).single(),
       supabase
         .from("provider_credentials")
@@ -40,13 +40,18 @@ export default async function EvaluatePage({
         .eq("is_active", true)
         .in("provider", ["anthropic", "openai"])
         .limit(1),
+      supabase
+        .from("evaluations")
+        .select("id, score, decision, role_fit, cv_match, compensation_analysis, personalization_guidance, interview_signals, legitimacy_check, created_at, jobs:job_id(id, title, company)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(30),
     ]);
 
     hasCV = Boolean(profile?.base_cv);
     hasProvider = (providers?.length ?? 0) > 0;
+    pastEvals = (evalRows ?? []) as PastEval[];
 
-    // Generate the manual-mode prompt whenever we have a job description.
-    // If CV is missing, include a placeholder so the user can see the full structure.
     if (job?.description) {
       const userPrompt = buildUserPrompt({
         title: job.title,
@@ -65,6 +70,7 @@ export default async function EvaluatePage({
       hasCV={hasCV}
       hasProvider={hasProvider}
       promptText={promptText}
+      pastEvals={pastEvals}
     />
   );
 }

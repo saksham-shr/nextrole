@@ -4,13 +4,11 @@ import Link from "next/link";
 import { useEffect } from "react";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
 
-type UpgradeTier = "starter" | "pro" | "team" | "byok";
+type UpgradeTier = "starter" | "pro";
 
 const TIER_META: Record<UpgradeTier, { name: string; inrPrice: number; period: string; color: string }> = {
   starter: { name: "Starter", inrPrice: INR_PRICES.starter_monthly, period: "/mo", color: "var(--accent)" },
   pro:     { name: "Pro",     inrPrice: INR_PRICES.pro_monthly,     period: "/mo", color: "var(--ok)" },
-  team:    { name: "Team",    inrPrice: INR_PRICES.team_monthly,    period: "/mo", color: "var(--ok)" },
-  byok:    { name: "BYOK",   inrPrice: INR_PRICES.byok_monthly,    period: "/mo", color: "var(--accent)" },
 };
 
 export function UpgradeModal({

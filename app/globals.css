@@ -17,9 +17,11 @@
   --surface-ink: #241f19;
   --line: #2a2620;
   --line-hard: #1a1814;
-  --line-soft: #b8aea0;
+  --line-soft: rgba(42, 38, 32, 0.12);
+  --line-softer: rgba(42, 38, 32, 0.06);
   --accent: #c84a1f;
-  --accent-soft: #f2c4ad;
+  --accent-hover: #a83d18;
+  --accent-soft: rgba(200, 74, 31, 0.08);
   --accent-bg: rgba(200, 74, 31, 0.08);
   --ok: #2f7a3a;
   --ok-bg: rgba(47, 122, 58, 0.08);
@@ -29,7 +31,7 @@
   --bad-bg: rgba(181, 58, 58, 0.08);
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
-  --radius: 16px;
+  --radius: 8px;
   --sidebar-w: 240px;
 }
 
@@ -84,9 +86,11 @@ select {
   --surface-soft: #2d2720;
   --surface-ink: #f0ebe0;
   --line: #3a352e;
-  --line-soft: #4a4540;
+  --line-soft: rgba(240, 235, 224, 0.15);
+  --line-softer: rgba(240, 235, 224, 0.08);
   --accent: #e05a28;
-  --accent-soft: #7a2a10;
+  --accent-hover: #c84a1f;
+  --accent-soft: rgba(224, 90, 40, 0.1);
   --ok: #3a9a48;
   --ok-bg: rgba(58, 154, 72, 0.1);
   --warn: #c08a28;
@@ -102,6 +106,27 @@ select {
     radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
     var(--background);
   background-size: 6px 6px, auto;
+}
+
+/* Design-system utilities */
+.nr-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(42, 38, 32, 0.04),
+    rgba(42, 38, 32, 0.04) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+[data-theme="dark"] .nr-stripes {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.03),
+    rgba(255, 255, 255, 0.03) 6px,
+    transparent 6px,
+    transparent 12px
+  );
 }
 
 @keyframes shimmer {

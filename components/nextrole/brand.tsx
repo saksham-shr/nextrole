@@ -6,21 +6,28 @@ function joinClasses(...classes: Array<string | undefined | null | false>) {
 
 export function BrandMark({
   className,
-  strokeClassName = "text-[var(--accent)]",
+  size = 22,
 }: {
   className?: string;
-  strokeClassName?: string;
+  size?: number;
 }) {
+  const radius = Math.round(size * 0.18);
   return (
     <span
       aria-hidden="true"
-      className={joinClasses("inline-flex h-6 w-6 items-center justify-center", className)}
+      className={joinClasses("inline-flex shrink-0 items-center justify-center bg-[var(--accent)]", className)}
+      style={{ width: size, height: size, borderRadius: radius }}
     >
-      <svg viewBox="0 0 26 26" fill="none" className={joinClasses("h-full w-full", strokeClassName)}>
+      <svg
+        width={size * 0.55}
+        height={size * 0.55}
+        viewBox="0 0 24 24"
+        fill="none"
+      >
         <path
-          d="M6 5L17 13L6 21"
-          stroke="currentColor"
-          strokeWidth="3.5"
+          d="M8 5L17 12L8 19"
+          stroke="#fffdf8"
+          strokeWidth="3.2"
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -33,19 +40,23 @@ export function BrandWordmark({
   className,
   labelClassName,
   markClassName,
-  markToneClassName,
+  size = 22,
   suffix,
 }: {
   className?: string;
   labelClassName?: string;
   markClassName?: string;
   markToneClassName?: string;
+  size?: number;
   suffix?: ReactNode;
 }) {
   return (
-    <span className={joinClasses("inline-flex items-center gap-3", className)}>
-      <BrandMark className={markClassName} strokeClassName={markToneClassName} />
-      <span className={joinClasses("font-[var(--font-caveat)] text-3xl font-bold leading-none", labelClassName)}>
+    <span className={joinClasses("inline-flex items-center gap-2", className)}>
+      <BrandMark className={markClassName} size={size} />
+      <span
+        className={joinClasses("font-[var(--font-mono-stack)] font-medium leading-none tracking-[-0.01em]", labelClassName)}
+        style={{ fontSize: Math.round(size * 0.68) }}
+      >
         nextrole
       </span>
       {suffix}

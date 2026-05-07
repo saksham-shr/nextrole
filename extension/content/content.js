@@ -55,9 +55,11 @@ function fromJsonLd() {
   for (const el of scripts) {
     try {
       let data = JSON.parse(el.textContent);
-      if (Array.isArray(data)) data = data.find((d) => d["@type"] === "JobPosting") ?? null;
-      if (data?.["@graph"]) data = data["@graph"].find((d) => d["@type"] === "JobPosting") ?? null;
-      if (!data || data["@type"] !== "JobPosting") continue;
+      // @type can be a string OR an array — handle both
+      const isJobPosting = (d) => [].concat(d?.["@type"] ?? []).includes("JobPosting");
+      if (Array.isArray(data)) data = data.find(isJobPosting) ?? null;
+      if (data?.["@graph"]) data = data["@graph"].find(isJobPosting) ?? null;
+      if (!data || !isJobPosting(data)) continue;
 
       const title = data.title ?? data.name ?? null;
       const company = data.hiringOrganization?.name ?? data.hiringOrganization ?? null;
@@ -65,7 +67,8 @@ function fromJsonLd() {
         ? cleanText(data.description.replace(/<[^>]+>/g, " "))
         : null;
 
-      if (title) {
+      // Require a real description — listing pages embed JobPosting schemas with no/short descriptions
+      if (title && ldDesc && ldDesc.length > 150) {
         return { title, company: company ?? companyFromDomain(), description: ldDesc, confidence: "high", source: "schema.org" };
       }
     } catch {}
@@ -77,6 +80,8 @@ function fromJsonLd() {
 
 function fromLinkedIn() {
   if (!location.hostname.includes("linkedin.com")) return null;
+  // Only job detail pages — not company pages, search results, feed, or collections
+  if (!location.pathname.includes("/jobs/view/")) return null;
 
   const title = texts([
     ".job-details-jobs-unified-top-card__job-title h1",
@@ -136,7 +141,7 @@ function fromIndeed() {
     '[id*="job-description"]',
   ]);
 
-  if (title) {
+  if (title && description) {
     return { title, company: company ?? companyFromDomain(), description: cleanText(description), confidence: "high", source: "indeed" };
   }
   return null;
@@ -168,7 +173,7 @@ function fromGlassdoor() {
     ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " "))
     : null;
 
-  if (title) {
+  if (title && description) {
     return { title, company: company ?? companyFromDomain(), description, confidence: "high", source: "glassdoor" };
   }
   return null;
@@ -177,7 +182,11 @@ function fromGlassdoor() {
 // ─── Extractor 5: Lever ───────────────────────────────────────────────────────
 
 function fromLever() {
-  if (!location.hostname.includes("lever.co")) return null;
+  // ATS lives at jobs.lever.co — lever.co itself is the product marketing site
+  if (location.hostname !== "jobs.lever.co") return null;
+  // Detail pages have /company/job-uuid — listing pages only have /company
+  const pathParts = location.pathname.split("/").filter(Boolean);
+  if (pathParts.length < 2) return null;
 
   const title = texts([
     "[data-qa='posting-name']",
@@ -186,7 +195,6 @@ function fromLever() {
     "h1",
   ]);
 
-  const pathParts = location.pathname.split("/").filter(Boolean);
   const company = pathParts[0]
     ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1).replace(/-/g, " ")
     : companyFromDomain();
@@ -206,10 +214,16 @@ function fromLever() {
 // ─── Extractor 6: Greenhouse ──────────────────────────────────────────────────
 
 function fromGreenhouse() {
+  // ATS is at boards.greenhouse.io — greenhouse.io itself is the product site
   if (
-    !location.hostname.includes("greenhouse.io") &&
+    !location.hostname.includes("boards.greenhouse.io") &&
     !location.hostname.includes("grnh.se")
   ) return null;
+  // Detail pages: /company/jobs/12345 — listing pages: /company
+  if (location.hostname.includes("boards.greenhouse.io")) {
+    const parts = location.pathname.split("/").filter(Boolean);
+    if (!parts.some((p) => /^\d+$/.test(p)) && !location.pathname.includes("/jobs/")) return null;
+  }
 
   const title = texts([
     ".app-title",
@@ -240,6 +254,9 @@ function fromGreenhouse() {
 
 function fromAshby() {
   if (!location.hostname.includes("ashbyhq.com")) return null;
+  // Detail pages: /company/role-slug — listing pages: /company
+  const pathParts = location.pathname.split("/").filter(Boolean);
+  if (pathParts.length < 2) return null;
 
   const title = texts([
     "h1",
@@ -247,7 +264,6 @@ function fromAshby() {
     '[class*="jobPosting"] h1',
   ]);
 
-  const pathParts = location.pathname.split("/").filter(Boolean);
   const company = pathParts[0]
     ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1).replace(/-/g, " ")
     : companyFromDomain();
@@ -267,7 +283,8 @@ function fromAshby() {
 // ─── Extractor 8: Workday ─────────────────────────────────────────────────────
 
 function fromWorkday() {
-  if (!location.hostname.includes("myworkdayjobs.com") && !location.hostname.includes("workday.com")) return null;
+  // workday.com is the product website — only myworkdayjobs.com is the ATS
+  if (!location.hostname.includes("myworkdayjobs.com")) return null;
 
   const title = texts([
     '[data-automation-id="jobPostingHeader"]',
@@ -332,7 +349,7 @@ function fromWellfound() {
   const descEl = document.querySelector('[class*="job-description"]') ?? document.querySelector('[class*="description"]');
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
 
-  if (title) {
+  if (title && description) {
     return { title, company, description, confidence: "high", source: "wellfound" };
   }
   return null;
@@ -449,7 +466,7 @@ function extractJob() {
   return { ...result, url: location.href, page_title: document.title };
 }
 
-// ─── Floating detection card ──────────────────────────────────────────────────
+// ─── Floating detection card (Panel A + B) ───────────────────────────────────
 
 function injectCardStyles() {
   if (document.getElementById("nr-card-styles")) return;
@@ -458,63 +475,164 @@ function injectCardStyles() {
   s.textContent = `
     #nr-detect-card {
       position: fixed;
-      bottom: 24px;
-      right: 24px;
+      bottom: 24px; right: 24px;
       z-index: 2147483647;
       width: 300px;
       background: #fffdf8;
-      border: 1.5px solid #2a2620;
-      border-radius: 14px;
-      box-shadow: 0 8px 32px rgba(26,24,20,0.22);
+      border: 1px solid #e0d8d0;
+      border-radius: 10px;
+      box-shadow: 0 12px 32px rgba(42,38,32,0.16);
       font-family: 'Inter', system-ui, sans-serif;
-      font-size: 13px;
-      color: #1a1814;
+      font-size: 13px; color: #1a1814;
       overflow: hidden;
-      animation: nr-card-in 0.25s ease;
+      animation: nr-card-in 0.22s ease;
     }
     @keyframes nr-card-in {
-      from { transform: translateY(16px); opacity: 0; }
+      from { transform: translateY(12px); opacity: 0; }
       to   { transform: translateY(0);    opacity: 1; }
     }
     #nr-detect-card .nr-ch {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 12px;
+      padding: 9px 12px;
       background: #c84a1f; color: #fffdf8;
+    }
+    #nr-detect-card .nr-ch-plain {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 12px;
+      border-bottom: 1px solid #e0d8d0;
     }
     #nr-detect-card .nr-brand {
       display: flex; align-items: center; gap: 6px;
       font-size: 10px; font-family: monospace;
-      letter-spacing: 0.12em; text-transform: uppercase;
+      letter-spacing: 0.1em; text-transform: uppercase;
     }
     #nr-detect-card .nr-cx {
-      background: none; border: none; color: rgba(255,253,248,0.7);
-      cursor: pointer; font-size: 15px; line-height: 1;
-      padding: 2px 4px; border-radius: 4px;
+      background: none; border: none;
+      color: rgba(255,253,248,0.7); cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 2px 4px; border-radius: 4px;
+    }
+    #nr-detect-card .nr-cx-plain {
+      background: none; border: none;
+      color: #9a9286; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 2px 4px; border-radius: 4px;
     }
     #nr-detect-card .nr-cx:hover { color: #fffdf8; }
+    #nr-detect-card .nr-cx-plain:hover { color: #1a1814; }
     #nr-detect-card .nr-cb { padding: 12px; }
     #nr-detect-card .nr-title {
-      font-weight: 600; font-size: 13.5px;
-      margin-bottom: 2px;
+      font-weight: 600; font-size: 13.5px; margin-bottom: 2px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     #nr-detect-card .nr-company {
       color: #6b6358; font-size: 12px; margin-bottom: 12px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    #nr-detect-card .nr-url {
+      font-family: monospace; font-size: 10.5px; color: #9a9286;
+      margin-bottom: 12px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
     #nr-detect-card .nr-actions { display: flex; gap: 6px; }
     #nr-detect-card .nr-btn {
-      flex: 1; padding: 8px 10px; border-radius: 8px; border: none;
+      flex: 1; padding: 8px 10px; border-radius: 7px; border: none;
       font-family: monospace; font-size: 10px; font-weight: 500;
-      letter-spacing: 0.12em; text-transform: uppercase;
-      cursor: pointer; transition: opacity 0.15s;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; transition: opacity 0.14s; display: flex;
+      align-items: center; justify-content: center; gap: 5px;
     }
     #nr-detect-card .nr-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #nr-detect-card .nr-btn:hover:not(:disabled) { opacity: 0.85; }
+    #nr-detect-card .nr-btn:hover:not(:disabled) { opacity: 0.84; }
     #nr-detect-card .nr-primary { background: #c84a1f; color: #fffdf8; }
     #nr-detect-card .nr-secondary { background: #f0ebe3; color: #2a2620; }
-    #nr-detect-card .nr-conf {
-      font-size: 10px; color: #9a9286; margin-top: 8px; text-align: center;
+    #nr-detect-card .nr-ghost {
+      flex: unset; width: 100%; padding: 7px 10px; border-radius: 7px;
+      border: 1px solid #e0d8d0; background: transparent; color: #6b6358;
+    }
+    #nr-detect-card .nr-dismiss {
+      font-size: 10px; font-family: monospace; color: #9a9286;
+      margin-top: 8px; text-align: center;
+    }
+    #nr-detect-card .nr-dismiss-bar {
+      height: 2px; background: #e0d8d0; border-radius: 1px;
+      margin-top: 8px; overflow: hidden;
+    }
+    #nr-detect-card .nr-dismiss-bar-fill {
+      height: 100%; background: #c84a1f;
+      transition: width 1s linear;
+    }
+    /* saved confirmation row */
+    #nr-detect-card .nr-saved-row {
+      display: flex; align-items: center; gap: 8px;
+      padding: 9px 11px; border-radius: 7px;
+      background: #edf7ee; margin-bottom: 12px;
+    }
+    #nr-detect-card .nr-saved-check {
+      width: 18px; height: 18px; border-radius: 50%;
+      background: #2f7a3a; color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; font-size: 11px;
+    }
+    /* action row buttons in Panel B */
+    #nr-detect-card .nr-action-row {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 11px; border-radius: 7px;
+      border: 1px solid #e0d8d0; margin-bottom: 7px; cursor: pointer;
+      transition: border-color 0.14s, background 0.14s;
+    }
+    #nr-detect-card .nr-action-row:hover { border-color: #c84a1f; background: #fdf6f3; }
+    #nr-detect-card .nr-action-row.nr-locked { opacity: 0.55; cursor: default; }
+    #nr-detect-card .nr-action-row.nr-locked:hover { border-color: #e0d8d0; background: transparent; }
+    #nr-detect-card .nr-action-icon {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: #fdf6f3; color: #c84a1f;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    #nr-detect-card .nr-action-icon svg { width: 14px; height: 14px; }
+    #nr-detect-card .nr-action-label { flex: 1; font-size: 13px; font-weight: 500; }
+    #nr-detect-card .nr-action-cost {
+      font-family: monospace; font-size: 10px; color: #9a9286;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    #nr-detect-card .nr-divider { height: 1px; background: #e0d8d0; margin: 10px 0; }
+    /* upgrade prompt box */
+    #nr-detect-card .nr-upgrade-box {
+      padding: 12px; border-radius: 7px; border: 1px solid rgba(200,74,31,0.3);
+      background: rgba(200,74,31,0.05); margin-bottom: 7px;
+    }
+    #nr-detect-card .nr-upgrade-box .nr-ub-title {
+      font-size: 12.5px; font-weight: 600; margin-bottom: 4px; color: #1a1814;
+    }
+    #nr-detect-card .nr-upgrade-box .nr-ub-desc {
+      font-size: 11.5px; color: #6b6358; margin-bottom: 10px; line-height: 1.5;
+    }
+    #nr-detect-card .nr-upgrade-box .nr-ub-actions {
+      display: flex; gap: 6px;
+    }
+    #nr-detect-card .nr-ub-primary {
+      flex: 1; padding: 7px; border-radius: 6px; border: none;
+      background: #c84a1f; color: #fffdf8;
+      font-family: monospace; font-size: 10px; font-weight: 500;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      cursor: pointer; text-align: center;
+    }
+    #nr-detect-card .nr-ub-secondary {
+      padding: 7px 10px; border-radius: 6px;
+      border: 1px solid #e0d8d0; background: transparent; color: #6b6358;
+      font-family: monospace; font-size: 10px; letter-spacing: 0.1em;
+      text-transform: uppercase; cursor: pointer;
+    }
+    /* spinner */
+    #nr-detect-card .nr-spin {
+      display: inline-block; width: 14px; height: 14px;
+      border: 2px solid #e0d8d0; border-top-color: #c84a1f;
+      border-radius: 50%; animation: nr-rspin 0.7s linear infinite;
+    }
+    @keyframes nr-rspin { to { transform: rotate(360deg); } }
+    /* success resume state */
+    #nr-detect-card .nr-resume-ready {
+      padding: 10px 11px; border-radius: 7px; background: #edf7ee;
+      margin-bottom: 7px; display: flex; flex-direction: column; gap: 7px;
     }
   `;
   document.head.appendChild(s);
@@ -531,17 +649,37 @@ function escapeHtml(str) {
   return (str ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
+// ─── Panel A: Job detected card ───────────────────────────────────────────────
+
 function showDetectCard(job) {
   removeCard();
   injectCardStyles();
 
+  // Check if this URL was already saved in this session
+  chrome.storage.session.get(["nr_last_job_url", "nr_last_job_id"], (d) => {
+    if (d.nr_last_job_url === job.url && d.nr_last_job_id) {
+      showAlreadySavedCard(job, d.nr_last_job_id);
+      return;
+    }
+    showNewJobCard(job);
+  });
+}
+
+function showNewJobCard(job) {
   const card = document.createElement("div");
   card.id = "nr-detect-card";
+
+  let urlDisplay = "";
+  try {
+    const u = new URL(job.url);
+    urlDisplay = u.hostname.replace(/^www\./, "") + (u.pathname.length > 1 ? u.pathname.slice(0, 30) : "");
+  } catch { urlDisplay = (job.url ?? "").slice(0, 40); }
+
   card.innerHTML = `
     <div class="nr-ch">
       <div class="nr-brand">
         <svg width="12" height="12" viewBox="0 0 64 64" fill="none">
-          <rect width="64" height="64" rx="16" fill="rgba(255,253,248,0.15)"/>
+          <rect width="64" height="64" rx="14" fill="rgba(255,253,248,0.18)"/>
           <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         NextRole · Job Detected
@@ -551,21 +689,27 @@ function showDetectCard(job) {
     <div class="nr-cb">
       <div class="nr-title">${escapeHtml(job.title)}</div>
       <div class="nr-company">${escapeHtml(job.company)}</div>
+      <div class="nr-url">${escapeHtml(urlDisplay)}</div>
       <div class="nr-actions">
-        <button class="nr-btn nr-primary" id="nr-card-pipeline">+ Add to Pipeline</button>
-        <button class="nr-btn nr-secondary" id="nr-card-evaluate">Evaluate</button>
+        <button class="nr-btn nr-secondary" id="nr-card-pipeline">+ Add to Pipeline</button>
+        <button class="nr-btn nr-primary" id="nr-card-evaluate">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
+          Evaluate
+        </button>
       </div>
-      <div class="nr-conf" id="nr-card-status">Auto-dismisses in 10s</div>
+      <div class="nr-dismiss-bar"><div class="nr-dismiss-bar-fill" id="nr-dismiss-fill" style="width:100%"></div></div>
+      <div class="nr-dismiss" id="nr-card-status">auto-dismiss · 10s</div>
     </div>
   `;
   document.body.appendChild(card);
 
-  // Countdown display
   let secs = 10;
+  const fillEl = card.querySelector("#nr-dismiss-fill");
   const statusEl = card.querySelector("#nr-card-status");
   const countdown = setInterval(() => {
     secs--;
-    if (statusEl && secs > 0) statusEl.textContent = `Auto-dismisses in ${secs}s`;
+    if (fillEl) fillEl.style.width = `${(secs / 10) * 100}%`;
+    if (statusEl && secs > 0) statusEl.textContent = `auto-dismiss · ${secs}s`;
   }, 1000);
 
   _cardTimer = setTimeout(() => { clearInterval(countdown); removeCard(); }, 10000);
@@ -573,17 +717,60 @@ function showDetectCard(job) {
   card.querySelector("#nr-card-close").addEventListener("click", () => {
     clearInterval(countdown); removeCard();
   });
-
   card.querySelector("#nr-card-pipeline").addEventListener("click", () => {
     clearInterval(countdown);
     submitFromCard(job, "pipeline", card);
   });
-
   card.querySelector("#nr-card-evaluate").addEventListener("click", () => {
     clearInterval(countdown);
     submitFromCard(job, "evaluate", card);
   });
 }
+
+function showAlreadySavedCard(job, jobId) {
+  const card = document.createElement("div");
+  card.id = "nr-detect-card";
+  card.innerHTML = `
+    <div class="nr-ch-plain">
+      <div class="nr-brand" style="color:#1a1814;">
+        <svg width="12" height="12" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="14" fill="#c84a1f"/>
+          <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        NextRole
+      </div>
+      <button class="nr-cx-plain" id="nr-card-close">×</button>
+    </div>
+    <div class="nr-cb">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+        <span style="width:18px;height:18px;border-radius:50%;background:#2f7a3a;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:11px;">✓</span>
+        <span style="font-size:13px;font-weight:500;color:#2f7a3a;">Already in your pipeline</span>
+      </div>
+      <div class="nr-title">${escapeHtml(job.title)}</div>
+      <div class="nr-company">${escapeHtml(job.company)}</div>
+      <div class="nr-actions">
+        <button class="nr-btn nr-secondary" id="nr-card-open-pipeline">Open Pipeline →</button>
+        <button class="nr-btn nr-primary" id="nr-card-fill-app">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+          Fill Application
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(card);
+
+  card.querySelector("#nr-card-close").addEventListener("click", removeCard);
+  card.querySelector("#nr-card-open-pipeline").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
+    removeCard();
+  });
+  card.querySelector("#nr-card-fill-app").addEventListener("click", () => {
+    removeCard();
+    showHelperPanel(job, jobId);
+  });
+}
+
+// ─── Panel B: Helper panel (after save or from already-saved) ─────────────────
 
 function submitFromCard(job, action, card) {
   clearTimeout(_cardTimer);
@@ -594,16 +781,14 @@ function submitFromCard(job, action, card) {
   if (evalBtn) evalBtn.disabled = true;
   if (statusEl) statusEl.textContent = "Saving…";
 
+  // Replace dismiss bar with spinner text
+  const barEl = card.querySelector(".nr-dismiss-bar");
+  if (barEl) { barEl.innerHTML = '<span class="nr-spin"></span>'; barEl.style.textAlign = "center"; }
+
   chrome.runtime.sendMessage(
     {
       type: "SUBMIT_JOB",
-      job: {
-        title:       job.title,
-        company:     job.company,
-        url:         job.url,
-        description: job.description,
-        source:      "extension",
-      },
+      job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" },
     },
     (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
@@ -615,19 +800,306 @@ function submitFromCard(job, action, card) {
       }
 
       const jobId = response.job_id;
-      if (statusEl) statusEl.textContent = "✓ Saved!";
 
-      setTimeout(() => {
+      // Store this job's URL + ID so we don't re-prompt on the same tab
+      if (jobId) {
+        chrome.storage.session.set({
+          nr_last_job_url:    job.url,
+          nr_last_job_id:     jobId,
+          nr_last_job_title:  job.title  ?? "",
+          nr_last_company:    job.company ?? "",
+        });
+      }
+
+      if (action === "evaluate" && jobId) {
+        chrome.runtime.sendMessage({
+          type: "OPEN_TAB",
+          url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate`,
+        });
         removeCard();
-        if (action === "evaluate" && jobId) {
-          chrome.runtime.sendMessage({
-            type: "OPEN_TAB",
-            url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate`,
-          });
-        }
-      }, 800);
+        return;
+      }
+
+      // Pipeline action → transition to helper panel
+      removeCard();
+      showHelperPanel(job, jobId);
     }
   );
+}
+
+// ─── Helper panel (Panel B) ───────────────────────────────────────────────────
+
+let _helperResumeHtml = null;
+
+function showHelperPanel(job, jobId) {
+  injectCardStyles();
+
+  const card = document.createElement("div");
+  card.id = "nr-detect-card";
+  card.innerHTML = `
+    <div class="nr-ch">
+      <div class="nr-brand">
+        <svg width="12" height="12" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="14" fill="rgba(255,253,248,0.18)"/>
+          <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        NextRole · Application Helper
+      </div>
+      <button class="nr-cx" id="nr-helper-close">×</button>
+    </div>
+    <div class="nr-cb">
+      <div class="nr-saved-row">
+        <span class="nr-saved-check">✓</span>
+        <div>
+          <div style="font-size:12.5px;font-weight:500;">Saved to pipeline</div>
+          <div style="font-size:11.5px;color:#6b6358;">${escapeHtml(job.title)} · ${escapeHtml(job.company)}</div>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#6b6358;margin-bottom:10px;">Filling out the application?</div>
+      <div id="nr-helper-resume-area"></div>
+      <div id="nr-helper-autofill-area"></div>
+      <div class="nr-divider"></div>
+      <button class="nr-btn nr-ghost" id="nr-helper-open-pipeline">Open Pipeline →</button>
+    </div>
+  `;
+  document.body.appendChild(card);
+
+  card.querySelector("#nr-helper-close").addEventListener("click", removeCard);
+  card.querySelector("#nr-helper-open-pipeline").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
+    removeCard();
+  });
+
+  // Load profile to get tier + usage, then render action buttons
+  chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileRes) => {
+    const tier   = profileRes?.tier   ?? "free";
+    const usage  = profileRes?.usage  ?? {};
+    const limits = profileRes?.limits ?? {};
+
+    renderResumeButton(card, job, jobId, tier, usage, limits);
+    renderAutofillButton(card, job, tier, usage, limits);
+  });
+}
+
+// ─── Resume button ────────────────────────────────────────────────────────────
+
+function renderResumeButton(card, job, jobId, tier, usage, limits) {
+  const area = card.querySelector("#nr-helper-resume-area");
+  if (!area) return;
+
+  const resumesToday = usage.resumes_today ?? 0;
+  const resumeLimit  = limits.resumes_per_day ?? 1;  // 1 for free, -1 for paid
+  const atLimit = tier === "free" && resumesToday >= resumeLimit;
+
+  if (atLimit) {
+    area.innerHTML = `
+      <div class="nr-upgrade-box">
+        <div class="nr-ub-title">📄 Custom resume</div>
+        <div class="nr-ub-desc">You've used your free resume for today. Upgrade Starter for daily credits.</div>
+        <div class="nr-ub-actions">
+          <button class="nr-ub-primary" id="nr-resume-upgrade">Upgrade →</button>
+          <button class="nr-ub-secondary" id="nr-resume-dismiss">Not now</button>
+        </div>
+      </div>
+    `;
+    area.querySelector("#nr-resume-upgrade").addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing?feature=resume` });
+    });
+    area.querySelector("#nr-resume-dismiss").addEventListener("click", () => {
+      area.innerHTML = "";
+    });
+    return;
+  }
+
+  const costLabel = tier === "free" ? "1 / day" : "10 credits";
+
+  area.innerHTML = `
+    <div class="nr-action-row" id="nr-resume-btn">
+      <div class="nr-action-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+      </div>
+      <span class="nr-action-label">Get Custom Resume</span>
+      <span class="nr-action-cost">${costLabel}</span>
+    </div>
+    <div id="nr-resume-result" style="display:none;"></div>
+  `;
+
+  area.querySelector("#nr-resume-btn").addEventListener("click", () => {
+    tailorResumeInCard(card, area, job, jobId, tier);
+  });
+}
+
+function tailorResumeInCard(card, area, job, jobId, tier) {
+  // Replace button with loading state
+  area.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:7px;background:#f5f2ee;margin-bottom:7px;">
+      <span class="nr-spin"></span>
+      <div>
+        <div style="font-size:12.5px;font-weight:500;">Tailoring resume…</div>
+        <div style="font-size:11.5px;color:#6b6358;">${escapeHtml(job.title)} at ${escapeHtml(job.company)}</div>
+      </div>
+    </div>
+  `;
+
+  chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileRes) => {
+    const token = profileRes?._token ?? "";
+    const payload = {
+      job_id:          jobId || null,
+      job_title:       job.title,
+      company:         job.company,
+      job_description: job.description,
+    };
+
+    chrome.runtime.sendMessage({ type: "TAILOR_RESUME", token, payload }, (res) => {
+      if (chrome.runtime.lastError || !res?.ok) {
+        area.innerHTML = `
+          <div style="padding:10px 11px;border-radius:7px;border:1px solid #e0d8d0;margin-bottom:7px;font-size:12px;color:#b53a3a;">
+            ${escapeHtml(res?.error ?? "Resume generation failed")}
+          </div>
+        `;
+        return;
+      }
+
+      _helperResumeHtml = res.html;
+      const coverage = res.coverage ?? "";
+      area.innerHTML = `
+        <div class="nr-resume-ready">
+          <div style="font-size:12.5px;font-weight:500;color:#2f7a3a;">✓ Resume ready · ${coverage}% keyword match</div>
+          <div style="display:flex;gap:6px;">
+            <button class="nr-btn nr-primary" id="nr-resume-open" style="flex:1;">Open + Save PDF</button>
+            ${res.resume_id ? `<button class="nr-btn nr-secondary" id="nr-resume-dash" style="flex:unset;padding:8px 10px;">View in NextRole</button>` : ""}
+          </div>
+        </div>
+      `;
+      area.querySelector("#nr-resume-open")?.addEventListener("click", () => {
+        const blob = new Blob([_helperResumeHtml], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        chrome.runtime.sendMessage({ type: "OPEN_TAB", url });
+      });
+      area.querySelector("#nr-resume-dash")?.addEventListener("click", () => {
+        chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/resumes` });
+      });
+    });
+  });
+}
+
+// ─── Autofill button ──────────────────────────────────────────────────────────
+
+function renderAutofillButton(card, job, tier, usage, limits) {
+  const area = card.querySelector("#nr-helper-autofill-area");
+  if (!area) return;
+
+  // Free users — hard gate
+  if (tier === "free") {
+    area.innerHTML = `
+      <div class="nr-action-row nr-locked" title="Autofill requires Starter or above">
+        <div class="nr-action-icon" style="opacity:0.45;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+        </div>
+        <span class="nr-action-label" style="color:#9a9286;">Autofill Fields</span>
+        <span style="font-family:monospace;font-size:10px;color:#c84a1f;display:flex;align-items:center;gap:3px;">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+          Starter
+        </span>
+      </div>
+    `;
+    area.querySelector(".nr-action-row").addEventListener("click", () => {
+      showAutofillUpgrade(area, tier, "autofill_basic");
+    });
+    return;
+  }
+
+  // Starter — check daily limit
+  const autofillsToday = usage.autofills_today ?? 0;
+  const autofillLimit  = limits.autofills_per_day ?? 1;
+  const atLimit = tier === "starter" && autofillsToday >= autofillLimit;
+
+  if (atLimit) {
+    area.innerHTML = `
+      <div class="nr-upgrade-box">
+        <div class="nr-ub-title">⚡ Autofill</div>
+        <div class="nr-ub-desc">You've used your autofill for today. Upgrade to Pro for unlimited autofill.</div>
+        <div class="nr-ub-actions">
+          <button class="nr-ub-primary" id="nr-autofill-upgrade">Upgrade to Pro →</button>
+          <button class="nr-ub-secondary" id="nr-autofill-dismiss">Not now</button>
+        </div>
+      </div>
+    `;
+    area.querySelector("#nr-autofill-upgrade").addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing?feature=autofill` });
+    });
+    area.querySelector("#nr-autofill-dismiss").addEventListener("click", () => { area.innerHTML = ""; });
+    return;
+  }
+
+  const label     = "Autofill Fields";
+  const costLabel = tier === "starter" ? "8 credits · 1/day" : "8 credits";
+
+  area.innerHTML = `
+    <div class="nr-action-row" id="nr-autofill-btn">
+      <div class="nr-action-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+      </div>
+      <span class="nr-action-label">${label}</span>
+      <span class="nr-action-cost">${costLabel}</span>
+    </div>
+  `;
+  area.querySelector("#nr-autofill-btn").addEventListener("click", () => {
+    triggerAutofill(area, job, tier);
+  });
+}
+
+function showAutofillUpgrade(area, tier, feature) {
+  const planName = "Starter";
+  area.innerHTML = `
+    <div class="nr-upgrade-box">
+      <div class="nr-ub-title">⚡ Autofill Fields</div>
+      <div class="nr-ub-desc">Autofill isn't available on the Free plan. Available on ${planName} and above.</div>
+      <div class="nr-ub-actions">
+        <button class="nr-ub-primary" id="nr-af-upgrade">Upgrade →</button>
+        <button class="nr-ub-secondary" id="nr-af-dismiss">Not now</button>
+      </div>
+    </div>
+  `;
+  area.querySelector("#nr-af-upgrade").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing?feature=${feature}` });
+  });
+  area.querySelector("#nr-af-dismiss").addEventListener("click", () => { area.innerHTML = ""; });
+}
+
+function triggerAutofill(area, job, tier) {
+  area.querySelector("#nr-autofill-btn").innerHTML = `
+    <div class="nr-action-icon"><span class="nr-spin"></span></div>
+    <span class="nr-action-label">Filling fields…</span>
+  `;
+
+  // Trigger the fill-assistant content script via a custom event
+  // fill-assistant.js listens for this and fills the form
+  document.dispatchEvent(new CustomEvent("nr-autofill-trigger", {
+    detail: { tier, job }
+  }));
+
+  // Listen for result
+  const onResult = (e) => {
+    document.removeEventListener("nr-autofill-result", onResult);
+    const { filled, error } = e.detail ?? {};
+    if (error) {
+      area.innerHTML = `<div style="font-size:12px;color:#b53a3a;padding:8px 0;">${escapeHtml(error)}</div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 11px;border-radius:7px;background:#edf7ee;margin-bottom:7px;">
+        <span style="color:#2f7a3a;font-size:14px;">✓</span>
+        <div style="font-size:12.5px;font-weight:500;color:#2f7a3a;">
+          ${tier === "pro" ? "All fields filled" : "Basic fields filled"}
+          ${filled ? `<span style="font-size:11.5px;font-weight:400;color:#6b6358;"> · ${filled} fields</span>` : ""}
+        </div>
+      </div>
+    `;
+  };
+  document.addEventListener("nr-autofill-result", onResult);
+  // Fallback timeout
+  setTimeout(() => { document.removeEventListener("nr-autofill-result", onResult); }, 8000);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
@@ -639,20 +1111,42 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// Returns true if a high-confidence job was found and card shown.
 function detectAndShow() {
   const job = extractJob();
-  chrome.runtime.sendMessage({ type: "JOB_DETECTED", found: !!job });
-  if (job) showDetectCard(job);
+  const isHighConfidence = job && job.confidence !== "low";
+  chrome.runtime.sendMessage({ type: "JOB_DETECTED", found: !!isHighConfidence });
+  if (isHighConfidence) showDetectCard(job);
+  return !!isHighConfidence;
+}
+
+// Retry at 1s → 2.5s → 5s after navigation.
+// Heavy SPAs (Workday, LinkedIn) can take several seconds to render job content.
+let _retryTimer = null;
+const RETRY_DELAYS = [1000, 2500, 5000];
+
+function detectWithRetry() {
+  clearTimeout(_retryTimer);
+  let attempt = 0;
+
+  function tryOnce() {
+    if (detectAndShow()) return; // found — stop
+    if (attempt < RETRY_DELAYS.length) {
+      _retryTimer = setTimeout(tryOnce, RETRY_DELAYS[attempt++]);
+    }
+  }
+
+  tryOnce();
 }
 
 // Initial detection
-detectAndShow();
+detectWithRetry();
 
 // SPA navigation watcher
 let _lastUrl = location.href;
 new MutationObserver(() => {
   if (location.href !== _lastUrl) {
     _lastUrl = location.href;
-    setTimeout(detectAndShow, 1500);
+    detectWithRetry();
   }
 }).observe(document.body, { childList: true, subtree: true });

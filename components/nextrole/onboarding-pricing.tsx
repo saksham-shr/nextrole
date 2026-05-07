@@ -49,7 +49,9 @@ const TIERS = [
     ],
     cta: "Get Starter",
     ctaStyle: "secondary" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_STARTER_CHECKOUT_URL ?? "",
+    checkoutUrl: process.env.NEXT_PUBLIC_LS_CHECKOUT_URL && process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID
+      ? `${process.env.NEXT_PUBLIC_LS_CHECKOUT_URL}?variant=${process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID}`
+      : "",
   },
   {
     id: "pro",
@@ -69,43 +71,9 @@ const TIERS = [
     ],
     cta: "Get Pro",
     ctaStyle: "primary" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_PRO_CHECKOUT_URL ?? "",
-  },
-  {
-    id: "team",
-    name: "Team",
-    inrMonthly: INR_PRICES.team_monthly,
-    inrYearly:  INR_PRICES.team_yearly,
-    jobLimit: "Unlimited jobs",
-    badge: null,
-    features: [
-      "Everything in Pro",
-      "Team dashboard",
-      "5 seats included",
-      "Shared job pools",
-      "Unlimited job slots",
-    ],
-    cta: "Get Team",
-    ctaStyle: "secondary" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_TEAM_CHECKOUT_URL ?? "",
-  },
-  {
-    id: "byok",
-    name: "BYOK",
-    inrMonthly: INR_PRICES.byok_monthly,
-    inrYearly:  INR_PRICES.byok_yearly,
-    jobLimit: "Unlimited jobs",
-    badge: "No credits consumed",
-    features: [
-      "All Pro features",
-      "Your own API key",
-      "Zero credit deductions",
-      "Anthropic / OpenAI / Gemini",
-      "Unlimited job slots",
-    ],
-    cta: "Start 14-day trial",
-    ctaStyle: "accent" as const,
-    checkoutUrl: process.env.NEXT_PUBLIC_LS_BYOK_CHECKOUT_URL ?? "",
+    checkoutUrl: process.env.NEXT_PUBLIC_LS_CHECKOUT_URL && process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID
+      ? `${process.env.NEXT_PUBLIC_LS_CHECKOUT_URL}?variant=${process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID}`
+      : "",
   },
 ] as const;
 
@@ -190,7 +158,7 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
             Choose your plan
           </h1>
           <p className="mt-3 text-[var(--muted-foreground)]">
-            Start free or pick a plan. BYOK includes a 14-day free trial — no credit card required.
+            Start free or upgrade for more credits and features.
           </p>
 
           <div className="mt-6 inline-flex items-center gap-1 rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)] p-1">
@@ -217,10 +185,10 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
         </div>
 
         {/* Cards */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {TIERS.map((tier) => {
-            const isByok    = tier.id === "byok";
-            const isPaid    = ["starter", "pro", "team"].includes(tier.id);
+            const isByok    = false;
+            const isPaid    = ["starter", "pro"].includes(tier.id);
             const isLoading = loading === tier.id;
             const hasUrl    = !!tier.checkoutUrl;
             const discount  = period === "yearly" && tier.inrMonthly > 0
@@ -315,11 +283,6 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
                       className="w-full rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50">
                       {isLoading ? "Starting…" : tier.cta}
                     </button>
-                  ) : tier.id === "byok" ? (
-                    <button onClick={() => handleFreeOrByok("byok")} disabled={isLoading}
-                      className="w-full rounded-full bg-[var(--accent)] py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-white transition hover:opacity-90 disabled:opacity-50">
-                      {isLoading ? "Starting…" : tier.cta}
-                    </button>
                   ) : isPaid && hasUrl ? (
                     <button
                       onClick={() => handlePaidTier(tier.id as TierId, tier.checkoutUrl as string)}
@@ -346,7 +309,7 @@ export function OnboardingPricing({ trialEndsAt }: Props) {
 
         {/* Footer note */}
         <p className="mt-8 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
-          BYOK: 14-day free trial · No credit card required · Full access
+          No credit card required · Cancel anytime
         </p>
 
       </div>

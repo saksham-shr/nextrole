@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BrandWordmark } from "@/components/nextrole/brand";
+import { BrandMark, BrandWordmark } from "@/components/nextrole/brand";
 import {
   Badge,
   Button,
@@ -33,21 +33,49 @@ function AuthShell({
   title,
   subtitle,
   children,
+  footer,
 }: {
   title: string;
   subtitle: string;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center px-5 py-8">
-      <Surface className="w-full max-w-xl p-6 sm:p-8">
-        <BrandWordmark />
-        <Display className="mt-6 text-4xl sm:text-5xl">{title}</Display>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--muted-foreground)]">
-          {subtitle}
-        </p>
-        {children}
-      </Surface>
+      <div className="w-full" style={{ maxWidth: 420 }}>
+        <div className="flex flex-col items-center mb-8">
+          <BrandMark size={36} />
+          <div
+            className="mt-3 font-medium"
+            style={{ fontFamily: "var(--font-mono-stack)", fontSize: 17 }}
+          >
+            nextrole
+          </div>
+        </div>
+        <div
+          className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]"
+          style={{ padding: 32 }}
+        >
+          <h2
+            className="font-semibold tracking-[-0.01em]"
+            style={{ fontSize: 22, marginBottom: 6 }}
+          >
+            {title}
+          </h2>
+          <p
+            className="text-[var(--muted-foreground)]"
+            style={{ fontSize: 13.5, marginBottom: 24 }}
+          >
+            {subtitle}
+          </p>
+          {children}
+        </div>
+        {footer && (
+          <div className="mt-5 text-center text-[11.5px] text-[var(--muted-foreground)]">
+            {footer}
+          </div>
+        )}
+      </div>
     </main>
   );
 }
@@ -65,7 +93,7 @@ function Alert({
   };
   return (
     <p
-      className={`mt-4 rounded-[14px] border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.18em] ${styles[tone]}`}
+      className={`mt-4 rounded-[6px] border px-4 py-3 font-mono text-[11px] uppercase tracking-[0.18em] ${styles[tone]}`}
     >
       {message}
     </p>
@@ -108,9 +136,14 @@ function PasswordInput({
   const toggle = useCallback(() => setShow((s) => !s), []);
   return (
     <label className="block">
-      <p className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-        {label}
-      </p>
+      {label && (
+        <div
+          className="mb-1.5 uppercase text-[var(--muted-foreground)]"
+          style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em" }}
+        >
+          {label}
+        </div>
+      )}
       <div className="relative">
         <input
           name={name}
@@ -120,7 +153,7 @@ function PasswordInput({
           onChange={onChange}
           required={required}
           autoComplete={autoComplete}
-          className="w-full rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-3 pr-12 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)]"
+          className="w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 pr-10 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
         />
         <button
           type="button"
@@ -148,27 +181,30 @@ function OAuthButtons({ next }: { next: "/onboarding" | "/dashboard" }) {
   }
 
   return (
-    <div className="mt-6">
-      <div className="relative flex items-center gap-3">
+    <div>
+      <div className="flex items-center gap-2.5 my-4">
         <div className="h-px flex-1 bg-[var(--line-soft)]" />
-        <span className="font-mono text-[9px] uppercase tracking-[0.22em] text-[var(--muted-foreground-2)]">or</span>
-        <div className="h-px flex-1 bg-[var(--line-soft)]" />
-      </div>
-      <div className="mt-4">
-        <button
-          type="button"
-          onClick={signInWithGoogle}
-          className="flex w-full items-center justify-center gap-3 rounded-full border border-[var(--line-soft)] bg-[var(--surface)] py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--line)] hover:bg-[var(--surface-soft)]"
+        <span
+          className="text-[var(--muted-foreground-2)] uppercase"
+          style={{ fontFamily: "var(--font-mono-stack)", fontSize: 10.5, letterSpacing: "0.1em" }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Continue with Google
-        </button>
+          or
+        </span>
+        <div className="h-px flex-1 bg-[var(--line-soft)]" />
       </div>
+      <button
+        type="button"
+        onClick={signInWithGoogle}
+        className="flex w-full items-center justify-center gap-2.5 rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] py-2.5 text-sm font-medium text-[var(--foreground)] transition hover:border-[var(--line)]"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+        </svg>
+        Continue with Google
+      </button>
     </div>
   );
 }
@@ -183,16 +219,20 @@ function SubmitButton({
   pendingLabel: string;
 }) {
   return (
-    <Button type="submit" tone="accent" disabled={loading}>
+    <button
+      type="submit"
+      disabled={loading}
+      className="flex w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--accent)] py-2.5 text-sm font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)] disabled:opacity-60"
+    >
       {loading ? (
-        <span className="flex items-center gap-2">
+        <>
           <Spinner className="h-3.5 w-3.5 border-white border-t-transparent" />
           {pendingLabel}
-        </span>
+        </>
       ) : (
         label
       )}
-    </Button>
+    </button>
   );
 }
 
@@ -231,24 +271,47 @@ export function LoginPage({
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign back into your job search workspace. Your provider keys stay encrypted and only power your own runs."
+      subtitle="Sign in to continue your job search."
     >
       {error && <Alert tone="error" message={error} />}
       {message && <Alert tone="ok" message={message} />}
 
-      <form onSubmit={handleSubmit} className="mt-6">
-        <div className="space-y-4">
-          <InputField
-            label="Email"
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+        <label className="block">
+          <div
+            className="mb-1.5 uppercase text-[var(--muted-foreground)]"
+            style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em" }}
+          >
+            Email
+          </div>
+          <input
             name="email"
             type="email"
             placeholder="jane@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            className="w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
           />
+        </label>
+        <div>
+          <div className="flex items-center justify-between mb-1.5">
+            <span
+              className="uppercase text-[var(--muted-foreground)]"
+              style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em" }}
+            >
+              Password
+            </span>
+            <Link
+              href="/forgot-password"
+              className="text-[var(--accent)] hover:underline"
+              style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em" }}
+            >
+              Forgot?
+            </Link>
+          </div>
           <PasswordInput
-            label="Password"
+            label=""
             name="password"
             placeholder="Enter your password"
             value={password}
@@ -257,23 +320,15 @@ export function LoginPage({
             autoComplete="current-password"
           />
         </div>
-        <div className="mt-4 flex items-center justify-between gap-4">
-          <Link
-            className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)]"
-            href="/forgot-password"
-          >
-            Forgot password
-          </Link>
-          <Badge tone="accent">Encrypted keys</Badge>
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <SubmitButton loading={loading} label="Sign in" pendingLabel="Signing in..." />
-          <Button href="/signup" ghost>
-            Create account
-          </Button>
-        </div>
+        <SubmitButton loading={loading} label="Sign in" pendingLabel="Signing in..." />
+        <OAuthButtons next="/dashboard" />
       </form>
-      <OAuthButtons next="/dashboard" />
+      <div className="mt-5 pt-5 border-t border-[var(--line-soft)] text-center text-[13px] text-[var(--muted-foreground)]">
+        New here?{" "}
+        <Link href="/signup" className="text-[var(--accent)] font-medium hover:underline">
+          Create account
+        </Link>
+      </div>
     </AuthShell>
   );
 }
@@ -295,13 +350,11 @@ export function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | undefined>();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!agreed) { setError("You must agree to the Terms of Use"); return; }
     if (password !== confirmPassword) { setError("Passwords do not match"); return; }
     setLoading(true);
     setError(undefined);
@@ -315,82 +368,65 @@ export function SignupPage() {
 
   return (
     <AuthShell
-      title="Create account"
-      subtitle="Free for 14 days. No card needed."
+      title="Create your account"
+      subtitle="Free forever. No card required."
     >
-      {/* Emoji benefits */}
-      <div className="mt-6 flex flex-col gap-3.5">
-        {SIGNUP_BENEFITS.map(([emoji, text]) => (
-          <div key={text} className="flex items-center gap-4">
-            <span className="text-2xl">{emoji}</span>
-            <p className="text-sm text-[var(--foreground)]">{text}</p>
-          </div>
-        ))}
-      </div>
-
       {error && <Alert tone="error" message={error} />}
-      <form onSubmit={handleSubmit}>
-        <div className="mt-7 space-y-4">
-          <InputField
-            label="Email"
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+        <label className="block">
+          <div
+            className="mb-1.5 uppercase text-[var(--muted-foreground)]"
+            style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em" }}
+          >
+            Email
+          </div>
+          <input
             name="email"
             type="email"
             placeholder="jane@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            className="w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
           />
-          <PasswordInput
-            label="Password"
-            name="password"
-            placeholder="8+ characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-          <PasswordInput
-            label="Confirm password"
-            name="confirm_password"
-            placeholder="Re-enter your password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-        </div>
-        <label className="mt-5 flex items-start gap-3 rounded-[18px] border border-[var(--line)] bg-[var(--surface-soft)] px-4 py-3">
-          <input
-            required
-            type="checkbox"
-            checked={agreed}
-            onChange={(e) => setAgreed(e.target.checked)}
-            className="mt-1 h-4 w-4 rounded border-[var(--line)] accent-[var(--accent)]"
-          />
-          <span className="text-sm leading-7 text-[var(--muted-foreground)]">
-            I agree to the{" "}
-            <Link href="/terms" className="font-bold text-[var(--accent)]">
-              Terms of Use
-            </Link>{" "}
-            and acknowledge the{" "}
-            <Link href="/privacy" className="font-bold text-[var(--accent)]">
-              Privacy Policy
-            </Link>
-            .
-          </span>
         </label>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <SubmitButton
-            loading={loading}
-            label="Start free trial →"
-            pendingLabel="Creating account..."
-          />
-          <Button href="/login" ghost>
-            I already have an account
-          </Button>
-        </div>
+        <PasswordInput
+          label="Password"
+          name="password"
+          placeholder="8+ characters"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        <PasswordInput
+          label="Confirm password"
+          name="confirm_password"
+          placeholder="Re-enter your password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        <SubmitButton
+          loading={loading}
+          label="Create account"
+          pendingLabel="Creating account..."
+        />
+        <OAuthButtons next="/onboarding" />
       </form>
-      <OAuthButtons next="/onboarding" />
+      <div className="mt-5 pt-5 border-t border-[var(--line-soft)] text-center text-[13px] text-[var(--muted-foreground)]">
+        Already have an account?{" "}
+        <Link href="/login" className="text-[var(--accent)] font-medium hover:underline">
+          Sign in
+        </Link>
+      </div>
+      <p className="mt-4 text-center text-[11.5px] text-[var(--muted-foreground)]">
+        By signing up you agree to our{" "}
+        <Link href="/terms" className="text-[var(--accent)] hover:underline">Terms</Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="text-[var(--accent)] hover:underline">Privacy Policy</Link>.
+      </p>
     </AuthShell>
   );
 }
@@ -426,28 +462,34 @@ export function ForgotPasswordPage() {
   return (
     <AuthShell
       title="Forgot password"
-      subtitle="We'll send a 6-digit code and a recovery link to your inbox so you can get back into NextRole quickly."
+      subtitle="We'll send a 6-digit code and a recovery link to your inbox."
     >
       {error && <Alert tone="error" message={error} />}
-      <form onSubmit={handleSubmit}>
-        <div className="mt-8 space-y-4">
-          <InputField
-            label="Email"
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+        <label className="block">
+          <div
+            className="mb-1.5 uppercase text-[var(--muted-foreground)]"
+            style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em" }}
+          >
+            Email
+          </div>
+          <input
             name="email"
             type="email"
             placeholder="jane@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
+            className="w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
           />
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <SubmitButton loading={loading} label="Send recovery code" pendingLabel="Sending..." />
-          <Button href="/login" ghost>
-            Back to login
-          </Button>
-        </div>
+        </label>
+        <SubmitButton loading={loading} label="Send recovery code" pendingLabel="Sending..." />
       </form>
+      <div className="mt-5 pt-5 border-t border-[var(--line-soft)] text-center text-[13px] text-[var(--muted-foreground)]">
+        <Link href="/login" className="text-[var(--accent)] font-medium hover:underline">
+          Back to login
+        </Link>
+      </div>
     </AuthShell>
   );
 }
@@ -552,8 +594,8 @@ export function VerifyCodePage({ email: initialEmail }: { email?: string }) {
     >
       {error && <Alert tone="error" message={error} />}
 
-      <form onSubmit={handleSubmit} className="mt-6 space-y-5">
-        <div className="flex justify-center gap-2 sm:gap-3">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <div className="flex justify-center gap-2">
           {digits.map((d, i) => (
             <input
               key={i}
@@ -569,40 +611,34 @@ export function VerifyCodePage({ email: initialEmail }: { email?: string }) {
               onPaste={handlePaste}
               onFocus={(e) => e.target.select()}
               className={[
-                "h-14 w-12 rounded-[14px] border text-center text-xl font-bold outline-none transition",
-                "border-[var(--line)] bg-[var(--surface-soft)] text-[var(--foreground)]",
-                "focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]/20",
+                "h-12 w-10 rounded-[6px] border text-center text-xl font-bold outline-none transition",
+                "border-[var(--line-soft)] bg-[var(--surface-soft)] text-[var(--foreground)]",
+                "focus:border-[var(--line)]",
                 d ? "border-[var(--accent)]" : "",
               ].join(" ")}
             />
           ))}
         </div>
-
-        <div className="flex flex-wrap gap-3">
-          <SubmitButton loading={loading} label="Verify code" pendingLabel="Verifying..." />
-          <Button href="/login" ghost>
-            Back to login
-          </Button>
-        </div>
+        <SubmitButton loading={loading} label="Verify code" pendingLabel="Verifying..." />
       </form>
 
-      {email && (
-        <div className="mt-5 flex flex-wrap gap-4">
-          <button
-            type="button"
-            onClick={handleResend}
-            className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--accent)] hover:underline"
-          >
-            Resend code
-          </button>
-          <Link
-            href="/forgot-password"
-            className="font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-          >
-            Wrong email?
-          </Link>
-        </div>
-      )}
+      <div className="mt-5 pt-5 border-t border-[var(--line-soft)] text-center text-[13px] text-[var(--muted-foreground)]">
+        {email && (
+          <>
+            <button
+              type="button"
+              onClick={handleResend}
+              className="text-[var(--accent)] font-medium hover:underline"
+            >
+              Resend code
+            </button>
+            {" · "}
+          </>
+        )}
+        <Link href="/login" className="text-[var(--accent)] font-medium hover:underline">
+          Back to login
+        </Link>
+      </div>
     </AuthShell>
   );
 }
@@ -646,34 +682,32 @@ export function ResetPasswordPage() {
       subtitle="Choose a fresh password and we'll take you straight back into the app."
     >
       {error && <Alert tone="error" message={error} />}
-      <form onSubmit={handleSubmit}>
-        <div className="mt-8 space-y-4">
-          <PasswordInput
-            label="New password"
-            name="password"
-            placeholder="Enter a new password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-          <PasswordInput
-            label="Confirm password"
-            name="confirm"
-            placeholder="Confirm your password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-            autoComplete="new-password"
-          />
-        </div>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <SubmitButton loading={loading} label="Save and sign in" pendingLabel="Saving..." />
-          <Button href="/login" ghost>
-            Back to login
-          </Button>
-        </div>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+        <PasswordInput
+          label="New password"
+          name="password"
+          placeholder="Enter a new password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        <PasswordInput
+          label="Confirm password"
+          name="confirm"
+          placeholder="Confirm your password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+          autoComplete="new-password"
+        />
+        <SubmitButton loading={loading} label="Save and sign in" pendingLabel="Saving..." />
       </form>
+      <div className="mt-5 pt-5 border-t border-[var(--line-soft)] text-center text-[13px] text-[var(--muted-foreground)]">
+        <Link href="/login" className="text-[var(--accent)] font-medium hover:underline">
+          Back to login
+        </Link>
+      </div>
     </AuthShell>
   );
 }

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { navGroups, quickActions } from "@/lib/nextrole-data";
-import { canAccess } from "@/lib/ai/gates";
 import type { UserTier } from "@/lib/db/types";
 
 // ─── Item index ───────────────────────────────────────────────────────────────
@@ -21,11 +20,9 @@ const ACTION_ITEMS: CommandItem[] = quickActions.map((a) => ({
   group: "Quick actions",
 }));
 
-function buildNavItems(tier: UserTier): CommandItem[] {
+function buildNavItems(_tier: UserTier): CommandItem[] {
   return navGroups.flatMap((group) =>
-    group.items
-      .filter((item) => !item.feature || canAccess(tier, item.feature))
-      .map((item) => ({ label: item.label, href: item.href, group: group.title })),
+    group.items.map((item) => ({ label: item.label, href: item.href, group: group.title })),
   );
 }
 

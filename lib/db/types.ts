@@ -39,7 +39,7 @@ export type TaskType =
 
 export type ProviderType = "anthropic" | "openai" | "gemini" | "manual";
 
-export type UserTier = "free" | "starter" | "pro" | "team" | "byok";
+export type UserTier = "free" | "starter" | "pro" | "team" | "byok"; // team/byok kept for DB compat, not exposed in UI
 
 export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired" | "paused";
 
@@ -836,12 +836,43 @@ export type Database = {
         Update: Record<string, never>;
         Relationships: [];
       };
+      daily_usage: {
+        Row: {
+          user_id: string;
+          date: string;
+          evaluations: number;
+          resumes: number;
+          autofills: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          date?: string;
+          evaluations?: number;
+          resumes?: number;
+          autofills?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<{
+          evaluations: number;
+          resumes: number;
+          autofills: number;
+          updated_at: string;
+        }>;
+        Relationships: [];
+      };
     }; // end Tables
     Views: Record<string, never>;
     Functions: {
       deduct_credit: {
         Args: { p_user_id: string; p_amount?: number };
         Returns: boolean;
+      };
+      increment_daily_usage: {
+        Args: { p_field: string; p_user: string };
+        Returns: number;
       };
       reset_credits_for_tier: {
         Args: { p_user_id: string; p_tier: UserTier };

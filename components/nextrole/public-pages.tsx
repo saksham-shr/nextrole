@@ -1,5 +1,6 @@
-import Link from "next/link";
-import { BrandWordmark } from "@/components/nextrole/brand";
+﻿import Link from "next/link";
+import { BrandWordmark, BrandMark } from "@/components/nextrole/brand";
+import { PricingCards } from "@/components/nextrole/pricing-client";
 import {
   Badge,
   Button,
@@ -12,7 +13,7 @@ import {
   Surface,
   Timeline,
 } from "@/components/nextrole/ui";
-import { kpis, repoParity } from "@/lib/nextrole-data";
+import { kpis } from "@/lib/nextrole-data";
 
 const capabilityCards = [
   {
@@ -223,13 +224,19 @@ SOFTWARE.`;
 
 export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" } = {}) {
   return (
-    <header className="flex items-center justify-between border-b border-[var(--line-soft)] px-8 py-[22px] sm:px-12">
+    <header
+      className="flex items-center px-14 py-5"
+      style={{ borderBottom: "1px solid var(--line-soft)" }}
+    >
       <Link href="/" aria-label="NextRole home">
-        <BrandWordmark />
+        <BrandWordmark size={22} />
       </Link>
-      <nav className="hidden items-center gap-7 text-[13.5px] text-[var(--muted-foreground)] md:flex">
-        <Link href="/#what-you-get" className="transition hover:text-[var(--foreground)]">
-          Product
+      <nav className="hidden flex-1 items-center justify-center gap-7 text-[13.5px] text-[var(--muted-foreground)] md:flex">
+        <Link href="/#how-it-works" className="transition hover:text-[var(--foreground)]">
+          How it works
+        </Link>
+        <Link href="/#features" className="transition hover:text-[var(--foreground)]">
+          Features
         </Link>
         <Link
           href="/pricing"
@@ -243,48 +250,70 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         >
           Docs
         </Link>
-        <Link href="/login" className="transition hover:text-[var(--foreground)]">
+      </nav>
+      <div className="flex items-center gap-2.5">
+        <Link
+          href="/login"
+          className="rounded-md border px-2.5 py-1.5 text-[13px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
+          style={{ border: "1px solid var(--line-soft)" }}
+        >
           Sign in
         </Link>
-        <Button href="/signup" tone="accent">
+        <Link
+          href="/signup"
+          className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90"
+          style={{ background: "var(--accent)" }}
+        >
           Get started
-        </Button>
-      </nav>
-      <div className="flex items-center gap-3 md:hidden">
-        <Button href="/login" ghost>Log in</Button>
-        <Button href="/signup" tone="accent">Get started</Button>
+        </Link>
       </div>
     </header>
   );
 }
 
-function SiteHeader() {
-  return <PublicHeader />;
-}
-
 function SiteFooter() {
   return (
-    <footer className="border-t border-[var(--line)] px-6 py-6 lg:px-10">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-sm font-bold text-[var(--foreground)]">NextRole</p>
-          <p className="mt-2 text-sm leading-7 text-[var(--muted-foreground)]">
-            A candidate-first job search operating system for evaluation,
-            resumes, tracking, interview preparation, follow-up, and
-            performance improvement.
-          </p>
-          <p className="mt-3 text-xs leading-6 text-[var(--muted-foreground)]">
-            Built for candidates who want one serious workspace for evaluation,
-            resumes, application tracking, interview prep, and search
-            improvement loops.
+    <footer style={{ borderTop: "1px solid var(--line-soft)", padding: "40px 56px" }}>
+      <div className="mx-auto flex max-w-[1100px] items-start justify-between gap-8">
+        <div>
+          <BrandWordmark size={22} />
+          <p className="mt-3 max-w-[280px] text-[13px] leading-[1.6] text-[var(--muted-foreground)]">
+            The AI job search assistant for people who actually want to land jobs.
           </p>
         </div>
-        <div className="flex flex-wrap gap-3 text-sm font-bold text-[var(--muted-foreground)]">
-          <Link href="/documentation">Documentation</Link>
-          <Link href="/privacy">Privacy</Link>
-          <Link href="/terms">Terms</Link>
-          <Link href="/login">Log in</Link>
+        <div className="flex gap-14 text-[13px]">
+          <div>
+            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Product</p>
+            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+              <Link href="/#features" className="transition hover:text-[var(--foreground)]">Features</Link>
+              <Link href="/pricing" className="transition hover:text-[var(--foreground)]">Pricing</Link>
+              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Extension</Link>
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Resources</p>
+            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Documentation</Link>
+              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Changelog</Link>
+              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Support</Link>
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Legal</p>
+            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+              <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
+              <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
+              <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Security</Link>
+            </div>
+          </div>
         </div>
+      </div>
+      <div
+        className="mx-auto mt-10 flex max-w-[1100px] items-center justify-between pt-5 text-[12px] text-[var(--muted-foreground)]"
+        style={{ borderTop: "1px solid var(--line-soft)" }}
+      >
+        <span>Â© 2026 NextRole</span>
+        <span className="font-['DM_Mono']">v1.0.0 Â· made for the next role</span>
       </div>
     </footer>
   );
@@ -292,13 +321,11 @@ function SiteFooter() {
 
 function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen px-5 py-6 sm:px-8 lg:px-10">
-      <Surface className="overflow-hidden">
-        <SiteHeader />
-        {children}
-        <SiteFooter />
-      </Surface>
-    </main>
+    <div className="min-h-screen" style={{ background: "var(--background)" }}>
+      <PublicHeader />
+      {children}
+      <SiteFooter />
+    </div>
   );
 }
 
@@ -419,404 +446,298 @@ function LandingThingIcon({ icon }: { icon: string }) {
   }
 }
 
+function ScoreRing({ value = 4.2, size = 110 }: { value?: number; size?: number }) {
+  const r = 44;
+  const c = 2 * Math.PI * r;
+  const pct = value / 5;
+  return (
+    <div style={{ position: "relative", width: size, height: size }}>
+      <svg width={size} height={size}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line-softer)" strokeWidth="6" />
+        <circle
+          cx={size / 2} cy={size / 2} r={r} fill="none"
+          stroke="var(--accent)" strokeWidth="6"
+          strokeDasharray={c} strokeDashoffset={c * (1 - pct)}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <div className="font-['DM_Mono']" style={{ fontSize: 28, fontWeight: 500, lineHeight: 1 }}>{value}</div>
+        <div className="font-['DM_Mono'] text-[9px] uppercase tracking-[0.12em]" style={{ marginTop: 4, color: "var(--muted-foreground)" }}>FIT / 5</div>
+      </div>
+    </div>
+  );
+}
+
 export function LandingPage() {
   return (
-    <div
-      className="min-h-screen text-[var(--foreground)]"
-      style={{
-        background: `radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px), var(--background)`,
-        backgroundSize: "6px 6px, auto",
-        fontFamily: "Inter, Trebuchet MS, Segoe UI, sans-serif",
-      }}
-    >
-      {/* ── Header ── */}
+    <div className="min-h-screen text-[var(--foreground)]" style={{ background: "var(--background)" }}>
+      {/* â”€â”€ Header â”€â”€ */}
       <PublicHeader />
 
-      {/* ── Hero ── */}
-      <section className="px-12 pb-24 pt-[120px] text-center">
-        {/* trial pill */}
-        <span
-          className="mb-7 inline-flex items-center gap-2 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-[0.18em]"
-          style={{
-            background: "rgba(200,74,31,0.08)",
-            border: "1px solid var(--accent)",
-            color: "var(--accent)",
-          }}
+      {/* â”€â”€ Hero â”€â”€ */}
+      <section style={{ padding: "88px 56px 64px", maxWidth: 1100, margin: "0 auto" }}>
+        <p
+          className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]"
+          style={{ marginBottom: 24, color: "var(--accent)" }}
         >
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent)]" />
-          14-day free trial · no card
-        </span>
-
-        <h1
-          className="mx-auto max-w-[1100px] text-[clamp(56px,9vw,96px)] font-normal leading-[0.96] tracking-[-0.02em]"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Job hunting,
-          <br />
-          <span className="italic text-[var(--accent)]">finally simple.</span>
-        </h1>
-
-        <p className="mx-auto mt-7 max-w-[640px] text-[22px] leading-[1.45] text-[var(--muted-foreground)]">
-          Paste any job, get a fit score, have your resume rewritten for it, prep for the interview, and apply — all without switching tabs.
+          Â· AI Job Search Assistant
         </p>
 
-        <div className="mt-11 inline-flex gap-3.5">
-          <Button href="/signup" tone="accent">
-            <span>Start free</span>
-            <LandingIconArrow />
-          </Button>
-        </div>
-
-        {/* Dashboard preview card */}
-        <div className="mx-auto mt-20 max-w-[980px] text-left">
-          <div
-            className="overflow-hidden rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-7"
-            style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.08)" }}
+        <h1
+          style={{
+            fontSize: 64,
+            lineHeight: 1.02,
+            letterSpacing: "-0.025em",
+            maxWidth: 880,
+            marginBottom: 24,
+            fontWeight: 600,
+          }}
+        >
+          Land jobs faster
+          <br />
+          with AI.
+        </h1>
+        <p
+          style={{
+            fontSize: 18,
+            color: "var(--muted-foreground)",
+            maxWidth: 580,
+            marginBottom: 36,
+            lineHeight: 1.55,
+          }}
+        >
+          Detect jobs as you browse, evaluate fit instantly, autofill applications, and tailor your resume â€” all in one flow.
+        </p>
+        <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
+          <Link
+            href="/signup"
+            className="inline-flex items-center gap-2 rounded-md px-[22px] py-[14px] text-[15px] font-medium text-[#fffdf8] transition hover:opacity-90"
+            style={{ background: "var(--accent)" }}
           >
-            <div className="grid grid-cols-[240px_1fr] gap-6">
-              {/* Left: metrics sidebar */}
-              <div className="rounded-2xl bg-[var(--surface-soft)] p-[18px]">
-                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Today</span>
-                <p
-                  className="mt-2 text-[38px] leading-none"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  12
-                </p>
-                <p className="mt-1.5 text-[13px] text-[var(--muted-foreground)]">new roles to review</p>
-                <div className="my-5 h-px bg-[var(--line-soft)]" />
-                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Pipeline</span>
-                {["In review · 8", "Applied · 23", "Interviewing · 4"].map((s) => (
-                  <p key={s} className="mt-2.5 text-[13px] text-[var(--foreground)]">{s}</p>
+            Get started free
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          </Link>
+          <Link
+            href="/#how-it-works"
+            className="inline-flex items-center gap-2 rounded-md border px-[22px] py-[14px] text-[15px] font-medium transition hover:border-[var(--line)]"
+            style={{ border: "1px solid var(--line-soft)" }}
+          >
+            See how it works
+          </Link>
+        </div>
+        <div className="flex items-center gap-2.5" style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+          Free forever â€” no card required. Upgrade for daily AI credits.
+        </div>
+      </section>
+
+      {/* â”€â”€ Hero visual â”€â”€ */}
+      <section style={{ padding: "0 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
+        {/* Browser mock + extension card */}
+        <div className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)", background: "var(--surface)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", minHeight: 360 }}>
+            {/* Left: browser mock */}
+            <div className="nr-stripes" style={{ borderRight: "1px solid var(--line-soft)", padding: 24, position: "relative" }}>
+              <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+                {["rgba(42,38,32,0.15)", "rgba(42,38,32,0.15)", "rgba(42,38,32,0.15)"].map((c, i) => (
+                  <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c, display: "inline-block" }} />
+                ))}
+                <div style={{ marginLeft: 10, padding: "3px 10px", background: "var(--background)", borderRadius: 4, fontSize: 11, fontFamily: "DM Mono, monospace", color: "var(--muted-foreground)" }}>
+                  jobs.example.com/senior-engineer
+                </div>
+              </div>
+              <div style={{ background: "var(--surface)", borderRadius: 6, padding: 28, height: 230, border: "1px solid var(--line-soft)" }}>
+                {[[200, 14], [140, 10, 24], [0, 8], [0, 8], [0, 8]].map(([w, h, mb], i) => (
+                  <div key={i} style={{ width: w || "90%", height: h, background: "var(--line-softer)", borderRadius: 3, marginBottom: mb ?? 8 }} />
                 ))}
               </div>
-              {/* Right: job rows */}
-              <div className="flex flex-col gap-3">
-                {heroJobRows.map((j) => (
-                  <div
-                    key={j.role}
-                    className="grid items-center gap-4 rounded-2xl border border-[var(--line-soft)] bg-[var(--background)] px-[18px] py-4"
-                    style={{ gridTemplateColumns: "1fr auto auto" }}
-                  >
-                    <div>
-                      <p className="text-[14px] font-semibold">{j.role}</p>
-                      <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">{j.company}</p>
-                    </div>
-                    <LandingFitPill fit={j.fit} tone={j.tone} />
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>
-                    </svg>
+            </div>
+            {/* Right: extension card */}
+            <div style={{ padding: 32, display: "flex", flexDirection: "column", justifyContent: "center", background: "var(--surface)" }}>
+              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--line-soft)", boxShadow: "0 8px 24px rgba(42,38,32,0.08)" }}>
+                <div style={{ background: "var(--accent)", color: "var(--surface)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div className="flex items-center gap-2 font-['DM_Mono'] text-[12px] uppercase tracking-[0.06em]">
+                    <BrandMark size={16} />
+                    Job Detected
                   </div>
-                ))}
+                  <span style={{ opacity: 0.7, fontSize: 14 }}>Ã—</span>
+                </div>
+                <div style={{ padding: 16 }}>
+                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Senior Backend Engineer</div>
+                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>Stripe Â· Remote</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--background)", borderRadius: 5, marginBottom: 14 }}>
+                    <span className="inline-flex items-center justify-center font-['DM_Mono'] font-medium text-[12px]" style={{ width: 26, height: 22, borderRadius: 4, background: "var(--ok-bg)", color: "var(--ok)", border: "1px solid rgba(47,122,58,0.2)" }}>4</span>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 500 }}>Strong fit</div>
+                      <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>4.2/5 Â· CV match 87%</div>
+                    </div>
+                  </div>
+                  <Link href="/signup" className="flex items-center justify-center rounded-md text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90" style={{ width: "100%", padding: "8px 12px", marginBottom: 6, background: "var(--accent)" }}>
+                    + Add to pipeline
+                  </Link>
+                  <Link href="/signup" className="flex items-center justify-center rounded-md text-[13px] font-medium transition hover:border-[var(--line)]" style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--line-soft)" }}>
+                    Evaluate
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Plain-English walkthrough ── */}
-      <section className="mx-auto max-w-[1200px] px-8 pb-24 pt-12 sm:px-12">
-        <div className="mb-14 text-center">
-          <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-            How it works
-          </span>
-          <h2
-            className="mt-3 text-[clamp(36px,5vw,56px)] font-normal tracking-[-0.01em]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Here's exactly what happens.
-          </h2>
-          <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[var(--muted-foreground)]">
-            No jargon. No spreadsheets. Just a clear path from "I saw a job" to "I got the offer."
-          </p>
+      {/* â”€â”€ How it works â”€â”€ */}
+      <section id="how-it-works" style={{ padding: "64px 56px", maxWidth: 1100, margin: "0 auto" }}>
+        <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
+          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>01</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>How it works</span>
+          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
         </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {([
-            ["🔍", "You spot a job",            "Paste a link or the job description. We detect the role, company, and everything automatically. Or save it in one click with our Chrome extension."],
-            ["📊", "We score the fit",           "You get a plain-English match score. Good fit, bad fit, and exactly why. No more wasting time on roles that were never right for you."],
-            ["📄", "Your resume, rewritten",     "One click rewrites your resume to match that specific role. Every application gets its own version — without you rewriting a single word."],
-            ["💬", "Prep for the interview",     "Get the questions they'll probably ask, sample answers based on your own experience, and a company research pack so you show up ready."],
-            ["⚡", "Apply in one click",          "Open the application page. Our extension auto-fills your name, email, phone, cover letter, and every other text field — in seconds."],
-            ["📋", "Track everything",            "Applied? Waiting? Interviewing? One dashboard shows every job, every status, and every follow-up you need to send. Nothing falls through the cracks."],
-          ] as const).map(([emoji, title, body]) => (
-            <div
-              key={title}
-              className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-7"
-              style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.08)" }}
-            >
-              <span className="text-[32px]">{emoji}</span>
-              <h3 className="mt-4 text-[18px] font-bold">{title}</h3>
-              <p className="mt-2 text-[14px] leading-[1.6] text-[var(--muted-foreground)]">{body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── What you get ── */}
-      <section id="what-you-get" className="mx-auto max-w-[1200px] px-8 pb-24 pt-12 sm:px-12">
-        <div className="mb-14 text-center">
-          <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-            What you get
-          </span>
-          <h2
-            className="mt-3 text-[clamp(36px,5vw,56px)] font-normal tracking-[-0.01em]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Four things, done well.
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {landingThings.map((x) => (
-            <div
-              key={x.title}
-              className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-7"
-              style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.08)" }}
-            >
-              <div
-                className="mb-5 grid h-14 w-14 place-items-center rounded-[18px]"
-                style={{ background: "rgba(200,74,31,0.08)" }}
-              >
-                <LandingThingIcon icon={x.icon} />
-              </div>
-              <h3 className="text-[18px] font-bold">{x.title}</h3>
-              <p className="mt-2 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">{x.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── All capabilities ── */}
-      <section className="mx-auto max-w-[1200px] px-8 pb-24 pt-12 sm:px-12">
-        <div className="mb-14 text-center">
-          <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-            Everything included
-          </span>
-          <h2
-            className="mt-3 text-[clamp(36px,5vw,56px)] font-normal tracking-[-0.01em]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Built for serious candidates.
-          </h2>
-          <p className="mx-auto mt-4 max-w-[560px] text-[17px] leading-[1.6] text-[var(--muted-foreground)]">
-            Every part of the job search — in one workspace. No spreadsheets, no tabs, no dropped balls.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {capabilityCards.map((c) => (
-            <div
-              key={c.title}
-              className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-7"
-              style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.08)" }}
-            >
-              <h3 className="text-[18px] font-bold">{c.title}</h3>
-              <p className="mt-2 text-[14px] leading-[1.6] text-[var(--muted-foreground)]">{c.body}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── How it works ── */}
-      <section className="mx-auto max-w-[1200px] px-12 pb-24 pt-12">
-        <div className="mb-14 text-center">
-          <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-            How it works
-          </span>
-          <h2
-            className="mt-3 text-[clamp(36px,5vw,56px)] font-normal tracking-[-0.01em]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            Up and running in five minutes.
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-          {landingSteps.map((s) => (
-            <div
-              key={s.n}
-              className="relative rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-8"
-              style={{ boxShadow: "2px 3px 0 rgba(26,24,20,0.08)" }}
-            >
-              <div
-                className="mb-5 text-[96px] leading-[0.8] text-[var(--accent)]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {s.n}
-              </div>
-              <h3
-                className="text-[22px] font-bold"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                {s.title}
-              </h3>
-              <p className="mt-2.5 text-[15px] leading-[1.55] text-[var(--muted-foreground)]">{s.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── Extension ── */}
-      <section className="mt-12 bg-[var(--surface-soft)] px-8 py-24 sm:px-12">
-        <div className="mx-auto max-w-[1200px]">
-          <div className="grid items-center gap-20 lg:grid-cols-[1.1fr_1fr]">
-            {/* Left: text */}
-            <div>
-              <div className="mb-4 flex items-center gap-2.5">
-                <span className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">
-                  Chrome extension
-                </span>
-                <span
-                  className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em]"
-                  style={{ background: "rgba(176,122,24,0.08)", border: "1px solid var(--warn)", color: "var(--warn)" }}
-                >
-                  Coming soon
-                </span>
-              </div>
-              <h2
-                className="text-[clamp(40px,5vw,64px)] font-normal leading-none tracking-[-0.02em]"
-                style={{ fontFamily: "var(--font-display)" }}
-              >
-                Apply in one click
-                <br />
-                from any page.
-              </h2>
-              <p className="mt-6 max-w-[480px] text-[18px] leading-[1.5] text-[var(--muted-foreground)]">
-                The NextRole extension sits quietly on every job page. Open an application — it auto-fills every field so you don't have to.
-              </p>
-
-              {/* Two columns: save + fill */}
-              <div className="mt-8 grid gap-5 sm:grid-cols-2">
-                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">Save jobs</p>
-                  <p className="mt-2 text-[14px] leading-[1.6] text-[var(--muted-foreground)]">
-                    See a role on LinkedIn, Greenhouse, Lever, or any company site? One click pulls the title, company, and description straight into your pipeline.
-                  </p>
+        <h2 style={{ fontSize: 32, letterSpacing: "-0.02em", marginBottom: 48, maxWidth: 600, fontWeight: 600 }}>
+          From browsing to applied in four steps.
+        </h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "var(--line-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, overflow: "hidden" }}>
+          {[
+            { n: "01", icon: "M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z", t: "Install extension", d: "Add NextRole to Chrome in one click." },
+            { n: "02", icon: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36M21 3l-3 3m0 0l-3-3m3 3v7", t: "Browse normally", d: "A card pops up the moment we detect a job posting." },
+            { n: "03", icon: "M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8", t: "AI scores fit", d: "Get a 1â€“5 fit score with reasoning before you apply." },
+            { n: "04", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4", t: "Tailor & apply", d: "Generate a tailored resume and autofill in seconds." },
+          ].map((s) => (
+            <div key={s.n} style={{ background: "var(--surface)", padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 6, background: "var(--accent-soft)", color: "var(--accent)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d={s.icon} />
+                  </svg>
                 </div>
-                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
-                  <p className="text-[13px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">Auto-fill forms</p>
-                  <p className="mt-2 text-[14px] leading-[1.6] text-[var(--muted-foreground)]">
-                    Fills your name, email, phone, LinkedIn, and writes your cover letter with AI. Works on Greenhouse, Lever, Ashby, Workday, LinkedIn Easy Apply, and more.
-                  </p>
-                </div>
+                <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>{s.n}</span>
               </div>
+              <div style={{ fontWeight: 600, fontSize: 15 }}>{s.t}</div>
+              <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.55 }}>{s.d}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
-              <div className="mt-8 flex flex-col gap-4">
-                {[
-                  ["1", "Open any application page",    "Greenhouse, Lever, Ashby, LinkedIn Easy Apply, Workday — or any page with an application form."],
-                  ["2", "Click the NextRole button",    "A small panel opens showing every field it found — name, email, phone, cover letter, and more."],
-                  ["3", "Hit auto-fill",                "Direct fields fill instantly. AI writes your cover letter, \"why this company\", and experience summaries in seconds."],
-                  ["4", "Review and submit",            "Check the fields, make any tweaks, then click Submit — right from the panel."],
-                ].map(([n, title, desc]) => (
-                  <div key={n} className="flex items-start gap-4">
-                    <div
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full font-mono text-[12px] font-bold text-[var(--surface)]"
-                      style={{ background: "var(--accent)" }}
-                    >
-                      {n}
-                    </div>
-                    <div>
-                      <p className="text-[15px] font-semibold">{title}</p>
-                      <p className="mt-1 text-[13px] leading-[1.6] text-[var(--muted-foreground)]">{desc}</p>
-                    </div>
+      {/* â”€â”€ Features â”€â”€ */}
+      <section id="features" style={{ padding: "32px 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
+        <div className="flex items-center gap-2.5" style={{ marginBottom: 32 }}>
+          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>02</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Features</span>
+          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+          {[
+            {
+              preview: (
+                <div style={{ padding: 12 }}>
+                  <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                    <BrandMark size={14} />
+                    <span className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--accent)" }}>Job detected</span>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Right: browser popup mock */}
-            <div className="grid place-items-center">
-              <div className="relative">
-                {/* fake browser bar */}
-                <div
-                  className="flex items-center gap-1.5 rounded-t-2xl border border-b-0 border-[var(--line)] bg-[var(--surface)] px-3 py-2.5"
-                  style={{ width: 360 }}
-                >
-                  <div className="flex gap-1.5">
-                    {["var(--bad)", "var(--warn)", "var(--ok)"].map((c, i) => (
-                      <span
-                        key={i}
-                        className="inline-block h-2.5 w-2.5 rounded-full opacity-50"
-                        style={{ background: c }}
-                      />
+                  <div style={{ fontSize: 12, fontWeight: 600 }}>Product Designer</div>
+                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Linear Â· San Francisco</div>
+                </div>
+              ),
+              title: "Job detection",
+              body: "Works on every major board. The card appears the moment a posting loads â€” no clicks, no copy-paste.",
+            },
+            {
+              preview: (
+                <div className="flex items-center justify-center" style={{ padding: 24 }}>
+                  <ScoreRing value={4.2} size={110} />
+                </div>
+              ),
+              title: "AI evaluation",
+              body: "Score, decision, role-fit summary, CV gaps, comp signals â€” all in one pass.",
+            },
+            {
+              preview: (
+                <div style={{ padding: "16px 16px 0" }}>
+                  <div style={{ padding: 12, borderRadius: 6, border: "1px solid var(--line-soft)", background: "var(--surface)" }}>
+                    {[[60], [90], [85], [70]].map(([w], i) => (
+                      <div key={i} style={{ height: i === 0 ? 8 : 6, width: `${w}%`, background: i === 3 ? "var(--accent-soft)" : "var(--line-softer)", borderRadius: 2, marginBottom: i < 3 ? (i === 0 ? 8 : 5) : 0 }} />
                     ))}
                   </div>
-                  <div
-                    className="ml-2.5 flex flex-1 items-center rounded-md px-2.5 font-mono text-[10px] text-[var(--muted-foreground-2)]"
-                    style={{ height: 22, background: "var(--surface-soft)" }}
-                  >
-                    linkedin.com/jobs/view/3892…
-                  </div>
-                  <div
-                    className="grid h-[22px] w-[26px] place-items-center rounded-md"
-                    style={{ background: "var(--accent)" }}
-                  >
-                    <svg width="12" height="12" viewBox="0 0 26 26" fill="none">
-                      <path d="M6 5L17 13L6 21" stroke="var(--surface)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  </div>
                 </div>
-                {/* popup card */}
-                <div
-                  className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-[18px]"
-                  style={{
-                    width: 340,
-                    marginTop: 6,
-                    marginLeft: "auto",
-                    boxShadow: "0 18px 40px rgba(26,24,20,0.18)",
-                  }}
-                >
-                  <div className="mb-3 flex items-center justify-between">
-                    <BrandWordmark />
-                    <span
-                      className="inline-flex items-center rounded-full border px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em]"
-                      style={{ background: "rgba(47,122,58,0.08)", border: "1px solid var(--ok)", color: "var(--ok)" }}
-                    >
-                      92% match
-                    </span>
-                  </div>
-                  <p
-                    className="text-[22px] leading-[1.15]"
-                    style={{ fontFamily: "var(--font-display)" }}
-                  >
-                    Senior Product Designer
-                  </p>
-                  <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">Anthropic · Remote</p>
-                  <div
-                    className="mt-3.5 rounded-xl p-3 text-[12px] leading-[1.5] text-[var(--muted-foreground)]"
-                    style={{ background: "var(--surface-soft)" }}
-                  >
-                    Help shape the design of safe, beneficial AI products at scale. Lead end-to-end design for…
-                  </div>
-                  <div className="mt-3.5 flex flex-col gap-2">
-                    <Button href="/signup" tone="accent">
-                      Evaluate with AI
-                    </Button>
-                    <Button href="/signup">
-                      Save to pipeline
-                    </Button>
-                  </div>
+              ),
+              title: "Resume tailoring",
+              body: "Generates a job-specific resume in your voice â€” keywords, ordering, emphasis tuned to the role.",
+            },
+          ].map((f) => (
+            <div key={f.title} className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)" }}>
+              <div className="nr-stripes" style={{ height: 180, display: "flex", alignItems: "flex-end", borderBottom: "1px solid var(--line-soft)" }}>
+                <div className="w-full rounded-md overflow-hidden" style={{ margin: "0 16px 16px", background: "var(--surface)", border: "1px solid var(--line-soft)" }}>
+                  {f.preview}
                 </div>
               </div>
+              <div style={{ padding: 20 }}>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>{f.title}</div>
+                <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{f.body}</div>
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </section>
+
+      {/* â”€â”€ Social proof â”€â”€ */}
+      <div style={{ padding: "40px 56px", borderTop: "1px solid var(--line-soft)", borderBottom: "1px solid var(--line-soft)" }}>
+        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Works on</span>
+          {["LinkedIn", "Indeed", "Naukri", "Greenhouse", "Lever", "Wellfound", "Ashby", "YC Work"].map((b) => (
+            <span key={b} className="font-['DM_Mono']" style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{b}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* â”€â”€ Pricing teaser â”€â”€ */}
+      <section style={{ padding: "80px 56px", maxWidth: 1100, margin: "0 auto" }}>
+        <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
+          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>03</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Pricing</span>
+          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
+        </div>
+        <h2 style={{ fontSize: 32, letterSpacing: "-0.02em", marginBottom: 36, fontWeight: 600 }}>Three plans. Pay for what you use.</h2>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+          {[
+            { name: "Free", price: "$0", sub: "per month", items: ["5 evaluations / day", "1 custom resume / day", "Unlimited saved jobs", "Browser extension"] },
+            { name: "Starter", price: "$9", sub: "per month", items: ["Everything in Free", "50 daily credits", "1 autofill / day Â· basic fields", "Refresh at midnight"] },
+            { name: "Pro", price: "$19", sub: "per month", recommended: true, items: ["Everything in Starter", "200 daily credits", "Unlimited autofill, all fields", "Direct resume upload to forms"] },
+          ].map((p) => (
+            <div key={p.name} className="rounded-lg" style={{ padding: 28, border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)", position: "relative" }}>
+              {p.recommended && (
+                <div style={{ position: "absolute", top: -10, right: 20, background: "var(--accent)", color: "var(--surface)", padding: "3px 10px", borderRadius: 4, fontSize: 10, fontFamily: "DM Mono, monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  Recommended
+                </div>
+              )}
+              <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: p.recommended ? "var(--accent)" : "var(--muted-foreground)" }}>{p.name}</p>
+              <div className="font-['DM_Mono']" style={{ fontSize: 32, fontWeight: 500, margin: "14px 0 4px" }}>{p.price}</div>
+              <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 20 }}>{p.sub}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13.5 }}>
+                {p.items.map((item) => (
+                  <div key={item} className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 28, textAlign: "center" }}>
+          <Link href="/pricing" className="text-[13.5px] font-medium transition hover:opacity-70" style={{ color: "var(--accent)" }}>
+            See full pricing details â†’
+          </Link>
         </div>
       </section>
 
       {/* ── Footer ── */}
-      <footer className="border-t border-[var(--line-soft)] px-12 py-12 mt-12">
-        <div className="mx-auto flex max-w-[1200px] items-center justify-between">
-          <Link href="/" aria-label="NextRole home">
-            <BrandWordmark />
-          </Link>
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground-2)]">
-            © 2026 NextRole ·{" "}
-            <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
-            {" · "}
-            <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
+
 
 export function DocumentationPage() {
   return (
@@ -900,7 +821,7 @@ export function DocumentationPage() {
             subtitle="Full candidate workflow coverage"
           />
           <div className="flex flex-wrap gap-2">
-            {repoParity.map((feature) => (
+            {["Job evaluation", "Pipeline tracking", "Resume tailoring", "CV management", "Browser extension", "AI scoring"].map((feature) => (
               <Badge key={feature}>{feature}</Badge>
             ))}
           </div>
@@ -1121,9 +1042,9 @@ export function TermsPage() {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Pricing page
-// ─────────────────────────────────────────────────────────────────────────────
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CheckIcon() {
   return (
@@ -1135,136 +1056,92 @@ function CheckIcon() {
 
 export function PricingPage() {
   return (
-    <div className="min-h-screen text-[var(--foreground)]" style={{ fontFamily: "Inter, Trebuchet MS, Segoe UI, sans-serif" }}>
+    <div className="min-h-screen text-[var(--foreground)]" style={{ background: "var(--background)" }}>
       <PublicHeader activePage="pricing" />
 
       {/* Hero */}
-      <section className="px-6 pb-16 pt-20 text-center sm:px-12">
-        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[var(--muted-foreground)]">Pricing</p>
-        <h1
-          className="mx-auto mt-4 max-w-[720px] text-[clamp(40px,6vw,68px)] font-normal leading-[1.05] tracking-[-0.02em]"
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          Start free.{" "}
-          <span className="italic text-[var(--accent)]">Pay when you're ready.</span>
+      <section className="px-14 pb-16 pt-[72px] text-center" style={{ maxWidth: 1100, margin: "0 auto" }}>
+        <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]" style={{ marginBottom: 16 }}>Â· Pricing</p>
+        <h1 className="mx-auto max-w-[720px] font-semibold leading-[1.05] tracking-[-0.025em]" style={{ fontSize: 48, marginBottom: 16 }}>
+          Three plans.<br />One that fits your search.
         </h1>
-        <p className="mx-auto mt-5 max-w-[480px] text-[17px] leading-[1.6] text-[var(--muted-foreground)]">
-          Bring your own API key and get the full product free for 14 days — no card required.
+        <p className="mx-auto max-w-[500px] text-[17px] leading-[1.6] text-[var(--muted-foreground)]">
+          Start free. Add daily credits and autofill when you&apos;re ready to apply faster.
         </p>
       </section>
 
-      {/* Main plans grid */}
-      <section className="mx-auto max-w-[1100px] px-6 pb-24 sm:px-12">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      {/* Plans grid */}
+      <section className="mx-auto max-w-[1100px] px-6 pb-16 sm:px-14">
+        <PricingCards />
 
-          {/* Free */}
-          <div className="flex flex-col rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-7">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Free</p>
-            <div className="mt-3 flex items-baseline gap-1.5">
-              <span className="text-[38px] font-normal leading-none tracking-[-0.02em]" style={{ fontFamily: "var(--font-display)" }}>$0</span>
-              <span className="text-[13px] text-[var(--muted-foreground)]">forever</span>
-            </div>
-            <p className="mt-3 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">
-              Explore the workspace, use manual prompt mode, and try the workflow before committing.
-            </p>
-            <ul className="mt-6 flex-1 space-y-2.5">
-              {["Pipeline + tracker", "Manual prompt mode", "CV storage", "Community support"].map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-[14px]"><CheckIcon />{f}</li>
-              ))}
-            </ul>
-            <a href="/signup" className="mt-8 block rounded-xl border border-[var(--line-soft)] py-3 text-center text-[14px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
-              Get started free
-            </a>
-          </div>
-
-          {/* BYOK — highlighted */}
-          <div className="flex flex-col rounded-2xl border-2 border-[var(--accent)] bg-[var(--surface)] p-7 shadow-[0_4px_24px_rgba(200,74,31,0.12)]">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)]">BYOK</p>
-              <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
-                Default plan
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[38px] font-normal leading-none tracking-[-0.02em]" style={{ fontFamily: "var(--font-display)" }}>$12</span>
-              <span className="text-[13px] text-[var(--muted-foreground)]">/ month</span>
-            </div>
-            <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">after 14-day free trial · no card to start</p>
-            <p className="mt-3 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">
-              Bring your Anthropic, OpenAI, or Gemini API key. Get the full product with unlimited AI usage.
-            </p>
-            <ul className="mt-6 flex-1 space-y-2.5">
-              {[
-                "Everything in Free",
-                "Full AI workflow — evaluation, resumes, prep",
-                "Unlimited runs at your API cost",
-                "Anthropic · OpenAI · Gemini",
-                "Scanner, batch, deep research",
-                "Priority support",
-              ].map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-[14px]"><CheckIcon />{f}</li>
-              ))}
-            </ul>
-            <a href="/signup" className="mt-8 block rounded-xl bg-[var(--accent)] py-3 text-center text-[14px] font-semibold text-white transition hover:opacity-90">
-              Start 14-day free trial
-            </a>
-          </div>
-
-          {/* Managed credits — coming soon */}
-          <div className="relative flex flex-col rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-7 opacity-70">
-            <div className="mb-3 flex items-center justify-between">
-              <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Managed</p>
-              <span className="rounded-full border border-[var(--line-soft)] bg-[var(--surface-soft)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
-                Coming soon
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[38px] font-normal leading-none tracking-[-0.02em]" style={{ fontFamily: "var(--font-display)" }}>$29</span>
-              <span className="text-[13px] text-[var(--muted-foreground)]">/ month</span>
-            </div>
-            <p className="mt-3 text-[14px] leading-[1.55] text-[var(--muted-foreground)]">
-              No API key needed. We handle the AI infrastructure — just use the product.
-            </p>
-            <ul className="mt-6 flex-1 space-y-2.5">
-              {[
-                "Everything in BYOK",
-                "Hosted AI credits included",
-                "No API key required",
-                "Usage-based top-ups",
-              ].map((f) => (
-                <li key={f} className="flex items-start gap-2.5 text-[14px]"><CheckIcon />{f}</li>
-              ))}
-            </ul>
-            <button disabled className="mt-8 block w-full cursor-not-allowed rounded-xl border border-[var(--line-soft)] py-3 text-center text-[14px] font-medium text-[var(--muted-foreground)]">
-              Notify me
-            </button>
-          </div>
-        </div>
-
-        {/* What is BYOK callout */}
-        <div className="mt-10 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] px-8 py-7">
+        {/* Credits explainer */}
+        <div className="mt-10 rounded-lg bg-[var(--surface)] px-8 py-7" style={{ border: "1px solid var(--line-soft)" }}>
           <div className="grid gap-6 md:grid-cols-[1fr_2fr]">
             <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">What is BYOK?</p>
-              <p className="mt-2 text-[22px] font-normal leading-[1.2] tracking-[-0.01em]" style={{ fontFamily: "var(--font-display)" }}>Bring Your Own Key</p>
+              <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">How credits work</p>
+              <p className="mt-2 text-[22px] font-semibold leading-[1.2] tracking-[-0.01em]">Daily credits, reset every night</p>
             </div>
             <div className="space-y-3 text-[14px] leading-[1.65] text-[var(--muted-foreground)]">
               <p>
-                BYOK means you connect your own Anthropic, OpenAI, or Gemini API key inside NextRole. Every AI evaluation, resume tailoring, and prep run calls the AI provider directly using your key — so you pay only your actual API cost, which is typically a few cents per run.
+                Starter and Pro plans include a credit balance that resets at midnight every day. Spend credits on AI evaluations (1 credit each) and custom resumes (3 credits each).
               </p>
               <p>
-                The $12/month subscription covers the NextRole platform, workspace, storage, and all product features. It does not include a credit allowance — your AI usage goes straight to your provider at cost.
+                Credits only unlock more of what your plan already includes â€” features outside your plan remain locked regardless of how many credits you have. Unused credits do not roll over to the next day.
               </p>
             </div>
           </div>
+        </div>
+
+        {/* Feature comparison table */}
+        <div className="mt-10 overflow-hidden rounded-2xl border border-[var(--line-soft)]">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="border-b border-[var(--line-soft)] bg-[var(--surface)]">
+                <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Feature</th>
+                {(["Free", "Starter", "Pro"] as const).map((p) => (
+                  <th key={p} className="px-4 py-4 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{p}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["Job pipeline", "Unlimited", "Unlimited", "Unlimited"],
+                ["Browser extension", "âœ“", "âœ“", "âœ“"],
+                ["AI evaluations", "5 / day", "Credits", "Credits"],
+                ["Custom resumes", "1 / day", "Credits", "Credits"],
+                ["Daily credits", "â€”", "50 / day", "200 / day"],
+                ["Autofill (basic fields)", "â€”", "1 / day", "Unlimited"],
+                ["Autofill all fields + AI", "â€”", "â€”", "Unlimited"],
+                ["Direct resume upload", "â€”", "â€”", "âœ“"],
+                ["Interview prep + follow-up", "â€”", "âœ“", "âœ“"],
+                ["Cover letters", "â€”", "â€”", "âœ“"],
+                ["Deep research + batch", "â€”", "â€”", "âœ“"],
+              ].map(([feature, free, starter, pro]) => (
+                <tr key={feature} className="border-b border-[var(--line-soft)] last:border-0">
+                  <td className="px-6 py-3.5 font-medium">{feature}</td>
+                  {[free, starter, pro].map((val, i) => (
+                    <td key={i} className="px-4 py-3.5 text-center text-[var(--muted-foreground)]">
+                      {val === "âœ“" ? (
+                        <span className="inline-flex justify-center"><CheckIcon /></span>
+                      ) : val === "â€”" ? (
+                        <span className="opacity-30">â€”</span>
+                      ) : (
+                        <span className="font-mono text-[12px]">{val}</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
         {/* FAQ */}
         <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
           {[
-            ["Do I need a card to start?", "No. Sign up and start your 14-day BYOK trial with just an email. You only add payment details when the trial ends."],
-            ["How much does AI actually cost?", "A job evaluation via Claude Haiku costs ~$0.01–0.03. A resume tailoring run costs ~$0.05–0.10. Far less than a monthly credit plan."],
-            ["Can I cancel any time?", "Yes. Cancel before the trial ends and you're never charged. Cancel after and the plan ends at your next billing date."],
+            ["Do unused credits roll over?", "No. Daily credits reset at midnight every day. They're designed to give you a consistent daily budget, not to accumulate."],
+            ["Can I use credits for locked features?", "No. Credits only apply to features already included in your plan. Autofill, for example, requires Starter or Pro â€” credits can't unlock it on Free."],
+            ["Can I cancel any time?", "Yes. Cancel at any time and your plan stays active until the end of the billing period. No long-term commitment required."],
           ].map(([q, a]) => (
             <div key={q} className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
               <p className="text-[14px] font-semibold leading-[1.4]">{q}</p>
@@ -1274,18 +1151,7 @@ export function PricingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-[var(--line-soft)] px-8 py-8 sm:px-12">
-        <div className="mx-auto flex max-w-[1100px] items-center justify-between">
-          <Link href="/" aria-label="NextRole home"><BrandWordmark /></Link>
-          <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground-2)]">
-            © 2026 NextRole ·{" "}
-            <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
-            {" · "}
-            <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
-          </p>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
