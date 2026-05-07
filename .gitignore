@@ -39,3 +39,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# project-specific — local tooling and internal docs
+graphify-out/
+.claude/
+docs/
+ROADMAP.md
+progress.md
+nextrole-archive/
+nextrole-clean/

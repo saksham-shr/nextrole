@@ -244,27 +244,17 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         >
           Pricing
         </Link>
-        <Link
-          href="/documentation"
-          className={`transition hover:text-[var(--foreground)] ${activePage === "docs" ? "font-semibold text-[var(--foreground)]" : ""}`}
-        >
-          Docs
-        </Link>
       </nav>
       <div className="flex items-center gap-2.5">
+        <span className="hidden rounded-full border border-[var(--accent)] bg-[#fcefe7] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--accent)] sm:inline-block">
+          Private beta
+        </span>
         <Link
           href="/login"
           className="rounded-md border px-2.5 py-1.5 text-[13px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
           style={{ border: "1px solid var(--line-soft)" }}
         >
           Sign in
-        </Link>
-        <Link
-          href="/signup"
-          className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90"
-          style={{ background: "var(--accent)" }}
-        >
-          Get started
         </Link>
       </div>
     </header>
@@ -285,17 +275,9 @@ function SiteFooter() {
           <div>
             <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Product</p>
             <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+              <Link href="/#how-it-works" className="transition hover:text-[var(--foreground)]">How it works</Link>
               <Link href="/#features" className="transition hover:text-[var(--foreground)]">Features</Link>
               <Link href="/pricing" className="transition hover:text-[var(--foreground)]">Pricing</Link>
-              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Extension</Link>
-            </div>
-          </div>
-          <div>
-            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Resources</p>
-            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
-              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Documentation</Link>
-              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Changelog</Link>
-              <Link href="/documentation" className="transition hover:text-[var(--foreground)]">Support</Link>
             </div>
           </div>
           <div>
@@ -303,7 +285,6 @@ function SiteFooter() {
             <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
               <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
               <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
-              <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Security</Link>
             </div>
           </div>
         </div>
@@ -879,59 +860,58 @@ export function PrivacyPage() {
   return (
     <MarketingShell>
       <section className="border-b border-[var(--line)] px-6 py-8 lg:px-10 lg:py-12">
-        <Badge tone="accent" className="mb-5">
-          Privacy policy
-        </Badge>
+        <Badge tone="accent" className="mb-5">Privacy policy</Badge>
         <Display>How NextRole handles your data.</Display>
         <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
-          This page explains what information the product stores, how it is used
-          in the workflow, and what controls the user has over that data.
+          Last updated May 2026. This page explains what information NextRole stores,
+          how it is used, and what controls you have over your data.
         </p>
       </section>
 
       <section className="grid gap-6 px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
-          <SectionTitle title="Information we store" subtitle="Core account and workflow data" />
+          <SectionTitle title="Information we collect" subtitle="Core account and usage data" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>Account information such as email address and authentication records.</p>
-            <p>Profile information including CV text, targeting preferences, seniority, compensation goals, and language settings.</p>
-            <p>Job workflow data such as saved jobs, tracker statuses, evaluation outputs, resumes, reports, follow-up drafts, story bank entries, and task history.</p>
-            <p>Provider configuration data, including encrypted API credentials where applicable.</p>
+            <p>Your email address and authentication records when you create an account.</p>
+            <p>CV or resume text you upload or paste, used solely to power AI evaluations and tailored resume generation.</p>
+            <p>Jobs you save, application statuses, AI evaluation outputs, and generated resume content.</p>
+            <p>Usage metadata — credit consumption, feature usage counts — for billing and quota enforcement.</p>
+            <p>Payment information is processed entirely by Lemon Squeezy. NextRole never sees or stores card details.</p>
           </div>
         </Surface>
         <Surface tone="accent" className="p-5">
-          <SectionTitle title="How the data is used" subtitle="Product functionality only" />
+          <SectionTitle title="How we use your data" subtitle="To run the product, nothing else" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>To run evaluations, generate tailored outputs, and keep workflows connected across Tracker, Reports, Resumes, and Interview Prep.</p>
-            <p>To store user preferences that influence scanner targeting, evaluation weighting, and personalization recommendations.</p>
-            <p>To display task history, exports, analytics, and workflow continuity over time.</p>
+            <p>To run AI job evaluations, generate tailored resumes, and power autofill — your CV and job text are sent to Anthropic's API on your behalf.</p>
+            <p>To track your daily credit usage and enforce plan limits.</p>
+            <p>To send transactional emails related to billing (via Resend). We do not send marketing emails without consent.</p>
+            <p>We do not sell, rent, or share your personal data or job search data with third parties for advertising.</p>
           </div>
         </Surface>
       </section>
 
       <section className="border-y border-[var(--line)] bg-[var(--surface-soft)] px-6 py-8 lg:px-10">
-        <SectionTitle title="Provider and third-party processing" subtitle="Where user selected AI services fit in" />
+        <SectionTitle title="Third-party services" subtitle="Services that process data on our behalf" />
         <div className="grid gap-4 lg:grid-cols-3">
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">API mode</h3>
+            <h3 className="text-lg font-bold">Supabase</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              When API mode is used, selected job text, CV context, and prompt
-              content may be sent to the AI provider chosen by the user so the
-              workflow can run.
+              Hosts our database and handles authentication. Your account data and
+              job pipeline are stored in Supabase's infrastructure.
             </p>
           </Surface>
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">Manual mode</h3>
+            <h3 className="text-lg font-bold">Anthropic</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              In manual mode, the app prepares prompts locally and the user
-              decides what to submit in Claude, ChatGPT, or another tool.
+              Powers all AI features. When you run an evaluation or generate a resume,
+              your CV context and job text are sent to Claude via the Anthropic API.
             </p>
           </Surface>
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">Infrastructure</h3>
+            <h3 className="text-lg font-bold">Lemon Squeezy</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Product hosting, authentication, database, and storage providers
-              may process operational metadata needed to run the service.
+              Handles all subscription billing and payment processing. NextRole
+              receives only subscription status and email — never card details.
             </p>
           </Surface>
         </div>
@@ -939,18 +919,19 @@ export function PrivacyPage() {
 
       <section className="grid gap-6 px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
-          <SectionTitle title="User controls" subtitle="What the user can manage" />
+          <SectionTitle title="Your controls" subtitle="What you can manage" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>Users can update profile data, rotate provider credentials, export workflow data, and delete account data according to the product controls available in Settings.</p>
-            <p>Manual mode gives users an alternative when they do not want the app to transmit prompts through API credentials.</p>
+            <p>You can update or delete your CV, job data, and account from Settings at any time.</p>
+            <p>You can cancel your subscription at any time via the billing portal — access continues until the end of the billing period.</p>
+            <p>To request full account deletion, contact us at privacy@nextrole.live.</p>
           </div>
         </Surface>
         <Surface className="p-5">
-          <SectionTitle title="Security and limitations" subtitle="Reasonable protections, no absolute guarantees" />
+          <SectionTitle title="Security" subtitle="How we protect your data" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>Provider keys should be encrypted at rest and only used server-side for authorized workflow execution.</p>
-            <p>No internet-facing system can promise absolute security, so users should avoid storing information they would not want processed by their selected providers.</p>
-            <p>NextRole does not sell user workflow data for advertising purposes.</p>
+            <p>All data is encrypted in transit via HTTPS. Supabase encrypts data at rest.</p>
+            <p>API keys and sensitive credentials are stored encrypted and only used server-side.</p>
+            <p>No internet-facing system can guarantee absolute security. Please don't store information in NextRole you wouldn't want processed by the above services.</p>
           </div>
         </Surface>
       </section>
@@ -962,56 +943,57 @@ export function TermsPage() {
   return (
     <MarketingShell>
       <section className="border-b border-[var(--line)] px-6 py-8 lg:px-10 lg:py-12">
-        <Badge tone="accent" className="mb-5">
-          Terms of use
-        </Badge>
+        <Badge tone="accent" className="mb-5">Terms of use</Badge>
         <Display>The rules for using NextRole.</Display>
         <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
-          These terms describe the intended use of the product, the user
-          responsibilities that come with AI-assisted workflows, and the
-          limitations of the service.
+          Last updated May 2026. By using NextRole you agree to these terms.
+          Please read them before creating an account.
         </p>
       </section>
 
       <section className="grid gap-6 px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
-          <SectionTitle title="Service purpose" subtitle="What the product is for" />
+          <SectionTitle title="What NextRole is" subtitle="An AI-powered job search assistant" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>NextRole is a candidate productivity tool for evaluating jobs, generating documents, preparing applications, and tracking a search process.</p>
-            <p>The product provides recommendations and generated content, but the user remains responsible for final decisions and submissions.</p>
+            <p>NextRole helps you evaluate job postings, generate tailored resumes, track applications, and autofill application forms — all powered by AI.</p>
+            <p>The product provides AI-generated recommendations and content. You remain responsible for reviewing everything before submitting it to employers.</p>
           </div>
         </Surface>
         <Surface tone="accent" className="p-5">
-          <SectionTitle title="User responsibilities" subtitle="Use the tool thoughtfully" />
+          <SectionTitle title="Acceptable use" subtitle="Use the tool responsibly" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>Users are responsible for the accuracy, legality, and appropriateness of the information they upload or submit through the product.</p>
-            <p>Users are also responsible for complying with the terms of the AI providers, storage providers, and job platforms they choose to use alongside NextRole.</p>
+            <p>You must be 18 or older to use NextRole. You're responsible for keeping your login credentials secure.</p>
+            <p>Don't use NextRole to submit false or misleading information to employers, scrape third-party job platforms in violation of their terms, or abuse the credit system.</p>
+            <p>One account per person. Sharing accounts or reselling access is not permitted.</p>
           </div>
         </Surface>
       </section>
 
       <section className="border-y border-[var(--line)] bg-[var(--surface-soft)] px-6 py-8 lg:px-10">
-        <SectionTitle title="Important limitations" subtitle="Please review before relying on outputs" />
+        <SectionTitle title="Billing and subscriptions" subtitle="How plans and credits work" />
         <div className="grid gap-4 lg:grid-cols-3">
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">No guarantees</h3>
+            <h3 className="text-lg font-bold">Subscriptions</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              NextRole does not guarantee interviews, offers, compensation
-              outcomes, or correctness of generated outputs.
+              Paid plans renew automatically. You can cancel at any time — access
+              continues until the end of the current billing period. No refunds for
+              partial periods.
             </p>
           </Surface>
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">Human review required</h3>
+            <h3 className="text-lg font-bold">Daily credits</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Users should review generated resumes, outreach, negotiation
-              advice, and application answers before using them externally.
+              Credits reset at midnight UTC every day and do not roll over. Unused
+              daily credits are forfeited. Top-up credits expire when your
+              subscription renews or ends.
             </p>
           </Surface>
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">No auto-apply behavior</h3>
+            <h3 className="text-lg font-bold">Refunds</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              The product is designed to assist and organize work, not to submit
-              job applications on the user behalf.
+              Top-up credit packs are non-refundable once credits have been consumed.
+              For billing issues contact billing@nextrole.live within 7 days of
+              the charge.
             </p>
           </Surface>
         </div>
@@ -1019,23 +1001,18 @@ export function TermsPage() {
 
       <section className="grid gap-6 px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
-          <SectionTitle title="Open-source notice" subtitle="MIT-licensed Career Ops attribution" />
-          <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-            Parts of the product foundation are inspired by or adapted from the
-            Career Ops project distributed under the MIT license. Where required,
-            the copyright and permission notice should remain included with the
-            adapted software.
-          </p>
+          <SectionTitle title="AI output disclaimer" subtitle="Review before you use" />
+          <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
+            <p>NextRole does not guarantee the accuracy, completeness, or fitness of any AI-generated output — including resumes, evaluations, and autofill suggestions.</p>
+            <p>Always review generated content before submitting it. NextRole is not liable for outcomes resulting from reliance on AI outputs.</p>
+          </div>
         </Surface>
         <Surface className="p-5">
-          <SectionTitle title="Warranty and liability" subtitle="Use at your own judgment" />
-          <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-            The service is provided on an as-available basis. To the fullest
-            extent allowed by law, the maintainers disclaim warranties and are
-            not liable for losses arising from reliance on generated outputs,
-            provider outages, employment decisions, or third-party platform
-            changes.
-          </p>
+          <SectionTitle title="Warranty and liability" subtitle="Service provided as-is" />
+          <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
+            <p>NextRole is provided on an as-available basis. We do not guarantee uninterrupted service, and we may update or discontinue features with reasonable notice.</p>
+            <p>To the fullest extent permitted by law, NextRole's liability is limited to the amount you paid in the 3 months prior to any claim.</p>
+          </div>
         </Surface>
       </section>
     </MarketingShell>

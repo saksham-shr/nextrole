@@ -15,6 +15,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { BrandMark, BrandWordmark } from "@/components/nextrole/brand";
+import { checkBetaAccess } from "@/app/actions/auth";
 import {
   Badge,
   Button,
@@ -258,6 +259,14 @@ export function LoginPage({
     e.preventDefault();
     setLoading(true);
     setError(undefined);
+
+    const allowed = await checkBetaAccess(email);
+    if (!allowed) {
+      setError("NextRole is currently in private beta — we’ll be opening up soon.");
+      setLoading(false);
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(error.message);
@@ -358,6 +367,13 @@ export function SignupPage() {
     if (password !== confirmPassword) { setError("Passwords do not match"); return; }
     setLoading(true);
     setError(undefined);
+
+    const allowed = await checkBetaAccess(email);
+    if (!allowed) {
+      setError("NextRole is currently in private beta — we'll be opening up soon.");
+      setLoading(false);
+      return;
+    }
 
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) { setError(error.message); setLoading(false); return; }

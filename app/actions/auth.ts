@@ -4,6 +4,13 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
+
+/** Returns true if the email is allowed during private beta. */
+export async function checkBetaAccess(email: string): Promise<boolean> {
+  return email.trim().toLowerCase() === ADMIN_EMAIL;
+}
+
 export async function signOut() {
   const supabase = await createClient();
 
