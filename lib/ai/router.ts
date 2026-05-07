@@ -15,21 +15,20 @@ import { CREDIT_COSTS, type CreditTask } from "@/lib/ai/gates";
 import { createClient } from "@/lib/supabase/server";
 
 // ── Primary model ──────────────────────────────────────────────────────────────
-// Free tier first — $0 cost, rate-limited but sufficient for beta traffic.
+// Gemini Flash Lite — cheapest stable paid model ($0.075/1M tokens).
+// Avoids :free experimental models that OpenRouter removes without notice.
 
-const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-exp:free";
+const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-lite-001";
 
 // ── Fallback chain ─────────────────────────────────────────────────────────────
-// Tried in order on 429 / 503. Free models first, cheapest paid last.
-// Paid fallbacks only kick in if every free model is simultaneously rate-limited.
+// Tried in order on 429 / 503. Stable free community models first, paid last.
+// Only use :free models here since they can disappear — primary is always paid.
 
 export const OR_FREE_FALLBACKS = [
-  "google/gemini-2.5-pro-exp-03-25:free",    // Gemini 2.5 Pro — free, high quality
-  "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3 — free
-  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B — free
-  "mistralai/mistral-7b-instruct:free",      // Mistral 7B — free, last free resort
-  "google/gemini-2.0-flash-lite-001",        // $0.075/1M — cheapest paid
-  "google/gemini-2.0-flash-001",             // $0.10/1M  — paid safety net
+  "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3 — free, very capable
+  "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B — free, stable
+  "mistralai/mistral-7b-instruct:free",      // Mistral 7B — free, last resort
+  "google/gemini-2.0-flash-001",             // $0.10/1M — paid safety net
 ];
 
 // ── Direct provider fallback models (used when OPENROUTER_API_KEY is absent) ──
