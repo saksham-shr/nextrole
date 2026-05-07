@@ -4,13 +4,15 @@
  * All API keys come from server .env — no user-supplied (BYOK) keys.
  *
  * Task routing strategy:
- *  - premium_resume  → expensive model (GPT-4o / Claude Sonnet)
- *  - autofill        → Gemini Flash Lite (cheapest)
- *  - everything else → cheap model (GPT-4o-mini / Claude Haiku / Gemini Flash)
- *                      with real-time provider arbitrage (pick first healthy key)
+ *  - premium_resume  → best quality model (OpenRouter Sonnet → direct Anthropic → GPT-4o)
+ *  - autofill        → cheapest model (OpenRouter Gemini Flash Lite → Gemini direct)
+ *  - everything else → cheap+fast model (OpenRouter Gemini Flash → Gemini direct → Haiku)
+ *
+ * OpenRouter is preferred when OPENROUTER_API_KEY is set — one key routes to any model.
+ * Direct provider keys are used as fallbacks.
  *
  * Cost tactics:
- *  - Prompt caching enabled for Anthropic calls
+ *  - Prompt caching enabled for direct Anthropic calls
  *  - max_output_tokens enforced (passed by caller)
  *  - Two-pass evaluation: callers initiate with "lite" model, escalate on request
  */
@@ -19,23 +21,33 @@ import { type Provider, callProvider, parseJSON } from "@/lib/ai/providers";
 import { CREDIT_COSTS, isPremiumTask, type CreditTask } from "@/lib/ai/gates";
 import { createClient } from "@/lib/supabase/server";
 
-// ── Model constants ────────────────────────────────────────────────────────────
+// ── OpenRouter model IDs ───────────────────────────────────────────────────────
+// Full list: https://openrouter.ai/models
 
-// Premium tasks
-const PREMIUM_ANTHROPIC_MODEL = "claude-sonnet-4-6";
-const PREMIUM_OPENAI_MODEL    = "gpt-4o";
+// Premium — highest quality
+const OR_PREMIUM_MODEL  = "anthropic/claude-sonnet-4-5";
 
-// Standard tasks
+// Standard — fast & cheap
+const OR_STANDARD_MODEL = "google/gemini-2.0-flash-001";
+
+// Autofill — cheapest (lite)
+const OR_AUTOFILL_MODEL = "google/gemini-2.0-flash-lite-001";
+
+// Two-pass eval lite model (via OpenRouter)
+const OR_EVAL_LITE_MODEL = "google/gemini-2.0-flash-lite-001";
+
+// ── Direct provider fallback models ───────────────────────────────────────────
+
+const PREMIUM_ANTHROPIC_MODEL  = "claude-sonnet-4-6";
+const PREMIUM_OPENAI_MODEL     = "gpt-4o";
 const STANDARD_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const STANDARD_OPENAI_MODEL    = "gpt-4o-mini";
 const STANDARD_GEMINI_MODEL    = "gemini-1.5-flash";
+const AUTOFILL_GEMINI_MODEL    = "gemini-1.5-flash-8b";
 
-// Autofill — cheapest available
-const AUTOFILL_GEMINI_MODEL = "gemini-1.5-flash-8b";
-
-// Two-pass evaluation screening model
-export const EVAL_LITE_MODEL    = "gemini-1.5-flash-8b";
-export const EVAL_LITE_PROVIDER = "gemini";
+// Two-pass evaluation screening model (direct Gemini fallback)
+export const EVAL_LITE_MODEL    = OR_EVAL_LITE_MODEL;
+export const EVAL_LITE_PROVIDER = "openrouter";
 
 // ── Route result ───────────────────────────────────────────────────────────────
 
@@ -54,13 +66,17 @@ function getKey(envVar: string): string | null {
 
 /**
  * Pick the cheapest healthy provider for standard (non-premium) tasks.
- * Priority: Gemini Flash → Anthropic Haiku → OpenAI mini
+ * Priority: OpenRouter Gemini Flash → Gemini direct → Anthropic Haiku → OpenAI mini
  */
 function arbitrateStandard(): AIRoute {
+  const orKey        = getKey("OPENROUTER_API_KEY");
   const geminiKey    = getKey("GEMINI_API_KEY");
   const anthropicKey = getKey("ANTHROPIC_API_KEY");
   const openaiKey    = getKey("OPENAI_API_KEY");
 
+  if (orKey) {
+    return { provider: "openrouter", apiKey: orKey, model: OR_STANDARD_MODEL };
+  }
   if (geminiKey) {
     return { provider: "gemini", apiKey: geminiKey, model: STANDARD_GEMINI_MODEL };
   }
@@ -75,12 +91,16 @@ function arbitrateStandard(): AIRoute {
 
 /**
  * Pick provider for premium (expensive) tasks.
- * Priority: Anthropic Sonnet → OpenAI GPT-4o
+ * Priority: OpenRouter Claude Sonnet → Anthropic direct → OpenAI GPT-4o
  */
 function routePremium(): AIRoute {
+  const orKey        = getKey("OPENROUTER_API_KEY");
   const anthropicKey = getKey("ANTHROPIC_API_KEY");
   const openaiKey    = getKey("OPENAI_API_KEY");
 
+  if (orKey) {
+    return { provider: "openrouter", apiKey: orKey, model: OR_PREMIUM_MODEL };
+  }
   if (anthropicKey) {
     return { provider: "anthropic", apiKey: anthropicKey, model: PREMIUM_ANTHROPIC_MODEL };
   }
@@ -91,10 +111,16 @@ function routePremium(): AIRoute {
 }
 
 /**
- * Route for autofill — always Gemini Flash Lite, fallback to standard.
+ * Route for autofill — cheapest available model.
+ * Priority: OpenRouter Gemini Flash Lite → Gemini direct → standard fallback
  */
 function routeAutofill(): AIRoute {
+  const orKey     = getKey("OPENROUTER_API_KEY");
   const geminiKey = getKey("GEMINI_API_KEY");
+
+  if (orKey) {
+    return { provider: "openrouter", apiKey: orKey, model: OR_AUTOFILL_MODEL };
+  }
   if (geminiKey) {
     return { provider: "gemini", apiKey: geminiKey, model: AUTOFILL_GEMINI_MODEL };
   }
@@ -147,7 +173,7 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
     system:    opts.system,
     user:      opts.user,
     maxTokens: opts.maxTokens ?? 2048,
-    cache:     route.provider === "anthropic",
+    cache:     route.provider === "anthropic", // prompt caching only for direct Anthropic calls
     json:      true,
   });
 

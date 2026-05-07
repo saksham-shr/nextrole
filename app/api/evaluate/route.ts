@@ -100,9 +100,11 @@ export async function POST(request: NextRequest) {
 
   let route: { provider: string; apiKey: string; model: string };
   if (isLitePass) {
-    const geminiKey = process.env.GEMINI_API_KEY?.trim();
-    if (!geminiKey) return NextResponse.json({ error: "Lite evaluation not available" }, { status: 503 });
-    route = { provider: EVAL_LITE_PROVIDER, apiKey: geminiKey, model: EVAL_LITE_MODEL };
+    const liteKey = (process.env.OPENROUTER_API_KEY ?? process.env.GEMINI_API_KEY ?? "").trim();
+    if (!liteKey) return NextResponse.json({ error: "Lite evaluation not available" }, { status: 503 });
+    const liteProvider = process.env.OPENROUTER_API_KEY?.trim() ? EVAL_LITE_PROVIDER : "gemini";
+    const liteModel    = process.env.OPENROUTER_API_KEY?.trim() ? EVAL_LITE_MODEL : "gemini-1.5-flash-8b";
+    route = { provider: liteProvider, apiKey: liteKey, model: liteModel };
   } else {
     try {
       route = resolveRoute("evaluate");

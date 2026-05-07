@@ -1,6 +1,6 @@
 /**
  * Multi-provider AI dispatch layer.
- * Supports Anthropic, OpenAI, Google Gemini, and Sarvam AI.
+ * Supports OpenRouter, Anthropic, OpenAI, Google Gemini, and Sarvam AI.
  * All API keys come from .env — no user-supplied keys.
  *
  * Cost optimizations applied here:
@@ -10,7 +10,7 @@
  *  - Token-efficient JSON-only prompts expected from callers
  */
 
-export type Provider = "anthropic" | "openai" | "gemini" | "sarvam";
+export type Provider = "openrouter" | "anthropic" | "openai" | "gemini" | "sarvam";
 
 export interface CallOptions {
   provider: Provider;
@@ -90,6 +90,47 @@ async function callOpenAI(opts: CallOptions): Promise<string> {
   return data.choices[0].message.content;
 }
 
+// ── OpenRouter ────────────────────────────────────────────────────────────────
+// OpenAI-compatible endpoint that proxies 300+ models.
+// JSON mode is only passed for models that declare it; others rely on system prompt.
+
+async function callOpenRouter(opts: CallOptions): Promise<string> {
+  const { apiKey, model, system, user, maxTokens = 2048, json = true } = opts;
+
+  const supportsJsonMode =
+    model.startsWith("openai/") ||
+    model.startsWith("anthropic/") ||
+    model.startsWith("google/gemini");
+
+  const body: Record<string, unknown> = {
+    model,
+    max_tokens: maxTokens,
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: user },
+    ],
+  };
+  if (json && supportsJsonMode) body.response_format = { type: "json_object" };
+
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextrole.live",
+      "X-Title": "NextRole",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`OpenRouter ${res.status}: ${err}`);
+  }
+  const data = (await res.json()) as { choices: Array<{ message: { content: string } }> };
+  return data.choices[0].message.content;
+}
+
 // ── Google Gemini ──────────────────────────────────────────────────────────────
 
 async function callGemini(opts: CallOptions): Promise<string> {
@@ -152,10 +193,11 @@ async function callSarvam(opts: CallOptions): Promise<string> {
 
 export async function callProvider(opts: CallOptions): Promise<string> {
   switch (opts.provider) {
-    case "anthropic": return callAnthropic(opts);
-    case "openai":    return callOpenAI(opts);
-    case "gemini":    return callGemini(opts);
-    case "sarvam":    return callSarvam(opts);
+    case "openrouter": return callOpenRouter(opts);
+    case "anthropic":  return callAnthropic(opts);
+    case "openai":     return callOpenAI(opts);
+    case "gemini":     return callGemini(opts);
+    case "sarvam":     return callSarvam(opts);
   }
 }
 
