@@ -841,7 +841,7 @@ export function EvaluatePageContent({
                     <div className="mb-6 w-full max-w-[360px] rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-3">
                       <div className="flex justify-between text-[12.5px]">
                         <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Uses</span>
-                        <span className="font-mono text-[12px] text-[var(--foreground)]">5 credits · Gemini Flash</span>
+                        <span className="font-mono text-[12px] text-[var(--foreground)]">5 credits · NextRole AI</span>
                       </div>
                     </div>
 
