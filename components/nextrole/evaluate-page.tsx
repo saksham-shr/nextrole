@@ -351,7 +351,7 @@ function ManualPanel({
     <div className="flex flex-col gap-4">
       <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
         <div className="mb-3 text-[14px] font-semibold">Step 1 — Copy the prompt</div>
-        <p className="mb-3 text-[12.5px] text-[var(--muted-foreground)]">Paste into Claude.ai, ChatGPT, or any AI that responds in JSON.</p>
+        <p className="mb-3 text-[12.5px] text-[var(--muted-foreground)]">Paste into any AI assistant that responds in JSON.</p>
         {promptText ? (
           <>
             <textarea

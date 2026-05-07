@@ -46,7 +46,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     target: '[data-tour="bucket-settings"]',
     title: "Settings",
-    description: "Connect your AI provider (Anthropic, OpenAI, or Gemini), manage your profile, and handle billing.",
+    description: "Manage your profile, CV, targeting preferences, and billing.",
     placement: "right",
   },
   {

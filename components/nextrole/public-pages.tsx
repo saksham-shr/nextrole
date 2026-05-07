@@ -91,7 +91,7 @@ const workspaceRows = [
   ],
   [
     "Evaluate",
-    "Run a single job through the full evaluation workflow using Anthropic, OpenAI, Gemini, or manual mode.",
+    "Run a single job through the full evaluation workflow powered by NextRole AI.",
   ],
   [
     "Compare",
@@ -122,8 +122,8 @@ const workspaceRows = [
     "Set targeting preferences, languages, AI behavior, defaults, and account preferences.",
   ],
   [
-    "Providers",
-    "Connect Anthropic, OpenAI, Gemini, or run in manual prompt mode with validation.",
+    "Settings",
+    "Manage your profile, CV, targeting preferences, and account settings.",
   ],
   [
     "Interview Prep",
@@ -157,36 +157,36 @@ const workspaceRows = [
 
 const aiModeRows = [
   [
-    "Anthropic API",
-    "Run fully automated evaluations and downstream workflows inside NextRole using the user provided Anthropic API key.",
+    "NextRole AI",
+    "All evaluations, resume generation, and autofill run on NextRole's hosted AI — no API keys needed.",
   ],
   [
-    "OpenAI API",
-    "Run the same workflows with the user provided OpenAI API key and chosen model defaults.",
+    "Job evaluation",
+    "Score role fit, identify CV gaps, surface compensation signals, and predict likely interview questions.",
   ],
   [
-    "Gemini API",
-    "Use Gemini as an additional automated provider for evaluation and related workflows.",
+    "Tailored resumes",
+    "Generate keyword-optimised, role-specific resume variants in seconds from your base CV.",
   ],
   [
-    "Manual Chat Mode",
-    "Generate prompts, paste results back in, validate structure, and continue the workflow without API credits.",
+    "Autofill",
+    "Browser extension fills application forms automatically from your profile across major job portals.",
   ],
 ] as const;
 
 const docsChecklist = [
-  "Complete onboarding with CV, targeting profile, and provider setup.",
-  "Choose whether you want API mode or manual prompt mode by default.",
-  "Use Evaluate for one role, Batch for many roles, or Scanner to discover new roles.",
-  "Save strong results into Tracker so reports, resumes, follow-up, and prep stay connected.",
-  "Use Patterns, Follow-up, and Activity regularly to keep the search healthy over time.",
+  "Complete onboarding — paste your base CV and set your targeting preferences.",
+  "Use Evaluate to score a role, identify gaps, and decide whether to apply.",
+  "Generate a tailored resume variant for roles you want to pursue.",
+  "Use the browser extension to autofill application forms in one click.",
+  "Track every application in the pipeline with status, notes, and linked resumes.",
 ] as const;
 
 const faqItems = [
   {
-    title: "Can I use Claude Pro or ChatGPT Plus without API credits?",
+    title: "Do I need to provide my own API keys?",
     body:
-      "Yes. Manual mode generates the prompt package for you, then validates the pasted result so the rest of the workflow can continue inside NextRole.",
+      "No. NextRole AI is fully hosted — just sign up and start evaluating. No API keys or third-party accounts required.",
   },
   {
     title: "Does NextRole auto-submit applications?",
@@ -196,7 +196,7 @@ const faqItems = [
   {
     title: "What should I set up first?",
     body:
-      "Start with the onboarding flow, paste your base CV, add targeting preferences, and connect at least one provider or enable manual mode.",
+      "Start with the onboarding flow, paste your base CV, and run your first job evaluation. The whole setup takes under 5 minutes.",
   },
 ] as const;
 
@@ -882,7 +882,7 @@ export function PrivacyPage() {
         <Surface tone="accent" className="p-5">
           <SectionTitle title="How we use your data" subtitle="To run the product, nothing else" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>To run AI job evaluations, generate tailored resumes, and power autofill — your CV and job text are sent to Anthropic's API on your behalf.</p>
+            <p>To run AI job evaluations, generate tailored resumes, and power autofill — your CV and job text are processed by NextRole AI on your behalf.</p>
             <p>To track your daily credit usage and enforce plan limits.</p>
             <p>To send transactional emails related to billing (via Resend). We do not send marketing emails without consent.</p>
             <p>We do not sell, rent, or share your personal data or job search data with third parties for advertising.</p>
@@ -901,10 +901,11 @@ export function PrivacyPage() {
             </p>
           </Surface>
           <Surface className="p-5">
-            <h3 className="text-lg font-bold">Anthropic</h3>
+            <h3 className="text-lg font-bold">OpenRouter</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Powers all AI features. When you run an evaluation or generate a resume,
-              your CV context and job text are sent to Claude via the Anthropic API.
+              Powers NextRole AI. When you run an evaluation or generate a resume,
+              your CV context and job text are routed through OpenRouter's API to
+              process your request. No data is stored by OpenRouter beyond the request.
             </p>
           </Surface>
           <Surface className="p-5">
