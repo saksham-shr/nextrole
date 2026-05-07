@@ -122,7 +122,7 @@ export function DashboardShell({
   trialEndsAt?: string | null;
 }) {
   const daysLeft = trialDaysLeft(trialEndsAt);
-  const inTrial = daysLeft !== null && daysLeft > 0;
+  const inTrial = daysLeft !== null && daysLeft > 0 && !isAdmin;
   const pathname = usePathname();
   const activeNav = getActiveNav(pathname);
   const { modal, triggerOpen } = useCommandLauncher(tier);
@@ -269,26 +269,29 @@ export function DashboardShell({
                   </div>
 
                   {/* Credits (paid tiers only — free tier has no credits) */}
-                  {(tier === "starter" || tier === "pro") && (
-                    <div className="border-b border-[var(--line-soft)] px-4 py-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="text-[12px] text-[var(--muted-foreground)]">Credits remaining</span>
-                        <span
-                          className="text-[var(--foreground)]"
-                          style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12 }}
-                        >
-                          {creditsRemaining}
-                        </span>
+                  {(tier === "starter" || tier === "pro") && (() => {
+                    const dailyBase = tier === "pro" ? 300 : 100;
+                    const daily     = Math.min(creditsRemaining, dailyBase);
+                    const topup     = Math.max(0, creditsRemaining - dailyBase);
+                    const pct       = dailyBase > 0 ? Math.min(100, (daily / dailyBase) * 100) : 0;
+                    return (
+                      <div className="border-b border-[var(--line-soft)] px-4 py-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[12px] text-[var(--muted-foreground)]">Credits remaining</span>
+                          <span className="text-[var(--foreground)]" style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12 }}>
+                            {creditsRemaining}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
+                          <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
+                          resets daily · {dailyBase} per day
+                          {topup > 0 && <span className="ml-1.5 font-semibold text-[var(--ok)]">+{topup} top-up</span>}
+                        </p>
                       </div>
-                      <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
-                        <div
-                          className="h-full rounded-full bg-[var(--accent)] transition-all"
-                          style={{ width: `${Math.min(100, (creditsRemaining / (tier === "pro" ? 300 : 100)) * 100)}%` }}
-                        />
-                      </div>
-                      <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">resets daily · {tier === "pro" ? "300" : "100"} per day</p>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Trial countdown */}
                   {inTrial && (

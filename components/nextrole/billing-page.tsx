@@ -92,6 +92,7 @@ const TASK_LABELS: Record<string, string> = {
   compare:        "Job comparison",
   interview_prep: "Interview prep",
   cover_letter:   "Cover letter",
+  topup:          "Top-up purchase",
 };
 
 function taskLabel(type: string) {
@@ -108,7 +109,9 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
     );
   }
 
-  const totalSpent = entries.reduce((s, e) => s + e.credits_used, 0);
+  const totalSpent = entries
+    .filter((e) => e.task_type !== "topup")
+    .reduce((s, e) => s + e.credits_used, 0);
 
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
@@ -141,7 +144,11 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
               return (
                 <tr key={e.id} className="hover:bg-[var(--surface-soft)] transition-colors">
                   <td className="px-4 py-3">{taskLabel(e.task_type)}</td>
-                  <td className="px-4 py-3 text-right font-mono text-[var(--accent)]">−{e.credits_used}</td>
+                  {e.task_type === "topup" ? (
+                    <td className="px-4 py-3 text-right font-mono text-[var(--ok)]">+{Math.abs(e.credits_used)}</td>
+                  ) : (
+                    <td className="px-4 py-3 text-right font-mono text-[var(--accent)]">−{e.credits_used}</td>
+                  )}
                   <td className="px-4 py-3 text-right text-[var(--muted-foreground)]">{when}</td>
                 </tr>
               );
@@ -159,8 +166,8 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
   const { price, loading: currencyLoading } = useCurrency();
 
   const daysLeft = trialDaysLeft(trialEndsAt);
-  // Only show trial badge for paid tiers — free accounts have subscription_ends_at set by old migration but are not on a trial
-  const inTrial  = daysLeft !== null && daysLeft > 0 && tier !== "free";
+  // Only show trial badge when subscription is actively trialing
+  const inTrial  = daysLeft !== null && daysLeft > 0 && subscriptionStatus === "trialing";
   const dailyBase = DAILY_BASE[tier] ?? 0;
 
   async function handleTopup(packId: string) {
