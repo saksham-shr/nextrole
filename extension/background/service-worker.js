@@ -88,10 +88,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!testRes || !testRes.ok) {
         await clearToken();
         const status = testRes?.status ?? 0;
+        let apiError = "";
+        try { apiError = (await testRes?.json())?.error ?? ""; } catch {}
         throw new Error(
-          status === 401 ? "Token was not saved — please try again" :
           status === 429 ? "Too many requests — please wait and try again" :
-          "Connection failed — please try again",
+          apiError ? `Server error (${status}): ${apiError}` :
+          !testRes ? "Network error — could not reach nextrole.live" :
+          `Server error (${status}) — please try again`,
         );
       }
 

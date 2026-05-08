@@ -54,6 +54,8 @@ export default async function ConnectExtensionPage({
       const tokenHash = hashToken(token);
       const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString();
 
+      console.log("[connect-extension] inserting token for user", user.id, "hash prefix", tokenHash.slice(0, 8));
+
       const { error: insertError } = await admin
         .from("extension_tokens")
         .insert({
@@ -64,11 +66,14 @@ export default async function ConnectExtensionPage({
         });
 
       if (insertError) {
+        console.error("[connect-extension] insert error:", insertError.message, insertError.code);
         tokenErrorMsg = insertError.message;
       } else {
+        console.log("[connect-extension] insert ok, redirecting to extension");
         tokenValue = token;
       }
     } catch (err) {
+      console.error("[connect-extension] exception:", err);
       tokenErrorMsg = err instanceof Error ? err.message : "Failed to create token — please try again";
     }
 

@@ -41,12 +41,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
 
-    const { data: row } = await admin
+    const now = new Date().toISOString();
+    console.log("[ext-token:GET] looking up hash prefix", tokenHash.slice(0, 8), "expires_gt", now);
+
+    const { data: row, error: lookupError } = await admin
       .from("extension_tokens")
       .select("id, name")
       .eq("token_hash", tokenHash)
-      .gt("expires_at", new Date().toISOString())
+      .gt("expires_at", now)
       .single();
+
+    console.log("[ext-token:GET] found:", !!row, "error:", lookupError?.message ?? "none");
 
     if (!row) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
