@@ -389,9 +389,33 @@ export function SettingsPageContent({
   }
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto", display: "grid", gridTemplateColumns: "200px 1fr", gap: 32, paddingTop: 16 }}>
-      {/* Sidebar */}
-      <div className="shrink-0">
+    <div className="mx-auto pt-4" style={{ maxWidth: 1100 }}>
+      {/* Mobile horizontal tab nav */}
+      <div className="mb-5 flex items-center gap-1 overflow-x-auto pb-1 md:hidden">
+        {NAV_ITEMS.map((item) => (
+          <button
+            key={item.id}
+            onClick={() => scrollTo(item.id)}
+            className="shrink-0 rounded-[5px] px-3 py-1.5 text-[12.5px] transition"
+            style={{
+              background: activeSection === item.id ? "var(--surface)" : "transparent",
+              border: `1px solid ${activeSection === item.id ? "var(--line-soft)" : "transparent"}`,
+              color: activeSection === item.id ? "var(--foreground)" : "var(--muted-foreground)",
+              fontWeight: activeSection === item.id ? 500 : 400,
+            }}
+          >
+            {item.label}
+          </button>
+        ))}
+        <Link href="/dashboard/billing" className="shrink-0 rounded-[5px] px-3 py-1.5 text-[12.5px] text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]">
+          Billing
+        </Link>
+      </div>
+
+      {/* Desktop: sidebar + main grid */}
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
+      {/* Sidebar — desktop only */}
+      <div className="hidden shrink-0 md:block">
         <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Settings</div>
         <div className="flex flex-col gap-0.5">
           {NAV_ITEMS.map((item) => (
@@ -433,7 +457,7 @@ export function SettingsPageContent({
 
           {/* Profile & CV */}
           <SettingsCard id="profile" title="Personal info" subtitle="Name and email — your account identity.">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <Field label="Full name">
                 <input name="full_name" className={inputCls} defaultValue={profile?.full_name ?? ""} placeholder="Alex Johnson" />
               </Field>
@@ -482,7 +506,7 @@ export function SettingsPageContent({
 
           {/* Job preferences — tag inputs with autocomplete */}
           <SettingsCard id="preferences" title="Job preferences" subtitle="Tunes detection, scoring and resume focus.">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <TagInput
                 name="target_roles"
                 label="Target roles"
@@ -564,7 +588,7 @@ export function SettingsPageContent({
           {/* AI & Evaluation */}
           <SettingsCard id="ai" title="AI & Evaluation" subtitle="Customise how every AI workflow runs for you.">
             <div className="flex flex-col gap-5">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Preferred output language">
                   <select name="preferred_language" className={selectCls} defaultValue={profile?.preferred_language ?? "en"}>
                     <option value="en">English</option>
@@ -583,7 +607,7 @@ export function SettingsPageContent({
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Apply threshold (default 3.5)">
                   <input name="eval_score_apply" type="number" className={inputCls} placeholder="3.5" defaultValue={profile?.eval_score_apply ?? 3.5} step="0.1" />
                 </Field>
@@ -625,6 +649,7 @@ export function SettingsPageContent({
           </SettingsCard>
         </form>
       </div>
+      </div>{/* end desktop grid */}
     </div>
   );
 }

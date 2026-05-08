@@ -41,58 +41,48 @@ export default function ResumesLoading() {
         <S className="h-9 w-32 rounded-xl" />
       </div>
 
-      {/* Split pane */}
-      <div className="flex min-h-0 flex-1 gap-4">
+      {/* Split pane — stacks on mobile */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
         {/* Sidebar */}
-        <div className="w-[300px] shrink-0 overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-2">
+        <div className="shrink-0 overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-2 md:w-[300px]">
           <SidebarItem active />
-          <SidebarItem />
           <SidebarItem />
           <SidebarItem />
         </div>
 
         {/* Preview pane */}
-        <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)]">
+        <div className="min-h-[300px] min-w-0 flex-1 overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)]">
           {/* Preview header */}
           <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line-soft)] px-4 py-3">
-            <S className="h-[26px] w-[26px] rounded-[5px]" />
-            <div className="flex-1 space-y-1.5">
-              <S className="h-3 w-56 rounded-[4px]" />
-              <S className="h-[10px] w-36 rounded-[4px]" />
+            <S className="h-[26px] w-[26px] shrink-0 rounded-[5px]" />
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <S className="h-3 w-40 rounded-[4px]" />
+              <S className="h-[10px] w-28 rounded-[4px]" />
             </div>
-            <S className="h-7 w-24 rounded-lg" />
-            <S className="h-7 w-12 rounded-lg" />
+            <S className="h-7 w-24 shrink-0 rounded-lg" />
+            <S className="hidden h-7 w-12 rounded-lg sm:block" />
           </div>
 
-          {/* PDF-style preview placeholder */}
-          <div className="flex-1 bg-[var(--surface-soft)] p-6 overflow-hidden">
-            <div
-              className="mx-auto bg-white"
-              style={{ width: 612, padding: "44px 52px", boxShadow: "0 4px 16px rgba(42,38,32,0.07)" }}
-            >
-              {/* Name + contact */}
+          {/* PDF-style preview placeholder — hidden on very small screens */}
+          <div className="flex-1 bg-[var(--surface-soft)] p-4 overflow-hidden">
+            <div className="mx-auto bg-white max-w-full overflow-hidden" style={{ padding: "32px 24px", boxShadow: "0 4px 16px rgba(42,38,32,0.07)" }}>
               <div style={{ borderBottom: "2px solid var(--line-soft)", paddingBottom: 12, marginBottom: 16 }}>
-                <S className="h-6 w-64 rounded-[4px]" />
-                <S className="mt-2 h-[10px] w-80 rounded-[4px]" />
-                <S className="mt-1.5 h-[9px] w-56 rounded-[4px]" />
+                <S className="h-6 w-48 rounded-[4px]" />
+                <S className="mt-2 h-[10px] w-full rounded-[4px]" />
               </div>
-              {/* Experience section */}
               <S className="mb-3 h-[9px] w-20 rounded-[4px]" />
-              {Array.from({ length: 3 }).map((_, i) => (
+              {Array.from({ length: 2 }).map((_, i) => (
                 <div key={i} style={{ marginBottom: 14 }}>
                   <div className="flex justify-between mb-1.5">
-                    <S className="h-3 w-48 rounded-[4px]" />
-                    <S className="h-3 w-20 rounded-[4px]" />
+                    <S className="h-3 w-36 rounded-[4px]" />
+                    <S className="h-3 w-16 rounded-[4px]" />
                   </div>
                   <S className="h-[9px] w-full rounded-[4px]" />
                   <S className="mt-1 h-[9px] w-5/6 rounded-[4px]" />
-                  <S className="mt-1 h-[9px] w-4/5 rounded-[4px]" />
                 </div>
               ))}
-              {/* Skills section */}
               <S className="mb-2 h-[9px] w-12 rounded-[4px]" />
               <S className="h-[9px] w-full rounded-[4px]" />
-              <S className="mt-1 h-[9px] w-3/4 rounded-[4px]" />
             </div>
           </div>
         </div>
