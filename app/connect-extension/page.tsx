@@ -42,7 +42,12 @@ export default async function ConnectExtensionPage({
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {
-    // Create token entirely server-side — no client fetch, no CSRF issues
+    // Create token entirely server-side — no client fetch, no CSRF issues.
+    // Keep redirect() calls OUTSIDE try/catch: Next.js redirect() throws NEXT_REDIRECT
+    // internally, so wrapping it in catch causes an infinite redirect loop.
+    let tokenValue: string | null = null;
+    let tokenErrorMsg: string | null = null;
+
     try {
       const admin = createAdminClient();
       const token = generateToken();
@@ -59,15 +64,19 @@ export default async function ConnectExtensionPage({
         });
 
       if (insertError) {
-        const msg = encodeURIComponent(insertError.message);
-        redirect(`/connect-extension?redirect_to=${encodeURIComponent(redirectTo)}&error=${msg}`);
+        tokenErrorMsg = insertError.message;
+      } else {
+        tokenValue = token;
       }
-
-      // Redirect the browser (and Chrome) to the extension callback URL with the token
-      redirect(`${redirectTo}?token=${encodeURIComponent(token)}`);
-    } catch {
-      redirect(`/connect-extension?redirect_to=${encodeURIComponent(redirectTo)}&error=${encodeURIComponent("Failed to create token — please try again")}`);
+    } catch (err) {
+      tokenErrorMsg = err instanceof Error ? err.message : "Failed to create token — please try again";
     }
+
+    if (tokenErrorMsg) {
+      redirect(`/connect-extension?redirect_to=${encodeURIComponent(redirectTo)}&error=${encodeURIComponent(tokenErrorMsg)}`);
+    }
+
+    redirect(`${redirectTo}?token=${encodeURIComponent(tokenValue!)}`);
   }
 
   // Not logged in — show login UI
