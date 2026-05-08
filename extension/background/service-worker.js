@@ -1,6 +1,7 @@
 /**
  * NextRole extension — background service worker
- * Auth: Supabase email/password login → JWT stored in chrome.storage.local
+ * Auth: opaque token obtained via "Connect Extension" web flow.
+ * Token stored in chrome.storage.local as "nr_ext_token".
  */
 importScripts("../config.js");
 
@@ -19,118 +20,78 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
-  if (changeInfo.status === "loading") {
+  // Clear badge only when a real navigation starts (url change), not on bfcache restores.
+  if (changeInfo.status === "loading" && changeInfo.url) {
     chrome.action.setBadgeText({ text: "", tabId });
   }
 });
 
-// ─── Session storage helpers ──────────────────────────────────────────────────
+// ─── Token storage helpers ────────────────────────────────────────────────────
 
-function getSession() {
+function getToken() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["nr_access_token", "nr_refresh_token", "nr_expires_at", "nr_user_email"], (d) => {
-      resolve({
-        accessToken:  d.nr_access_token  ?? null,
-        refreshToken: d.nr_refresh_token ?? null,
-        expiresAt:    d.nr_expires_at    ?? 0,
-        email:        d.nr_user_email    ?? null,
-      });
-    });
+    chrome.storage.local.get("nr_ext_token", (d) => resolve(d.nr_ext_token ?? null));
   });
 }
 
-function saveSession({ access_token, refresh_token, expires_in, user }) {
-  const expiresAt = Date.now() + (expires_in ?? 3600) * 1000 - 30_000; // 30s buffer
+function saveToken(token) {
   return new Promise((resolve) => {
-    chrome.storage.local.set({
-      nr_access_token:  access_token,
-      nr_refresh_token: refresh_token,
-      nr_expires_at:    expiresAt,
-      nr_user_email:    user?.email ?? null,
-    }, resolve);
+    chrome.storage.local.set({ nr_ext_token: token }, resolve);
   });
 }
 
-function clearSession() {
+function clearToken() {
   return new Promise((resolve) => {
-    chrome.storage.local.remove(
-      ["nr_access_token", "nr_refresh_token", "nr_expires_at", "nr_user_email"],
-      resolve,
-    );
+    chrome.storage.local.remove("nr_ext_token", resolve);
   });
 }
 
-async function refreshSession(refreshToken) {
-  const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!res.ok) return null;
-  const data = await res.json();
-  await saveSession(data);
-  return data.access_token ?? null;
-}
-
-async function getValidToken() {
-  const session = await getSession();
-  if (!session.accessToken) return null;
-  if (Date.now() < session.expiresAt) return session.accessToken;
-  if (session.refreshToken) return refreshSession(session.refreshToken);
-  return null;
-}
-
-// ─── LOGIN ────────────────────────────────────────────────────────────────────
+// ─── CONNECT_EXTENSION ────────────────────────────────────────────────────────
+// Opens chrome.identity.launchWebAuthFlow → user logs in on nextrole.live →
+// callback URL carries ?token=nrt_<hex> → we save it.
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== "LOGIN") return false;
+  if (msg.type !== "CONNECT_EXTENSION") return false;
 
-  const { email, password } = msg;
+  (async () => {
+    try {
+      const redirectUrl = chrome.identity.getRedirectURL();
+      const authUrl = new URL(NEXTROLE_URL.replace(/\/$/, "") + "/connect-extension");
+      authUrl.searchParams.set("redirect_to", redirectUrl);
 
-  fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "apikey": SUPABASE_ANON_KEY,
-    },
-    body: JSON.stringify({ email, password }),
-  })
-    .then(async (res) => {
-      const data = await res.json();
-      if (!res.ok) {
-        sendResponse({ ok: false, error: data.error_description ?? data.msg ?? "Login failed" });
-        return;
+      const responseUrl = await new Promise((resolve, reject) => {
+        chrome.identity.launchWebAuthFlow(
+          { url: authUrl.toString(), interactive: true },
+          (url) => {
+            if (chrome.runtime.lastError || !url) {
+              reject(new Error(chrome.runtime.lastError?.message ?? "Cancelled"));
+            } else {
+              resolve(url);
+            }
+          },
+        );
+      });
+
+      const token = new URL(responseUrl).searchParams.get("token");
+      if (!token || !token.startsWith("nrt_")) {
+        throw new Error("No valid token received");
       }
-      await saveSession(data);
-      sendResponse({ ok: true, email: data.user?.email ?? email });
-    })
-    .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+
+      await saveToken(token);
+      sendResponse({ ok: true });
+    } catch (err) {
+      sendResponse({ ok: false, error: err.message });
+    }
+  })();
 
   return true;
 });
 
-// ─── LOGOUT ───────────────────────────────────────────────────────────────────
+// ─── DISCONNECT ───────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-  if (msg.type !== "LOGOUT") return false;
-
-  getSession().then(async (session) => {
-    if (session.accessToken) {
-      fetch(`${SUPABASE_URL}/auth/v1/logout`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${session.accessToken}`,
-          "apikey": SUPABASE_ANON_KEY,
-        },
-      }).catch(() => {});
-    }
-    await clearSession();
-    sendResponse({ ok: true });
-  });
-
+  if (msg.type !== "DISCONNECT") return false;
+  clearToken().then(() => sendResponse({ ok: true }));
   return true;
 });
 
@@ -139,11 +100,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "GET_SESSION") return false;
 
-  getSession().then(async (session) => {
-    if (!session.accessToken) { sendResponse({ ok: false, loggedIn: false }); return; }
-    const token = await getValidToken();
-    if (!token) { await clearSession(); sendResponse({ ok: false, loggedIn: false }); return; }
-    sendResponse({ ok: true, loggedIn: true, token, email: session.email });
+  getToken().then((token) => {
+    if (token) {
+      sendResponse({ ok: true, loggedIn: true, token });
+    } else {
+      sendResponse({ ok: false, loggedIn: false });
+    }
   });
 
   return true;
@@ -154,8 +116,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "SUBMIT_JOB") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/job", {
       method: "POST",
@@ -169,7 +131,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
           sendResponse({ ok: true, job_id: data.job_id });
         } else {
           const errMsg =
-            res.status === 401 ? "Session expired — please log in again." :
+            res.status === 401 ? "Session expired — please reconnect the extension." :
             res.status === 402 ? "No credits remaining — check your NextRole plan." :
             res.status === 403 ? "Job limit reached — upgrade your plan." :
             data.error ?? `Server error (${res.status})`;
@@ -187,8 +149,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "GET_PROFILE") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/profile", {
       credentials: "omit",
@@ -217,8 +179,8 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "FILL_SUGGEST") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/suggest", {
       method: "POST",
@@ -247,8 +209,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "TAILOR_RESUME") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/resume", {
       method: "POST",
@@ -277,8 +239,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "EVALUATE_JOB") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/evaluate", {
       method: "POST",
@@ -307,8 +269,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "UPDATE_JOB_STATUS") return false;
 
-  getValidToken().then((token) => {
-    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
     fetch(NEXTROLE_URL.replace(/\/$/, "") + `/api/extension/job/${msg.jobId}`, {
       method: "PATCH",

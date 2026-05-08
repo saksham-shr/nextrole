@@ -1,5 +1,5 @@
 /**
- * NextRole extension popup script — session-based auth via Supabase login
+ * NextRole extension popup — token-based auth via "Connect Extension" web flow.
  */
 
 // ─── State machine ────────────────────────────────────────────────────────────
@@ -18,7 +18,15 @@ function show(stateName) {
 function getSession() {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage({ type: "GET_SESSION" }, (res) => {
-      if (chrome.runtime.lastError) { resolve({ ok: false, loggedIn: false }); return; }
+      if (chrome.runtime.lastError) {
+        setTimeout(() => {
+          chrome.runtime.sendMessage({ type: "GET_SESSION" }, (res2) => {
+            if (chrome.runtime.lastError) { resolve({ ok: false, loggedIn: false }); return; }
+            resolve(res2 ?? { ok: false, loggedIn: false });
+          });
+        }, 250);
+        return;
+      }
       resolve(res ?? { ok: false, loggedIn: false });
     });
   });
@@ -94,10 +102,8 @@ function showJob(job) {
 
 // ─── Inline error helpers ─────────────────────────────────────────────────────
 
-const SESSION_ERRORS = ["Session expired", "Unauthorized", "Not logged in", "log in again"];
-
 function isSessionError(msg) {
-  return SESSION_ERRORS.some((s) => msg?.includes(s));
+  return ["Session expired", "Unauthorized", "Not connected", "Not logged in", "log in again", "reconnect"].some((s) => msg?.includes(s));
 }
 
 function friendlyError(msg) {
@@ -106,30 +112,26 @@ function friendlyError(msg) {
     return "Network error — please reload the extension at chrome://extensions and try again.";
   }
   if (isSessionError(msg)) {
-    return "Your session expired — please sign in again.";
+    return "Your connection expired — please reconnect the extension.";
   }
   return msg;
 }
 
 function showJobError(msg) {
-  // Re-enable action buttons regardless of error type
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
     if (b) b.disabled = false;
   });
 
   if (isSessionError(msg)) {
-    // Show inline sign-in prompt instead of auto-logout (auto-logout causes a re-login loop)
     jobErrorEl.innerHTML =
-      `Session expired — <button id="nr-signin-btn" style="color:var(--accent);background:none;border:none;cursor:pointer;font-size:11px;padding:0;text-decoration:underline;font-family:inherit;">sign in again</button>`;
+      `Connection expired — <button id="nr-reconnect-btn" style="color:var(--accent);background:none;border:none;cursor:pointer;font-size:11px;padding:0;text-decoration:underline;font-family:inherit;">reconnect</button>`;
     jobErrorEl.classList.remove("hidden");
     show("job");
-    document.getElementById("nr-signin-btn")?.addEventListener("click", () => {
-      chrome.runtime.sendMessage({ type: "LOGOUT" }, () => {
-        clearJobError();
-        currentJob = null;
-        currentJobId = null;
-        show("login");
-      });
+    document.getElementById("nr-reconnect-btn")?.addEventListener("click", () => {
+      clearJobError();
+      currentJob = null;
+      currentJobId = null;
+      show("login");
     });
     return;
   }
@@ -172,25 +174,21 @@ function updateStatus(jobId, status) {
   });
 }
 
-// ─── Login form ───────────────────────────────────────────────────────────────
+// ─── Connect button ───────────────────────────────────────────────────────────
 
 $("link-signup").href = NEXTROLE_URL + "/signup";
 
-$("login-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const email    = $("login-email").value.trim();
-  const password = $("login-password").value;
-  const errEl    = $("login-error");
-  const btn      = $("btn-login");
-
-  errEl.classList.add("hidden");
+$("btn-connect").addEventListener("click", async () => {
+  const btn = $("btn-connect");
+  const errEl = $("login-error");
   errEl.textContent = "";
+  errEl.classList.add("hidden");
   btn.disabled = true;
-  btn.textContent = "Signing in…";
+  btn.textContent = "Connecting…";
 
   const res = await new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "LOGIN", email, password }, (r) => {
-      if (chrome.runtime.lastError) { resolve({ ok: false, error: "Extension error" }); return; }
+    chrome.runtime.sendMessage({ type: "CONNECT_EXTENSION" }, (r) => {
+      if (chrome.runtime.lastError) { resolve({ ok: false, error: "Extension error — try reloading." }); return; }
       resolve(r ?? { ok: false, error: "No response" });
     });
   });
@@ -198,10 +196,12 @@ $("login-form").addEventListener("submit", async (e) => {
   if (res.ok) {
     init();
   } else {
-    errEl.textContent = res.error ?? "Login failed. Check your credentials.";
+    errEl.textContent = res.error ?? "Connection failed. Please try again.";
     errEl.classList.remove("hidden");
     btn.disabled = false;
-    btn.textContent = "Sign in";
+    btn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+      Connect to NextRole`;
   }
 });
 
@@ -230,7 +230,6 @@ async function init() {
     currentJob = job;
     showJob(job);
     show("job");
-    // Re-enable action buttons in case they were left disabled by a previous error
     [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
       if (b) b.disabled = false;
     });
@@ -241,7 +240,6 @@ async function init() {
 
 // ─── Save job ─────────────────────────────────────────────────────────────────
 
-// Returns job_id on success. Throws on failure so callers can handle inline.
 async function saveJob(label) {
   if (!currentJob) throw new Error("No job data available.");
 
@@ -274,7 +272,6 @@ async function saveJob(label) {
 // ─── Action handlers ──────────────────────────────────────────────────────────
 
 async function handleEvaluate() {
-  // Disable buttons while saving to prevent double-clicks
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     const jobId = await saveJob("Saving & opening evaluation…");

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveUserFromJWT } from "@/lib/extension-auth";
+import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 
 const VALID_STATUSES = new Set(["applied", "interview", "offer", "rejected", "archived"]);
@@ -30,7 +30,7 @@ export async function PATCH(
   }
 
   const supabase = createAdminClient();
-  const resolved = await resolveUserFromJWT(token);
+  const resolved = await resolveExtensionUser(token);
   if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { id } = await params;

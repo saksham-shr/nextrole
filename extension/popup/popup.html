@@ -25,22 +25,15 @@
       </button>
     </header>
 
-    <!-- State: login -->
+    <!-- State: not connected -->
     <div id="state-login" class="state hidden">
-      <p class="login-title">Sign in to NextRole</p>
-      <p class="login-sub">Use your NextRole account email and password.</p>
-      <form id="login-form" class="login-form" autocomplete="on">
-        <div class="field">
-          <label for="login-email">Email</label>
-          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" required />
-        </div>
-        <div class="field">
-          <label for="login-password">Password</label>
-          <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" required />
-        </div>
-        <div id="login-error" class="login-error hidden"></div>
-        <button type="submit" id="btn-login" class="btn btn-primary btn-login">Sign in</button>
-      </form>
+      <p class="login-title">Connect NextRole</p>
+      <p class="login-sub">Link your browser extension to your NextRole account to start tracking jobs.</p>
+      <div id="login-error" class="login-error hidden"></div>
+      <button id="btn-connect" class="btn btn-primary btn-connect">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Connect to NextRole
+      </button>
       <a id="link-signup" href="#" class="login-link" target="_blank">No account? Sign up free →</a>
     </div>
 

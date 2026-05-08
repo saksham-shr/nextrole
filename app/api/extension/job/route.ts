@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveUserFromJWT } from "@/lib/extension-auth";
+import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 
 // Job slot limits per tier (-1 = unlimited)
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = createAdminClient();
-  const resolved = await resolveUserFromJWT(token);
+  const resolved = await resolveExtensionUser(token);
 
   if (!resolved) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

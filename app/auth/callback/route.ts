@@ -64,7 +64,7 @@ export async function GET(request: NextRequest) {
   // next=/onboarding (signup page). But a first-time OAuth user arriving from
   // the login page would land on /dashboard without completing onboarding.
   // Override: if onboarding isn't done yet, always send them to /onboarding.
-  if (next !== "/onboarding" && !next.startsWith("/reset-password")) {
+  if (next !== "/onboarding" && !next.startsWith("/reset-password") && !next.startsWith("/connect-extension")) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase

@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { resolveUserFromJWT } from "@/lib/extension-auth";
+import { resolveExtensionUser } from "@/lib/extension-auth";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { RESUME_SYSTEM_PROMPT, buildResumePrompt } from "@/lib/resume/prompt";
 import { renderResumeHtml } from "@/lib/resume/template";
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
   if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const resolved = await resolveUserFromJWT(token);
+  const resolved = await resolveExtensionUser(token);
   if (!resolved) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { userId } = resolved;
