@@ -654,7 +654,7 @@ function JobPickerPanel({
             <path d="M16 7V5a2 2 0 0 0-4 0v2M12 12v4M10 14h4" />
           </svg>
         </div>
-        <p className="text-[16px] font-semibold">No pending jobs</p>
+        <p className="text-[16px] font-semibold">No jobs yet</p>
         <p className="max-w-xs text-[13px] text-[var(--muted-foreground)]">
           Add jobs to your pipeline first — they&apos;ll appear here ready to evaluate.
         </p>
@@ -680,7 +680,7 @@ function JobPickerPanel({
           </div>
           <div>
             <div className="text-[14px] font-semibold">Evaluate a job</div>
-            <div className="text-[12px] text-[var(--muted-foreground)]">{jobs.length} pending</div>
+            <div className="text-[12px] text-[var(--muted-foreground)]">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</div>
           </div>
         </div>
 

@@ -44,7 +44,7 @@ export default async function EvaluatePage({
         .from("jobs")
         .select("*")
         .eq("user_id", user.id)
-        .eq("status", "pending")
+        .not("status", "in", '("archived","rejected")')
         .order("created_at", { ascending: false })
         .limit(50),
     ]);
