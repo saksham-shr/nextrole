@@ -25,5 +25,5 @@ export default async function ConnectExtensionPage({
     redirect("/dashboard");
   }
 
-  return <ConnectExtensionClient redirectTo={redirect_to} />;
+  return <ConnectExtensionClient redirectTo={redirect_to as string} />;
 }
