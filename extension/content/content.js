@@ -943,14 +943,24 @@ function showDetectCard(job) {
   removeCard();
   injectCardStyles();
 
-  // Check if this URL was already saved in this session
-  chrome.storage.session.get(["nr_last_job_url", "nr_last_job_id"], (d) => {
-    if (d.nr_last_job_url === job.url && d.nr_last_job_id) {
-      showAlreadySavedCard(job, d.nr_last_job_id);
-      return;
-    }
-    showNewJobCard(job);
-  });
+  // Show the new-job card immediately, then upgrade to "already saved" if we
+  // find a matching session record.  This ensures the card always appears even
+  // if chrome.storage.session is unavailable (e.g. after an extension reload
+  // invalidates the runtime context in an existing tab).
+  showNewJobCard(job);
+
+  try {
+    chrome.storage.session.get(["nr_last_job_url", "nr_last_job_id"], (d) => {
+      if (chrome.runtime.lastError) return; // context invalidated — card already shown
+      if (d.nr_last_job_url === job.url && d.nr_last_job_id) {
+        // Replace with the "already saved" variant
+        removeCard();
+        showAlreadySavedCard(job, d.nr_last_job_id);
+      }
+    });
+  } catch {
+    // Storage not available — card is already showing, nothing to do
+  }
 }
 
 function showNewJobCard(job) {
@@ -1584,10 +1594,10 @@ function detectAndShow() {
   return true; // stop retrying — we found something
 }
 
-// Retry at 1s → 2.5s → 5s after navigation.
-// Heavy SPAs (Workday, LinkedIn) can take several seconds to render job content.
+// Retry at 1s → 2.5s → 5s → 9s → 15s after navigation.
+// Heavy SPAs (Workday, LinkedIn) can take many seconds to render job content.
 let _retryTimer = null;
-const RETRY_DELAYS = [1000, 2500, 5000];
+const RETRY_DELAYS = [1000, 2500, 5000, 9000, 15000];
 
 function detectWithRetry() {
   clearTimeout(_retryTimer);

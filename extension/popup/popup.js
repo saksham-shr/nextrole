@@ -226,6 +226,10 @@ async function init() {
     currentJob = job;
     showJob(job);
     show("job");
+    // Re-enable action buttons in case they were left disabled by a previous error
+    [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
+      if (b) b.disabled = false;
+    });
   } else {
     show("no-job");
   }
