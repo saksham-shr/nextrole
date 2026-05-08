@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   if (!job.description) return NextResponse.json({ error: "Job has no description — paste the JD first" }, { status: 400 });
 
-  const { data: profile } = await supabase.from("profiles").select("base_cv").eq("id", userId).single();
+  const { data: profile } = await supabase.from("profiles").select("base_cv, credits_remaining").eq("id", userId).single();
   if (!profile?.base_cv) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
 
   // Premium resume lifetime cap check
@@ -73,16 +73,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: (err instanceof Error ? err.message : "AI route error") }, { status: 503 });
   }
 
-  // Deduct credits
-  if (!isAdmin) {
+  // Pre-flight credit check — deduction happens after AI succeeds to avoid charging for failures
+  if (!isAdmin && tier !== "free") {
     const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
-
-    if (tier === "free" && !isPremium) {
-      // Free tier: track daily usage instead of credits
-      await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
-    } else if (tier !== "free") {
-      const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: creditAmount });
-      if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    if (creditsLeft < creditAmount) {
+      return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
   }
 
@@ -121,6 +117,16 @@ export async function POST(request: NextRequest) {
   } catch {
     if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: "AI returned invalid JSON", updated_at: new Date().toISOString() }).eq("id", taskRun.id);
     return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 });
+  }
+
+  // AI succeeded — NOW deduct credits / increment usage
+  if (!isAdmin) {
+    const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
+    if (tier === "free" && !isPremium) {
+      await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
+    } else if (tier !== "free") {
+      await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: creditAmount });
+    }
   }
 
   const html = renderResumeHtml(resumeData);

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   // Feature key "evaluate" maps to free daily limit: 5/day; starter/pro: credit-based
   const guard = await requireFeature("evaluate");
   if (guard instanceof NextResponse) return guard;
-  const { userId, tier } = guard;
+  const { userId, tier, creditsRemaining } = guard;
 
   const supabase = await createClient();
 
@@ -113,18 +113,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Deduct credits for paid tiers (lite pass is free — it's just a screen)
-  if (!isLitePass && tier !== "free") {
-    const { data: ok } = await supabase.rpc("deduct_credit", {
-      p_user_id: userId,
-      p_amount:  CREDIT_COSTS.evaluate,
-    });
-    if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
-  }
-
-  // Increment free-tier daily usage counter
-  if (tier === "free" && !isLitePass) {
-    await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
+  // Pre-flight credit check (no deduction yet — deduct only after AI succeeds)
+  if (!isLitePass && tier !== "free" && creditsRemaining < CREDIT_COSTS.evaluate) {
+    return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
   }
 
   const { data: taskRun } = await supabase.from("task_runs").insert({
@@ -175,6 +166,15 @@ export async function POST(request: NextRequest) {
   const score = clampScore(result.score);
   const decision = (["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch") as "apply" | "watch" | "skip";
   const archetype = result.archetype ?? null;
+
+  // AI succeeded — NOW deduct credits / increment usage
+  if (!isLitePass) {
+    if (tier === "free") {
+      await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
+    } else {
+      await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.evaluate });
+    }
+  }
 
   // Lite pass: return result without persisting a full evaluation row
   if (isLitePass) {

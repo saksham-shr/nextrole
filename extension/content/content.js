@@ -985,32 +985,16 @@ function showNewJobCard(job) {
           Evaluate
         </button>
       </div>
-      <div class="nr-dismiss-bar"><div class="nr-dismiss-bar-fill" id="nr-dismiss-fill" style="width:100%"></div></div>
-      <div class="nr-dismiss" id="nr-card-status">auto-dismiss · 10s</div>
     </div>
   `;
   document.body.appendChild(card);
 
-  let secs = 10;
-  const fillEl = card.querySelector("#nr-dismiss-fill");
-  const statusEl = card.querySelector("#nr-card-status");
-  const countdown = setInterval(() => {
-    secs--;
-    if (fillEl) fillEl.style.width = `${(secs / 10) * 100}%`;
-    if (statusEl && secs > 0) statusEl.textContent = `auto-dismiss · ${secs}s`;
-  }, 1000);
-
-  _cardTimer = setTimeout(() => { clearInterval(countdown); removeCard(); }, 10000);
-
-  card.querySelector("#nr-card-close").addEventListener("click", () => {
-    clearInterval(countdown); removeCard();
-  });
+  // Card stays open until user explicitly closes it
+  card.querySelector("#nr-card-close").addEventListener("click", removeCard);
   card.querySelector("#nr-card-pipeline").addEventListener("click", () => {
-    clearInterval(countdown);
     submitFromCard(job, "pipeline", card);
   });
   card.querySelector("#nr-card-evaluate").addEventListener("click", () => {
-    clearInterval(countdown);
     submitFromCard(job, "evaluate", card);
   });
 }
@@ -1058,57 +1042,208 @@ function showAlreadySavedCard(job, jobId) {
   });
 }
 
+// ─── Multi-step loading styles ─────────────────────────────────────────────────
+
+function injectStepStyles() {
+  if (document.getElementById("nr-step-styles")) return;
+  const s = document.createElement("style");
+  s.id = "nr-step-styles";
+  s.textContent = `
+    .nr-steps { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 8px; }
+    .nr-step {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: #9a9286; transition: color 0.2s;
+    }
+    .nr-step.nr-step-active { color: #1a1814; font-weight: 500; }
+    .nr-step.nr-step-done   { color: #2f7a3a; }
+    .nr-step.nr-step-error  { color: #b53a3a; }
+    .nr-step-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #e0d8d0; flex-shrink: 0;
+      transition: background 0.2s;
+    }
+    .nr-step.nr-step-active .nr-step-dot { background: #c84a1f; }
+    .nr-step.nr-step-done   .nr-step-dot { background: #2f7a3a; }
+    .nr-step.nr-step-error  .nr-step-dot { background: #b53a3a; }
+    .nr-eval-result {
+      padding: 12px; border-radius: 8px; background: #f5f2ee;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .nr-eval-score-row { display: flex; align-items: center; gap: 8px; }
+    .nr-eval-score {
+      font-family: monospace; font-size: 18px; font-weight: 700;
+      color: var(--s-color, #1a1814);
+    }
+    .nr-eval-decision {
+      display: inline-flex; align-items: center; padding: 3px 8px;
+      border-radius: 20px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .nr-eval-decision.apply  { background: #edf7ee; color: #2f7a3a; }
+    .nr-eval-decision.watch  { background: #fef9ec; color: #8a6d1a; }
+    .nr-eval-decision.skip   { background: #faebeb; color: #b53a3a; }
+    .nr-eval-summary { font-size: 12px; color: #6b6358; line-height: 1.45; }
+  `;
+  document.head.appendChild(s);
+}
+
 // ─── Panel B: Helper panel (after save or from already-saved) ─────────────────
 
 function submitFromCard(job, action, card) {
-  clearTimeout(_cardTimer);
   const pipeBtn = card.querySelector("#nr-card-pipeline");
   const evalBtn = card.querySelector("#nr-card-evaluate");
-  const statusEl = card.querySelector("#nr-card-status");
   if (pipeBtn) pipeBtn.disabled = true;
   if (evalBtn) evalBtn.disabled = true;
-  if (statusEl) statusEl.textContent = "Saving…";
 
-  // Replace dismiss bar with spinner text
-  const barEl = card.querySelector(".nr-dismiss-bar");
-  if (barEl) { barEl.innerHTML = '<span class="nr-spin"></span>'; barEl.style.textAlign = "center"; }
+  // For evaluate: show in-card loading flow
+  if (action === "evaluate") {
+    injectStepStyles();
+    const body = card.querySelector(".nr-cb");
+    if (body) body.innerHTML = `
+      <div style="font-size:12.5px;font-weight:500;margin-bottom:2px;">${escapeHtml(job.title)}</div>
+      <div style="font-size:12px;color:#6b6358;margin-bottom:4px;">${escapeHtml(job.company)}</div>
+      <div class="nr-steps" id="nr-eval-steps">
+        <div class="nr-step nr-step-active" id="nr-step-save"><span class="nr-step-dot"></span>Saving job to pipeline…</div>
+        <div class="nr-step" id="nr-step-fetch"><span class="nr-step-dot"></span>Fetching your profile</div>
+        <div class="nr-step" id="nr-step-eval"><span class="nr-step-dot"></span>Running AI evaluation</div>
+        <div class="nr-step" id="nr-step-compare"><span class="nr-step-dot"></span>Comparing with your CV</div>
+        <div class="nr-step" id="nr-step-done"><span class="nr-step-dot"></span>Ready</div>
+      </div>
+      <div id="nr-eval-result-area"></div>
+    `;
 
+    function setStep(id, state) {
+      const el = card.querySelector(`#${id}`);
+      if (!el) return;
+      el.className = `nr-step nr-step-${state}`;
+      if (state === "done") el.querySelector(".nr-step-dot").style.background = "#2f7a3a";
+    }
+
+    // Step 1: submit job
+    chrome.runtime.sendMessage(
+      { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
+      (saveRes) => {
+        if (chrome.runtime.lastError || !saveRes?.ok) {
+          setStep("nr-step-save", "error");
+          card.querySelector("#nr-step-save").lastChild.textContent = saveRes?.error ?? "Save failed — try again";
+          if (pipeBtn) pipeBtn.disabled = false;
+          if (evalBtn) evalBtn.disabled = false;
+          return;
+        }
+
+        const jobId = saveRes.job_id;
+        if (jobId) {
+          chrome.storage.session.set({ nr_last_job_url: job.url, nr_last_job_id: jobId, nr_last_job_title: job.title ?? "", nr_last_company: job.company ?? "" });
+        }
+
+        setStep("nr-step-save", "done");
+        setStep("nr-step-fetch", "active");
+
+        // Brief pause for visual effect then start eval
+        setTimeout(() => {
+          setStep("nr-step-fetch", "done");
+          setStep("nr-step-eval", "active");
+
+          if (!jobId) {
+            setStep("nr-step-eval", "error");
+            return;
+          }
+
+          // Step 3+4: run evaluation (advance step-compare halfway through wait)
+          const compareTimer = setTimeout(() => {
+            setStep("nr-step-eval", "done");
+            setStep("nr-step-compare", "active");
+          }, 8000);
+
+          chrome.runtime.sendMessage({ type: "EVALUATE_JOB", jobId }, (evalRes) => {
+            clearTimeout(compareTimer);
+
+            if (chrome.runtime.lastError || !evalRes?.ok) {
+              setStep("nr-step-eval", "error");
+              setStep("nr-step-compare", "error");
+              const area = card.querySelector("#nr-eval-result-area");
+              if (area) {
+                area.innerHTML = `
+                  <div style="font-size:12px;color:#b53a3a;padding:8px 0;">
+                    ${escapeHtml(evalRes?.error ?? "Evaluation failed — try again")}
+                  </div>
+                  ${evalRes?.upgrade ? `
+                    <button class="nr-btn nr-primary" id="nr-eval-upgrade" style="margin-top:6px;">Upgrade plan →</button>
+                  ` : `
+                    <button class="nr-btn nr-secondary" id="nr-eval-retry" style="margin-top:6px;">Open in NextRole →</button>
+                  `}
+                `;
+                area.querySelector("#nr-eval-upgrade")?.addEventListener("click", () => {
+                  chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing` });
+                  removeCard();
+                });
+                area.querySelector("#nr-eval-retry")?.addEventListener("click", () => {
+                  chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
+                  removeCard();
+                });
+              }
+              return;
+            }
+
+            setStep("nr-step-compare", "done");
+            setStep("nr-step-done", "done");
+
+            const score    = evalRes.score ?? 0;
+            const decision = evalRes.decision ?? "watch";
+            const summary  = evalRes.blocks?.decision?.rationale ?? evalRes.blocks?.role_fit?.summary ?? "";
+            const scoreColor = score >= 3.5 ? "#2f7a3a" : score >= 2.5 ? "#8a6d1a" : "#b53a3a";
+
+            const area = card.querySelector("#nr-eval-result-area");
+            if (area) {
+              area.innerHTML = `
+                <div class="nr-eval-result">
+                  <div class="nr-eval-score-row">
+                    <span class="nr-eval-score" style="--s-color:${scoreColor}">${score.toFixed(1)}</span>
+                    <span class="nr-eval-decision ${decision}">${decision}</span>
+                  </div>
+                  ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
+                  <button class="nr-btn nr-primary" id="nr-eval-open" style="margin-top:2px;">View full evaluation →</button>
+                </div>
+              `;
+              area.querySelector("#nr-eval-open").addEventListener("click", () => {
+                chrome.runtime.sendMessage({
+                  type: "OPEN_TAB",
+                  url: evalRes.evaluation_id
+                    ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&eval=${evalRes.evaluation_id}`
+                    : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
+                });
+                removeCard();
+              });
+            }
+          });
+        }, 900);
+      }
+    );
+    return;
+  }
+
+  // Pipeline action: save then show helper panel
   chrome.runtime.sendMessage(
-    {
-      type: "SUBMIT_JOB",
-      job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" },
-    },
+    { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
     (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
-        if (statusEl) statusEl.textContent = response?.error ?? "Error — try again.";
         if (pipeBtn) pipeBtn.disabled = false;
         if (evalBtn) evalBtn.disabled = false;
-        _cardTimer = setTimeout(removeCard, 4000);
+        const body = card.querySelector(".nr-cb");
+        if (body) {
+          const errEl = document.createElement("div");
+          errEl.style.cssText = "font-size:12px;color:#b53a3a;margin-top:8px;";
+          errEl.textContent = response?.error ?? "Error — try again.";
+          body.appendChild(errEl);
+          setTimeout(() => errEl.remove(), 4000);
+        }
         return;
       }
 
       const jobId = response.job_id;
-
-      // Store this job's URL + ID so we don't re-prompt on the same tab
       if (jobId) {
-        chrome.storage.session.set({
-          nr_last_job_url:    job.url,
-          nr_last_job_id:     jobId,
-          nr_last_job_title:  job.title  ?? "",
-          nr_last_company:    job.company ?? "",
-        });
+        chrome.storage.session.set({ nr_last_job_url: job.url, nr_last_job_id: jobId, nr_last_job_title: job.title ?? "", nr_last_company: job.company ?? "" });
       }
 
-      if (action === "evaluate" && jobId) {
-        chrome.runtime.sendMessage({
-          type: "OPEN_TAB",
-          url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate`,
-        });
-        removeCard();
-        return;
-      }
-
-      // Pipeline action → transition to helper panel
       removeCard();
       showHelperPanel(job, jobId);
     }
@@ -1218,56 +1353,94 @@ function renderResumeButton(card, job, jobId, tier, usage, limits) {
 }
 
 function tailorResumeInCard(card, area, job, jobId, tier) {
-  // Replace button with loading state
+  injectStepStyles();
+
   area.innerHTML = `
-    <div style="display:flex;align-items:center;gap:10px;padding:10px 11px;border-radius:7px;background:#f5f2ee;margin-bottom:7px;">
-      <span class="nr-spin"></span>
-      <div>
-        <div style="font-size:12.5px;font-weight:500;">Tailoring resume…</div>
-        <div style="font-size:11.5px;color:#6b6358;">${escapeHtml(job.title)} at ${escapeHtml(job.company)}</div>
+    <div style="padding:10px 11px;border-radius:7px;background:#f5f2ee;margin-bottom:7px;">
+      <div style="font-size:12.5px;font-weight:500;margin-bottom:8px;">
+        ${escapeHtml(job.title)} at ${escapeHtml(job.company)}
+      </div>
+      <div class="nr-steps" id="nr-resume-steps">
+        <div class="nr-step nr-step-active" id="nr-rstep-analyze"><span class="nr-step-dot"></span>Analyzing job description…</div>
+        <div class="nr-step" id="nr-rstep-tailor"><span class="nr-step-dot"></span>Tailoring your CV</div>
+        <div class="nr-step" id="nr-rstep-build"><span class="nr-step-dot"></span>Building resume</div>
+        <div class="nr-step" id="nr-rstep-done"><span class="nr-step-dot"></span>Ready</div>
       </div>
     </div>
+    <div id="nr-resume-result-area"></div>
   `;
 
-  chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileRes) => {
-    const token = profileRes?._token ?? "";
-    const payload = {
-      job_id:          jobId || null,
-      job_title:       job.title,
-      company:         job.company,
-      job_description: job.description,
-    };
+  function setRStep(id, state) {
+    const el = area.querySelector(`#${id}`);
+    if (!el) return;
+    el.className = `nr-step nr-step-${state}`;
+  }
 
-    chrome.runtime.sendMessage({ type: "TAILOR_RESUME", token, payload }, (res) => {
-      if (chrome.runtime.lastError || !res?.ok) {
-        area.innerHTML = `
-          <div style="padding:10px 11px;border-radius:7px;border:1px solid #e0d8d0;margin-bottom:7px;font-size:12px;color:#b53a3a;">
-            ${escapeHtml(res?.error ?? "Resume generation failed")}
-          </div>
+  // Advance steps with delays for UX feedback
+  const t1 = setTimeout(() => { setRStep("nr-rstep-analyze", "done"); setRStep("nr-rstep-tailor", "active"); }, 1200);
+  const t2 = setTimeout(() => { setRStep("nr-rstep-tailor", "done"); setRStep("nr-rstep-build", "active"); }, 4000);
+
+  const payload = {
+    job_id:          jobId || null,
+    job_title:       job.title,
+    company:         job.company,
+    job_description: job.description,
+  };
+
+  chrome.runtime.sendMessage({ type: "TAILOR_RESUME", payload }, (res) => {
+    clearTimeout(t1); clearTimeout(t2);
+
+    if (chrome.runtime.lastError || !res?.ok) {
+      setRStep("nr-rstep-tailor", "error");
+      setRStep("nr-rstep-build", "error");
+      const resultArea = area.querySelector("#nr-resume-result-area");
+      if (resultArea) {
+        resultArea.innerHTML = `
+          <div style="padding:8px 0;font-size:12px;color:#b53a3a;">${escapeHtml(res?.error ?? "Resume generation failed")}</div>
+          ${res?.upgrade ? `
+            <button class="nr-btn nr-primary" id="nr-resume-upgrade" style="margin-top:4px;">Upgrade plan →</button>
+          ` : `
+            <button class="nr-btn nr-secondary" id="nr-resume-retry" style="margin-top:4px;">Retry</button>
+          `}
         `;
-        return;
+        resultArea.querySelector("#nr-resume-upgrade")?.addEventListener("click", () => {
+          chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing?feature=resume` });
+          removeCard();
+        });
+        resultArea.querySelector("#nr-resume-retry")?.addEventListener("click", () => {
+          tailorResumeInCard(card, area, job, jobId, tier);
+        });
       }
+      return;
+    }
 
-      _helperResumeHtml = res.html;
-      const coverage = res.coverage ?? "";
-      area.innerHTML = `
+    setRStep("nr-rstep-analyze", "done");
+    setRStep("nr-rstep-tailor", "done");
+    setRStep("nr-rstep-build", "done");
+    setRStep("nr-rstep-done", "done");
+
+    _helperResumeHtml = res.html;
+    const coverage = res.coverage ?? "";
+    const resultArea = area.querySelector("#nr-resume-result-area");
+    if (resultArea) {
+      resultArea.innerHTML = `
         <div class="nr-resume-ready">
           <div style="font-size:12.5px;font-weight:500;color:#2f7a3a;">✓ Resume ready · ${coverage}% keyword match</div>
-          <div style="display:flex;gap:6px;">
+          <div style="display:flex;gap:6px;margin-top:2px;">
             <button class="nr-btn nr-primary" id="nr-resume-open" style="flex:1;">Open + Save PDF</button>
-            ${res.resume_id ? `<button class="nr-btn nr-secondary" id="nr-resume-dash" style="flex:unset;padding:8px 10px;">View in NextRole</button>` : ""}
+            ${res.resume_id ? `<button class="nr-btn nr-secondary" id="nr-resume-dash" style="flex:unset;padding:8px 10px;">View all</button>` : ""}
           </div>
         </div>
       `;
-      area.querySelector("#nr-resume-open")?.addEventListener("click", () => {
+      resultArea.querySelector("#nr-resume-open")?.addEventListener("click", () => {
         const blob = new Blob([_helperResumeHtml], { type: "text/html" });
         const url = URL.createObjectURL(blob);
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url });
       });
-      area.querySelector("#nr-resume-dash")?.addEventListener("click", () => {
+      resultArea.querySelector("#nr-resume-dash")?.addEventListener("click", () => {
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/resumes` });
       });
-    });
+    }
   });
 }
 

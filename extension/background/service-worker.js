@@ -272,6 +272,36 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// ─── Evaluate job ─────────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "EVALUATE_JOB") return false;
+
+  getValidToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not logged in" }); return; }
+
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/evaluate", {
+      method: "POST",
+      credentials: "omit",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+      body: JSON.stringify({ job_id: msg.jobId }),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          sendResponse({ ok: true, evaluation_id: data.evaluation_id, score: data.score, decision: data.decision, blocks: data.blocks });
+        } else if (res.status === 402 || res.status === 403) {
+          sendResponse({ ok: false, error: data.error ?? "Plan upgrade required.", upgrade: true });
+        } else {
+          sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
+        }
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true;
+});
+
 // ─── Update job status ────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {

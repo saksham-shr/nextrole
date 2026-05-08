@@ -87,12 +87,11 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Deduct credits
-  const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.autofill });
-  if (!ok) return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
-
-  // Increment daily usage
-  await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
+  // Pre-flight credit check — deduct only after AI succeeds
+  const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+  if (creditsLeft < CREDIT_COSTS.autofill) {
+    return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
+  }
 
   let route: AIRoute;
   try { route = resolveRoute("autofill"); }
@@ -123,9 +122,13 @@ export async function POST(req: NextRequest) {
       json: false, fallbackModels: route.fallbackModels,
     });
   } catch (err) {
+    // AI failed — no credits deducted
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI error" }, { status: 502 });
   }
 
+  // AI succeeded — NOW deduct + increment usage
+  await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.autofill });
+  await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
   admin.from("usage_log").insert({ user_id: userId, task_type: "autofill", model: route.model, credits_used: CREDIT_COSTS.autofill, byok: false }).then(() => {});
 
   return NextResponse.json({ suggestion: suggestion.trim() });

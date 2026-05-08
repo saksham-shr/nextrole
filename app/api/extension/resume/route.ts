@@ -73,11 +73,13 @@ export async function POST(req: NextRequest) {
     if (resumesToday >= FREE_DAILY_LIMITS.resumes) {
       return NextResponse.json({ error: "Daily resume limit reached — upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
     }
-    // Increment usage
-    await admin.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
+    // NOTE: daily usage incremented AFTER AI succeeds (see below)
   } else {
-    const { data: ok } = await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.resume_standard });
-    if (!ok) return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
+    // Pre-flight credit check — deduct only after AI succeeds
+    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    if (creditsLeft < CREDIT_COSTS.resume_standard) {
+      return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
+    }
   }
 
   if (!profile?.base_cv) {
@@ -123,7 +125,14 @@ export async function POST(req: NextRequest) {
 
   let resumeData: ResumeData;
   try { resumeData = parseJSON(rawOutput) as ResumeData; }
-  catch { return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 }); }
+  catch { return NextResponse.json({ error: "AI returned invalid response" }, { status: 502 }); }
+
+  // AI succeeded — NOW deduct credits / increment free usage
+  if (tier === "free") {
+    await admin.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
+  } else {
+    await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.resume_standard });
+  }
 
   const html     = renderResumeHtml(resumeData);
   const coverage = Math.max(0, Math.min(100, (resumeData as { coverage?: number }).coverage ?? 0));
