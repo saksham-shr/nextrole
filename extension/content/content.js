@@ -1425,6 +1425,7 @@ function showHelperPanel(job, jobId) {
         </div>
       </div>
       <div style="font-size:12px;color:#6b6358;margin-bottom:10px;">Filling out the application?</div>
+      <div id="nr-helper-eval-area"></div>
       <div id="nr-helper-resume-area"></div>
       <div id="nr-helper-autofill-area"></div>
       <div class="nr-divider"></div>
@@ -1439,14 +1440,153 @@ function showHelperPanel(job, jobId) {
     removeCard();
   });
 
-  // Load profile to get tier + usage, then render action buttons
+  // Load profile to get tier + usage, then render action buttons.
+  // profileRes shape: { ok: true, profile: { tier, usage, limits, ... } }
   chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileRes) => {
-    const tier   = profileRes?.tier   ?? "free";
-    const usage  = profileRes?.usage  ?? {};
-    const limits = profileRes?.limits ?? {};
+    const p      = profileRes?.profile ?? {};
+    const tier   = p.tier   ?? "free";
+    const usage  = p.usage  ?? {};
+    const limits = p.limits ?? {};
 
+    renderEvaluateButton(card, job, jobId, tier, usage, limits);
     renderResumeButton(card, job, jobId, tier, usage, limits);
     renderAutofillButton(card, job, tier, usage, limits);
+  });
+}
+
+// ─── Evaluate button (helper panel) ──────────────────────────────────────────
+
+function renderEvaluateButton(card, job, jobId, tier, usage, limits) {
+  const area = card.querySelector("#nr-helper-eval-area");
+  if (!area || !jobId) return;
+
+  const evalsToday = usage.evaluations_today ?? 0;
+  const evalLimit  = limits.evaluations_per_day ?? 1;
+  const atLimit    = evalLimit !== -1 && evalsToday >= evalLimit;
+
+  if (atLimit) {
+    area.innerHTML = `
+      <div class="nr-upgrade-box">
+        <div class="nr-ub-title">AI Evaluate</div>
+        <div class="nr-ub-desc">You've used your free evaluation for today. Upgrade for more daily evaluations.</div>
+        <div class="nr-ub-actions">
+          <button class="nr-ub-primary" id="nr-eval-upgrade">Upgrade →</button>
+          <button class="nr-ub-secondary" id="nr-eval-dismiss">Not now</button>
+        </div>
+      </div>
+    `;
+    area.querySelector("#nr-eval-upgrade").addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing?feature=evaluate` });
+    });
+    area.querySelector("#nr-eval-dismiss").addEventListener("click", () => { area.innerHTML = ""; });
+    return;
+  }
+
+  const costLabel = tier === "free" ? "1/day free" : "5 credits";
+
+  area.innerHTML = `
+    <div class="nr-action-row" id="nr-eval-btn">
+      <div class="nr-action-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
+      </div>
+      <span class="nr-action-label">AI Evaluate</span>
+      <span class="nr-action-cost">${costLabel}</span>
+    </div>
+    <div id="nr-heval-result-area"></div>
+  `;
+
+  area.querySelector("#nr-eval-btn").addEventListener("click", () => {
+    runEvaluateInHelper(area, job, jobId);
+  });
+}
+
+function runEvaluateInHelper(area, job, jobId) {
+  injectStepStyles();
+
+  area.innerHTML = `
+    <div style="padding:10px 11px;border-radius:7px;background:#f5f2ee;margin-bottom:7px;">
+      <div class="nr-steps">
+        <div class="nr-step nr-step-active" id="nr-hestep-fetch"><span class="nr-step-dot"></span>Fetching your profile</div>
+        <div class="nr-step" id="nr-hestep-eval"><span class="nr-step-dot"></span>Running AI evaluation</div>
+        <div class="nr-step" id="nr-hestep-compare"><span class="nr-step-dot"></span>Comparing with your CV</div>
+        <div class="nr-step" id="nr-hestep-done"><span class="nr-step-dot"></span>Ready</div>
+      </div>
+    </div>
+    <div id="nr-heval-result-area"></div>
+  `;
+
+  function setHStep(id, state) {
+    const el = area.querySelector(`#${id}`);
+    if (!el) return;
+    el.className = `nr-step nr-step-${state}`;
+  }
+
+  setTimeout(() => { setHStep("nr-hestep-fetch", "done"); setHStep("nr-hestep-eval", "active"); }, 800);
+
+  const compareTimer = setTimeout(() => {
+    setHStep("nr-hestep-eval", "done");
+    setHStep("nr-hestep-compare", "active");
+  }, 8000);
+
+  chrome.runtime.sendMessage({ type: "EVALUATE_JOB", jobId }, (evalRes) => {
+    clearTimeout(compareTimer);
+
+    if (chrome.runtime.lastError || !evalRes?.ok) {
+      setHStep("nr-hestep-eval", "error");
+      setHStep("nr-hestep-compare", "error");
+      const resultArea = area.querySelector("#nr-heval-result-area");
+      if (resultArea) {
+        resultArea.innerHTML = `
+          <div style="padding:8px 0;font-size:12px;color:#b53a3a;">${escapeHtml(evalRes?.error ?? "Evaluation failed — try again")}</div>
+          ${evalRes?.upgrade ? `
+            <button class="nr-btn nr-primary" id="nr-heval-upgrade" style="margin-top:4px;">Upgrade plan →</button>
+          ` : `
+            <button class="nr-btn nr-secondary" id="nr-heval-retry" style="margin-top:4px;">Retry</button>
+          `}
+        `;
+        resultArea.querySelector("#nr-heval-upgrade")?.addEventListener("click", () => {
+          chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing` });
+          removeCard();
+        });
+        resultArea.querySelector("#nr-heval-retry")?.addEventListener("click", () => {
+          runEvaluateInHelper(area, job, jobId);
+        });
+      }
+      return;
+    }
+
+    setHStep("nr-hestep-fetch", "done");
+    setHStep("nr-hestep-eval", "done");
+    setHStep("nr-hestep-compare", "done");
+    setHStep("nr-hestep-done", "done");
+
+    const score      = evalRes.score ?? 0;
+    const decision   = evalRes.decision ?? "watch";
+    const summary    = evalRes.blocks?.decision?.rationale ?? evalRes.blocks?.role_fit?.summary ?? "";
+    const scoreColor = score >= 3.5 ? "#2f7a3a" : score >= 2.5 ? "#8a6d1a" : "#b53a3a";
+
+    const resultArea = area.querySelector("#nr-heval-result-area");
+    if (resultArea) {
+      resultArea.innerHTML = `
+        <div class="nr-eval-result">
+          <div class="nr-eval-score-row">
+            <span class="nr-eval-score" style="--s-color:${scoreColor}">${score.toFixed(1)}</span>
+            <span class="nr-eval-decision ${decision}">${decision}</span>
+          </div>
+          ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
+          <button class="nr-btn nr-primary" id="nr-heval-open" style="margin-top:2px;">View full evaluation →</button>
+        </div>
+      `;
+      resultArea.querySelector("#nr-heval-open").addEventListener("click", () => {
+        chrome.runtime.sendMessage({
+          type: "OPEN_TAB",
+          url: evalRes.evaluation_id
+            ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&eval=${evalRes.evaluation_id}`
+            : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
+        });
+        removeCard();
+      });
+    }
   });
 }
 
