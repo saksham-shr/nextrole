@@ -988,25 +988,73 @@ function showNewJobCard(job) {
       <div class="nr-title">${escapeHtml(job.title)}</div>
       <div class="nr-company">${escapeHtml(job.company)}</div>
       <div class="nr-url">${escapeHtml(urlDisplay)}</div>
-      <div class="nr-actions">
-        <button class="nr-btn nr-secondary" id="nr-card-pipeline">+ Add to Pipeline</button>
-        <button class="nr-btn nr-primary" id="nr-card-evaluate">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
-          Evaluate
-        </button>
+      <div id="nr-card-body-actions">
+        <div class="nr-actions">
+          <button class="nr-btn nr-secondary" id="nr-card-pipeline">+ Add to Pipeline</button>
+          <button class="nr-btn nr-primary" id="nr-card-evaluate">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
+            Evaluate
+          </button>
+        </div>
       </div>
     </div>
   `;
   document.body.appendChild(card);
 
-  // Card stays open until user explicitly closes it
   card.querySelector("#nr-card-close").addEventListener("click", removeCard);
-  card.querySelector("#nr-card-pipeline").addEventListener("click", () => {
-    submitFromCard(job, "pipeline", card);
+
+  // Check login state — swap buttons for sign-in prompt if not authenticated
+  try {
+    chrome.runtime.sendMessage({ type: "GET_SESSION" }, (res) => {
+      if (chrome.runtime.lastError || !res?.loggedIn) {
+        _showCardSignInPrompt(card);
+        return;
+      }
+      // Logged in — wire up action buttons
+      card.querySelector("#nr-card-pipeline").addEventListener("click", () => {
+        submitFromCard(job, "pipeline", card);
+      });
+      card.querySelector("#nr-card-evaluate").addEventListener("click", () => {
+        submitFromCard(job, "evaluate", card);
+      });
+    });
+  } catch {
+    _showCardSignInPrompt(card);
+  }
+}
+
+const AUTH_ERROR_STRINGS = ["Unauthorized", "Session expired", "Not logged in", "log in again", "401"];
+
+function _isAuthError(msg) {
+  return AUTH_ERROR_STRINGS.some((s) => (msg ?? "").includes(s));
+}
+
+// Replace any card body container with a sign-in prompt
+function _showSignInInContainer(container) {
+  container.innerHTML = `
+    <div style="margin-top:10px;padding:12px;border-radius:8px;background:#f5f2ee;text-align:center;">
+      <div style="font-size:12.5px;font-weight:600;margin-bottom:4px;color:#1a1814;">Sign in to use NextRole</div>
+      <div style="font-size:11.5px;color:#6b6358;margin-bottom:10px;line-height:1.5;">
+        Log in to add jobs, run AI evaluations, and tailor your resume.
+      </div>
+      <button class="nr-btn nr-primary" id="nr-card-open-login" style="width:100%;margin-bottom:6px;">Sign in →</button>
+      <button class="nr-btn nr-secondary" id="nr-card-signup" style="width:100%;">Create free account</button>
+    </div>
+  `;
+  container.querySelector("#nr-card-open-login").addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
+    removeCard();
   });
-  card.querySelector("#nr-card-evaluate").addEventListener("click", () => {
-    submitFromCard(job, "evaluate", card);
+  container.querySelector("#nr-card-signup").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/signup` });
+    removeCard();
   });
+}
+
+function _showCardSignInPrompt(card) {
+  const area = card.querySelector("#nr-card-body-actions") ?? card.querySelector(".nr-cb");
+  if (!area) return;
+  _showSignInInContainer(area);
 }
 
 function showAlreadySavedCard(job, jobId) {
@@ -1133,10 +1181,16 @@ function submitFromCard(job, action, card) {
       { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
       (saveRes) => {
         if (chrome.runtime.lastError || !saveRes?.ok) {
-          setStep("nr-step-save", "error");
-          card.querySelector("#nr-step-save").lastChild.textContent = saveRes?.error ?? "Save failed — try again";
-          if (pipeBtn) pipeBtn.disabled = false;
-          if (evalBtn) evalBtn.disabled = false;
+          const errMsg = saveRes?.error ?? "Save failed — try again";
+          if (_isAuthError(errMsg)) {
+            const body = card.querySelector(".nr-cb");
+            if (body) _showSignInInContainer(body);
+          } else {
+            setStep("nr-step-save", "error");
+            card.querySelector("#nr-step-save").lastChild.textContent = errMsg;
+            if (pipeBtn) pipeBtn.disabled = false;
+            if (evalBtn) evalBtn.disabled = false;
+          }
           return;
         }
 
@@ -1236,15 +1290,21 @@ function submitFromCard(job, action, card) {
     { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
     (response) => {
       if (chrome.runtime.lastError || !response?.ok) {
-        if (pipeBtn) pipeBtn.disabled = false;
-        if (evalBtn) evalBtn.disabled = false;
-        const body = card.querySelector(".nr-cb");
-        if (body) {
-          const errEl = document.createElement("div");
-          errEl.style.cssText = "font-size:12px;color:#b53a3a;margin-top:8px;";
-          errEl.textContent = response?.error ?? "Error — try again.";
-          body.appendChild(errEl);
-          setTimeout(() => errEl.remove(), 4000);
+        const errMsg = response?.error ?? "Error — try again.";
+        if (_isAuthError(errMsg)) {
+          const body = card.querySelector(".nr-cb");
+          if (body) _showSignInInContainer(body);
+        } else {
+          if (pipeBtn) pipeBtn.disabled = false;
+          if (evalBtn) evalBtn.disabled = false;
+          const body = card.querySelector(".nr-cb");
+          if (body) {
+            const errEl = document.createElement("div");
+            errEl.style.cssText = "font-size:12px;color:#b53a3a;margin-top:8px;";
+            errEl.textContent = errMsg;
+            body.appendChild(errEl);
+            setTimeout(() => errEl.remove(), 4000);
+          }
         }
         return;
       }

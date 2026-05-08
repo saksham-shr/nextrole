@@ -112,27 +112,31 @@ function friendlyError(msg) {
 }
 
 function showJobError(msg) {
-  // Auth errors: clear stale tokens + drop straight to login screen
+  // Re-enable action buttons regardless of error type
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
+    if (b) b.disabled = false;
+  });
+
   if (isSessionError(msg)) {
-    chrome.runtime.sendMessage({ type: "LOGOUT" }, () => {
-      show("login");
-      const errEl = $("login-error");
-      errEl.textContent = "Your session expired — please sign in again.";
-      errEl.classList.remove("hidden");
-      // re-enable the sign-in button just in case
-      const btn = $("btn-login");
-      if (btn) { btn.disabled = false; btn.textContent = "Sign in"; }
+    // Show inline sign-in prompt instead of auto-logout (auto-logout causes a re-login loop)
+    jobErrorEl.innerHTML =
+      `Session expired — <button id="nr-signin-btn" style="color:var(--accent);background:none;border:none;cursor:pointer;font-size:11px;padding:0;text-decoration:underline;font-family:inherit;">sign in again</button>`;
+    jobErrorEl.classList.remove("hidden");
+    show("job");
+    document.getElementById("nr-signin-btn")?.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "LOGOUT" }, () => {
+        clearJobError();
+        currentJob = null;
+        currentJobId = null;
+        show("login");
+      });
     });
     return;
   }
 
   jobErrorEl.textContent = friendlyError(msg);
   jobErrorEl.classList.remove("hidden");
-  show("job"); // stay on the job view
-  // Re-enable action buttons
-  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
-    if (b) b.disabled = false;
-  });
+  show("job");
 }
 
 function clearJobError() {
