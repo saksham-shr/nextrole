@@ -380,68 +380,81 @@ export function SettingsPageContent({
   message?: string;
 }) {
   const [activeSection, setActiveSection] = useState("profile");
+  const [navOpen, setNavOpen] = useState(true);
   const cvMissing = !profile?.base_cv;
   const isIndia = useIsIndia();
 
   function scrollTo(id: string) {
     setActiveSection(id);
+    // On mobile collapse the nav after picking a section
+    if (typeof window !== "undefined" && window.innerWidth < 768) setNavOpen(false);
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
     <div className="mx-auto pt-4" style={{ maxWidth: 1100 }}>
-      {/* Mobile horizontal tab nav */}
-      <div className="mb-5 flex items-center gap-1 overflow-x-auto pb-1 md:hidden">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => scrollTo(item.id)}
-            className="shrink-0 rounded-[5px] px-3 py-1.5 text-[12.5px] transition"
-            style={{
-              background: activeSection === item.id ? "var(--surface)" : "transparent",
-              border: `1px solid ${activeSection === item.id ? "var(--line-soft)" : "transparent"}`,
-              color: activeSection === item.id ? "var(--foreground)" : "var(--muted-foreground)",
-              fontWeight: activeSection === item.id ? 500 : 400,
-            }}
-          >
-            {item.label}
-          </button>
-        ))}
-        <Link href="/dashboard/billing" className="shrink-0 rounded-[5px] px-3 py-1.5 text-[12.5px] text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]">
-          Billing
-        </Link>
-      </div>
+      {/* Collapsible sidebar + main */}
+      <div className={`grid grid-cols-1 gap-8 ${navOpen ? "md:grid-cols-[200px_1fr]" : ""}`}>
 
-      {/* Desktop: sidebar + main grid */}
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
-      {/* Sidebar — desktop only */}
-      <div className="hidden shrink-0 md:block">
-        <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Settings</div>
-        <div className="flex flex-col gap-0.5">
-          {NAV_ITEMS.map((item) => (
+      {/* Sidebar — visible when navOpen */}
+      {navOpen && (
+        <div className="shrink-0">
+          {/* Header row with collapse button */}
+          <div className="mb-3 flex items-center justify-between">
+            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Settings</span>
             <button
-              key={item.id}
-              onClick={() => scrollTo(item.id)}
-              className="rounded-[5px] px-3 py-2 text-left text-[13px] transition"
-              style={{
-                background: activeSection === item.id ? "var(--surface)" : "transparent",
-                border: `1px solid ${activeSection === item.id ? "var(--line-soft)" : "transparent"}`,
-                color: activeSection === item.id ? "var(--foreground)" : "var(--muted-foreground)",
-                fontWeight: activeSection === item.id ? 500 : 400,
-              }}
+              onClick={() => setNavOpen(false)}
+              title="Collapse sidebar"
+              className="rounded-[5px] p-1 text-[var(--muted-foreground)] transition hover:bg-[var(--surface)] hover:text-[var(--foreground)]"
             >
-              {item.label}
+              {/* Left arrow / close */}
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 12L6 8l4-4" />
+              </svg>
             </button>
-          ))}
-          <Link href="/dashboard/billing" className="rounded-[5px] px-3 py-2 text-left text-[13px] text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]">
-            Billing
-          </Link>
+          </div>
+          <div className="flex flex-col gap-0.5">
+            {NAV_ITEMS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => scrollTo(item.id)}
+                className="rounded-[5px] px-3 py-2 text-left text-[13px] transition"
+                style={{
+                  background: activeSection === item.id ? "var(--surface)" : "transparent",
+                  border: `1px solid ${activeSection === item.id ? "var(--line-soft)" : "transparent"}`,
+                  color: activeSection === item.id ? "var(--foreground)" : "var(--muted-foreground)",
+                  fontWeight: activeSection === item.id ? 500 : 400,
+                }}
+              >
+                {item.label}
+              </button>
+            ))}
+            <Link href="/dashboard/billing" className="rounded-[5px] px-3 py-2 text-left text-[13px] text-[var(--muted-foreground)] transition hover:text-[var(--foreground)]">
+              Billing
+            </Link>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main */}
       <div>
-        <h1 className="mb-6 text-[24px] font-normal tracking-[-0.02em]">Settings</h1>
+        {/* Page header — always shows expand button when sidebar is closed */}
+        <div className="mb-6 flex items-center gap-3">
+          {!navOpen && (
+            <button
+              onClick={() => setNavOpen(true)}
+              title="Open sidebar"
+              className="rounded-[6px] border border-[var(--line-soft)] p-1.5 text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="2" y1="4" x2="14" y2="4" />
+                <line x1="2" y1="8" x2="14" y2="8" />
+                <line x1="2" y1="12" x2="14" y2="12" />
+              </svg>
+            </button>
+          )}
+          <h1 className="text-[24px] font-normal tracking-[-0.02em]">Settings</h1>
+        </div>
 
         {error && <div className="mb-4"><Alert message={error} tone="bad" /></div>}
         {message && <div className="mb-4"><Alert message={message} tone="ok" /></div>}
@@ -649,7 +662,7 @@ export function SettingsPageContent({
           </SettingsCard>
         </form>
       </div>
-      </div>{/* end desktop grid */}
+      </div>{/* end grid */}
     </div>
   );
 }

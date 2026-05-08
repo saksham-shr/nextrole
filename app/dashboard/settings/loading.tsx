@@ -29,17 +29,13 @@ function FormCard({ fields = 2, tall = false }: { fields?: number; tall?: boolea
 export default function SettingsLoading() {
   return (
     <div className="animate-pulse mx-auto pt-4" style={{ maxWidth: 1100 }}>
-      {/* Mobile horizontal tab bar */}
-      <div className="mb-5 flex gap-1 overflow-x-auto pb-1 md:hidden">
-        {["w-24", "w-32", "w-28", "w-24", "w-16"].map((w, i) => (
-          <S key={i} className={`h-7 ${w} shrink-0 rounded-[5px]`} />
-        ))}
-      </div>
-
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[200px_1fr]">
-        {/* Desktop sidebar */}
-        <div className="hidden shrink-0 md:block">
-          <S className="mb-3 h-[9px] w-16 rounded-[4px]" />
+        {/* Sidebar */}
+        <div className="shrink-0">
+          <div className="mb-3 flex items-center justify-between">
+            <S className="h-[9px] w-16 rounded-[4px]" />
+            <S className="h-6 w-6 rounded-[5px]" />
+          </div>
           <div className="flex flex-col gap-1">
             {["w-28", "w-32", "w-24", "w-36", "w-14"].map((w, i) => (
               <S key={i} className={`h-8 ${w} rounded-[5px]`} />
@@ -49,7 +45,9 @@ export default function SettingsLoading() {
 
         {/* Main content */}
         <div className="space-y-4">
-          <S className="h-8 w-32 rounded-[6px]" />
+          <div className="flex items-center gap-3">
+            <S className="h-8 w-32 rounded-[6px]" />
+          </div>
 
           {/* Personal info */}
           <FormCard fields={4} />
