@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/nextrole/brand";
-import { createExtensionToken } from "./actions";
 
 // ─── Google SVG ───────────────────────────────────────────────────────────────
 
@@ -59,7 +58,10 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) {
-        connectExtension();
+        connectExtension().catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Unknown error");
+          setPhase("error");
+        });
       } else {
         setPhase("login");
       }
@@ -67,17 +69,30 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Use a direct fetch to /api/extension/token instead of a server action.
+  // This ensures the browser session cookie is always sent with the request.
   async function connectExtension() {
     setPhase("connecting");
-    const result = await createExtensionToken();
-    if (!result.ok) {
-      setError(result.error);
-      setPhase("error");
-      return;
+
+    const res = await fetch("/api/extension/token", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Browser Extension" }),
+    });
+
+    const data: { token?: string; error?: string } = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(data.error ?? `Request failed (${res.status})`);
     }
+
+    if (!data.token) {
+      throw new Error("No token returned from server");
+    }
+
     setPhase("done");
-    // Redirect back to extension with the token
-    window.location.href = `${redirectTo}?token=${encodeURIComponent(result.token)}`;
+    window.location.href = `${redirectTo}?token=${encodeURIComponent(data.token)}`;
   }
 
   async function handleGoogle() {
@@ -105,7 +120,12 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
       setLoginBusy(false);
       return;
     }
-    connectExtension();
+    try {
+      await connectExtension();
+    } catch (err) {
+      setLoginError(err instanceof Error ? err.message : "Connection failed");
+      setLoginBusy(false);
+    }
   }
 
   // ── Checking ──
@@ -140,7 +160,13 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
         <p className="text-xs text-[var(--muted)] text-center mb-4">{error}</p>
         <button
           className="w-full py-2 rounded-[7px] bg-[var(--accent)] text-white text-xs font-medium"
-          onClick={() => { setPhase("checking"); connectExtension(); }}
+          onClick={() => {
+            setPhase("checking");
+            connectExtension().catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : "Unknown error");
+              setPhase("error");
+            });
+          }}
         >
           Retry
         </button>
