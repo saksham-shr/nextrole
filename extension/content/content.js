@@ -1572,13 +1572,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
-// Returns true if a high-confidence job was found and card shown.
+// Returns true if any job was found and card shown.
+// Shows card for ALL confidence levels — low-confidence jobs show "Possible Job" label.
 function detectAndShow() {
   const job = extractJob();
-  const isHighConfidence = job && job.confidence !== "low";
-  chrome.runtime.sendMessage({ type: "JOB_DETECTED", found: !!isHighConfidence });
-  if (isHighConfidence) showDetectCard(job);
-  return !!isHighConfidence;
+  if (!job) return false;
+  // Badge only for high-confidence (confirmed ATS extractors)
+  const isHigh = job.confidence !== "low";
+  chrome.runtime.sendMessage({ type: "JOB_DETECTED", found: isHigh });
+  showDetectCard(job);
+  return true; // stop retrying — we found something
 }
 
 // Retry at 1s → 2.5s → 5s after navigation.

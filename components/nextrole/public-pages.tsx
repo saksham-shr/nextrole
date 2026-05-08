@@ -225,7 +225,7 @@ SOFTWARE.`;
 export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" } = {}) {
   return (
     <header
-      className="flex items-center px-14 py-5"
+      className="flex items-center px-4 py-4 sm:px-8 lg:px-14 lg:py-5"
       style={{ borderBottom: "1px solid var(--line-soft)" }}
     >
       <Link href="/" aria-label="NextRole home">
@@ -245,7 +245,7 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
           Pricing
         </Link>
       </nav>
-      <div className="flex items-center gap-2.5">
+      <div className="ml-auto flex items-center gap-2.5 md:ml-0">
         <span className="hidden rounded-full border border-[var(--accent)] bg-[#fcefe7] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--accent)] sm:inline-block">
           Private beta
         </span>
@@ -256,6 +256,13 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         >
           Sign in
         </Link>
+        <Link
+          href="/signup"
+          className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90 md:hidden"
+          style={{ background: "var(--accent)" }}
+        >
+          Get started
+        </Link>
       </div>
     </header>
   );
@@ -263,38 +270,39 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
 
 function SiteFooter() {
   return (
-    <footer style={{ borderTop: "1px solid var(--line-soft)", padding: "40px 56px" }}>
-      <div className="mx-auto flex max-w-[1100px] items-start justify-between gap-8">
-        <div>
-          <BrandWordmark size={22} />
-          <p className="mt-3 max-w-[280px] text-[13px] leading-[1.6] text-[var(--muted-foreground)]">
-            The AI job search assistant for people who actually want to land jobs.
-          </p>
-        </div>
-        <div className="flex gap-14 text-[13px]">
-          <div>
-            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Product</p>
-            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
-              <Link href="/#how-it-works" className="transition hover:text-[var(--foreground)]">How it works</Link>
-              <Link href="/#features" className="transition hover:text-[var(--foreground)]">Features</Link>
-              <Link href="/pricing" className="transition hover:text-[var(--foreground)]">Pricing</Link>
+    <footer className="border-t border-[var(--line-soft)] px-4 py-10 sm:px-8 lg:px-14">
+      <div className="mx-auto max-w-[1100px]">
+        <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
+          <div className="shrink-0">
+            <BrandWordmark size={22} />
+            <p className="mt-3 max-w-[260px] text-[13px] leading-[1.6] text-[var(--muted-foreground)]">
+              The AI job search assistant for people who actually want to land jobs.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-8 text-[13px] sm:flex sm:gap-14">
+            <div>
+              <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Product</p>
+              <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+                <Link href="/#how-it-works" className="transition hover:text-[var(--foreground)]">How it works</Link>
+                <Link href="/#features" className="transition hover:text-[var(--foreground)]">Features</Link>
+                <Link href="/pricing" className="transition hover:text-[var(--foreground)]">Pricing</Link>
+              </div>
+            </div>
+            <div>
+              <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Legal</p>
+              <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
+                <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
+                <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
+              </div>
             </div>
           </div>
-          <div>
-            <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Legal</p>
-            <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
-              <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
-              <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
-            </div>
-          </div>
         </div>
-      </div>
-      <div
-        className="mx-auto mt-10 flex max-w-[1100px] items-center justify-between pt-5 text-[12px] text-[var(--muted-foreground)]"
-        style={{ borderTop: "1px solid var(--line-soft)" }}
-      >
-        <span>© 2026 NextRole</span>
-        <span className="font-['DM_Mono']">v1.0.0 · made for the next role</span>
+        <div
+          className="mt-8 flex flex-col items-center gap-1 border-t border-[var(--line-soft)] pt-5 text-[12px] text-[var(--muted-foreground)] sm:flex-row sm:justify-between"
+        >
+          <span>© 2026 NextRole</span>
+          <span className="font-['DM_Mono']">v1.0.0 · made for the next role</span>
+        </div>
       </div>
     </footer>
   );
@@ -458,43 +466,23 @@ export function LandingPage() {
       <PublicHeader />
 
       {/* ── Hero ── */}
-      <section style={{ padding: "88px 56px 64px", maxWidth: 1100, margin: "0 auto" }}>
-        <p
-          className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]"
-          style={{ marginBottom: 24, color: "var(--accent)" }}
-        >
+      <section className="mx-auto max-w-[1100px] px-4 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-14 lg:pb-14 lg:pt-[88px]">
+        <p className="mb-5 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">
           · AI Job Search Assistant
         </p>
 
-        <h1
-          style={{
-            fontSize: 64,
-            lineHeight: 1.02,
-            letterSpacing: "-0.025em",
-            maxWidth: 880,
-            marginBottom: 24,
-            fontWeight: 600,
-          }}
-        >
+        <h1 className="mb-5 max-w-[880px] text-[40px] font-semibold leading-[1.05] tracking-[-0.025em] sm:text-[52px] lg:text-[64px]" style={{ lineHeight: 1.02 }}>
           Land jobs faster
           <br />
           with AI.
         </h1>
-        <p
-          style={{
-            fontSize: 18,
-            color: "var(--muted-foreground)",
-            maxWidth: 580,
-            marginBottom: 36,
-            lineHeight: 1.55,
-          }}
-        >
+        <p className="mb-8 max-w-[540px] text-[16px] leading-[1.55] text-[var(--muted-foreground)] sm:text-[18px]">
           Detect jobs as you browse, evaluate fit instantly, autofill applications, and tailor your resume — all in one flow.
         </p>
-        <div style={{ display: "flex", gap: 12, marginBottom: 28 }}>
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/signup"
-            className="inline-flex items-center gap-2 rounded-md px-[22px] py-[14px] text-[15px] font-medium text-[#fffdf8] transition hover:opacity-90"
+            className="inline-flex items-center justify-center gap-2 rounded-md px-6 py-3.5 text-[15px] font-medium text-[#fffdf8] transition hover:opacity-90"
             style={{ background: "var(--accent)" }}
           >
             Get started free
@@ -502,63 +490,63 @@ export function LandingPage() {
           </Link>
           <Link
             href="/#how-it-works"
-            className="inline-flex items-center gap-2 rounded-md border px-[22px] py-[14px] text-[15px] font-medium transition hover:border-[var(--line)]"
+            className="inline-flex items-center justify-center gap-2 rounded-md border px-6 py-3.5 text-[15px] font-medium transition hover:border-[var(--line)]"
             style={{ border: "1px solid var(--line-soft)" }}
           >
             See how it works
           </Link>
         </div>
-        <div className="flex items-center gap-2.5" style={{ color: "var(--muted-foreground)", fontSize: 13 }}>
+        <div className="flex items-center gap-2.5 text-[13px] text-[var(--muted-foreground)]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
           Free forever — no card required. Upgrade for daily AI credits.
         </div>
       </section>
 
       {/* ── Hero visual ── */}
-      <section style={{ padding: "0 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
-        {/* Browser mock + extension card */}
-        <div className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)", background: "var(--surface)" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr", minHeight: 360 }}>
-            {/* Left: browser mock */}
-            <div className="nr-stripes" style={{ borderRight: "1px solid var(--line-soft)", padding: 24, position: "relative" }}>
-              <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
-                {["rgba(42,38,32,0.15)", "rgba(42,38,32,0.15)", "rgba(42,38,32,0.15)"].map((c, i) => (
-                  <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: c, display: "inline-block" }} />
+      <section className="mx-auto max-w-[1100px] px-4 pb-14 sm:px-8 lg:px-14 lg:pb-20">
+        <div className="overflow-hidden rounded-lg border border-[var(--line-soft)] bg-[var(--surface)]">
+          {/* Two-column on lg+, single card on mobile */}
+          <div className="lg:grid lg:min-h-[360px]" style={{ gridTemplateColumns: "1.4fr 1fr" }}>
+            {/* Left: browser mock — hidden on mobile */}
+            <div className="nr-stripes hidden border-r border-[var(--line-soft)] p-6 lg:block" style={{ position: "relative" }}>
+              <div className="mb-5 flex gap-1.5">
+                {[0,1,2].map((i) => (
+                  <span key={i} style={{ width: 9, height: 9, borderRadius: "50%", background: "rgba(42,38,32,0.15)", display: "inline-block" }} />
                 ))}
-                <div style={{ marginLeft: 10, padding: "3px 10px", background: "var(--background)", borderRadius: 4, fontSize: 11, fontFamily: "DM Mono, monospace", color: "var(--muted-foreground)" }}>
+                <div className="ml-2.5 rounded font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]" style={{ padding: "3px 10px", background: "var(--background)" }}>
                   jobs.example.com/senior-engineer
                 </div>
               </div>
-              <div style={{ background: "var(--surface)", borderRadius: 6, padding: 28, height: 230, border: "1px solid var(--line-soft)" }}>
+              <div className="rounded-md border border-[var(--line-soft)] bg-[var(--surface)] p-7" style={{ height: 230 }}>
                 {[[200, 14], [140, 10, 24], [0, 8], [0, 8], [0, 8]].map(([w, h, mb], i) => (
                   <div key={i} style={{ width: w || "90%", height: h, background: "var(--line-softer)", borderRadius: 3, marginBottom: mb ?? 8 }} />
                 ))}
               </div>
             </div>
-            {/* Right: extension card */}
-            <div style={{ padding: 32, display: "flex", flexDirection: "column", justifyContent: "center", background: "var(--surface)" }}>
-              <div className="rounded-lg overflow-hidden" style={{ border: "1px solid var(--line-soft)", boxShadow: "0 8px 24px rgba(42,38,32,0.08)" }}>
-                <div style={{ background: "var(--accent)", color: "var(--surface)", padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Right: extension card — full width on mobile */}
+            <div className="flex flex-col justify-center bg-[var(--surface)] p-6 sm:p-8">
+              <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)", boxShadow: "0 8px 24px rgba(42,38,32,0.08)" }}>
+                <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: "var(--accent)", color: "var(--surface)" }}>
                   <div className="flex items-center gap-2 font-['DM_Mono'] text-[12px] uppercase tracking-[0.06em]">
                     <BrandMark size={16} />
                     Job Detected
                   </div>
                   <span style={{ opacity: 0.7, fontSize: 14 }}>×</span>
                 </div>
-                <div style={{ padding: 16 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>Senior Backend Engineer</div>
-                  <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 16 }}>Stripe · Remote</div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", background: "var(--background)", borderRadius: 5, marginBottom: 14 }}>
-                    <span className="inline-flex items-center justify-center font-['DM_Mono'] font-medium text-[12px]" style={{ width: 26, height: 22, borderRadius: 4, background: "var(--ok-bg)", color: "var(--ok)", border: "1px solid rgba(47,122,58,0.2)" }}>4</span>
+                <div className="p-4">
+                  <div className="mb-1 text-[14px] font-semibold">Senior Backend Engineer</div>
+                  <div className="mb-4 text-[13px] text-[var(--muted-foreground)]">Stripe · Remote</div>
+                  <div className="mb-3.5 flex items-center gap-2 rounded-md bg-[var(--background)] px-2.5 py-2">
+                    <span className="inline-flex items-center justify-center rounded font-['DM_Mono'] text-[12px] font-medium" style={{ width: 26, height: 22, background: "var(--ok-bg)", color: "var(--ok)", border: "1px solid rgba(47,122,58,0.2)" }}>4</span>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 500 }}>Strong fit</div>
-                      <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>4.2/5 · CV match 87%</div>
+                      <div className="text-[12px] font-medium">Strong fit</div>
+                      <div className="text-[11px] text-[var(--muted-foreground)]">4.2/5 · CV match 87%</div>
                     </div>
                   </div>
-                  <Link href="/signup" className="flex items-center justify-center rounded-md text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90" style={{ width: "100%", padding: "8px 12px", marginBottom: 6, background: "var(--accent)" }}>
+                  <Link href="/signup" className="mb-1.5 flex w-full items-center justify-center rounded-md py-2 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90" style={{ background: "var(--accent)" }}>
                     + Add to pipeline
                   </Link>
-                  <Link href="/signup" className="flex items-center justify-center rounded-md text-[13px] font-medium transition hover:border-[var(--line)]" style={{ width: "100%", padding: "6px 10px", border: "1px solid var(--line-soft)" }}>
+                  <Link href="/signup" className="flex w-full items-center justify-center rounded-md py-1.5 text-[13px] font-medium transition hover:border-[var(--line)]" style={{ border: "1px solid var(--line-soft)" }}>
                     Evaluate
                   </Link>
                 </div>
@@ -569,56 +557,56 @@ export function LandingPage() {
       </section>
 
       {/* ── How it works ── */}
-      <section id="how-it-works" style={{ padding: "64px 56px", maxWidth: 1100, margin: "0 auto" }}>
-        <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
-          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>01</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>How it works</span>
-          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
+      <section id="how-it-works" className="mx-auto max-w-[1100px] px-4 py-12 sm:px-8 lg:px-14 lg:py-16">
+        <div className="mb-4 flex items-center gap-2.5">
+          <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">01</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">How it works</span>
+          <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
-        <h2 style={{ fontSize: 32, letterSpacing: "-0.02em", marginBottom: 48, maxWidth: 600, fontWeight: 600 }}>
+        <h2 className="mb-10 max-w-[600px] text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[32px] lg:mb-12">
           From browsing to applied in four steps.
         </h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 1, background: "var(--line-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, overflow: "hidden" }}>
+        <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[var(--line-soft)] bg-[var(--line-soft)] sm:grid-cols-2 lg:grid-cols-4">
           {[
             { n: "01", icon: "M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z", t: "Install extension", d: "Add NextRole to Chrome in one click." },
             { n: "02", icon: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36M21 3l-3 3m0 0l-3-3m3 3v7", t: "Browse normally", d: "A card pops up the moment we detect a job posting." },
             { n: "03", icon: "M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8", t: "AI scores fit", d: "Get a 1—5 fit score with reasoning before you apply." },
             { n: "04", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4", t: "Tailor & apply", d: "Generate a tailored resume and autofill in seconds." },
           ].map((s) => (
-            <div key={s.n} style={{ background: "var(--surface)", padding: 28, display: "flex", flexDirection: "column", gap: 14 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <div style={{ width: 38, height: 38, borderRadius: 6, background: "var(--accent-soft)", color: "var(--accent)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <div key={s.n} className="flex flex-col gap-3.5 bg-[var(--surface)] p-6 lg:p-7">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex h-[38px] w-[38px] items-center justify-center rounded-md text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
                     <path d={s.icon} />
                   </svg>
                 </div>
-                <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>{s.n}</span>
+                <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">{s.n}</span>
               </div>
-              <div style={{ fontWeight: 600, fontSize: 15 }}>{s.t}</div>
-              <div style={{ fontSize: 13, color: "var(--muted-foreground)", lineHeight: 1.55 }}>{s.d}</div>
+              <div className="text-[15px] font-semibold">{s.t}</div>
+              <div className="text-[13px] leading-[1.55] text-[var(--muted-foreground)]">{s.d}</div>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── Features ── */}
-      <section id="features" style={{ padding: "32px 56px 80px", maxWidth: 1100, margin: "0 auto" }}>
-        <div className="flex items-center gap-2.5" style={{ marginBottom: 32 }}>
-          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>02</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Features</span>
-          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
+      <section id="features" className="mx-auto max-w-[1100px] px-4 pb-14 sm:px-8 lg:px-14 lg:pb-20">
+        <div className="mb-7 flex items-center gap-2.5">
+          <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">02</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Features</span>
+          <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 20 }}>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               preview: (
-                <div style={{ padding: 12 }}>
-                  <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                <div className="p-3">
+                  <div className="mb-2 flex items-center gap-2">
                     <BrandMark size={14} />
-                    <span className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--accent)" }}>Job detected</span>
+                    <span className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em] text-[var(--accent)]">Job detected</span>
                   </div>
-                  <div style={{ fontSize: 12, fontWeight: 600 }}>Product Designer</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)" }}>Linear · San Francisco</div>
+                  <div className="text-[12px] font-semibold">Product Designer</div>
+                  <div className="text-[11px] text-[var(--muted-foreground)]">Linear · San Francisco</div>
                 </div>
               ),
               title: "Job detection",
@@ -626,7 +614,7 @@ export function LandingPage() {
             },
             {
               preview: (
-                <div className="flex items-center justify-center" style={{ padding: 24 }}>
+                <div className="flex items-center justify-center p-6">
                   <ScoreRing value={4.2} size={110} />
                 </div>
               ),
@@ -635,8 +623,8 @@ export function LandingPage() {
             },
             {
               preview: (
-                <div style={{ padding: "16px 16px 0" }}>
-                  <div style={{ padding: 12, borderRadius: 6, border: "1px solid var(--line-soft)", background: "var(--surface)" }}>
+                <div className="p-4 pb-0">
+                  <div className="rounded-md border border-[var(--line-soft)] bg-[var(--surface)] p-3">
                     {[[60], [90], [85], [70]].map(([w], i) => (
                       <div key={i} style={{ height: i === 0 ? 8 : 6, width: `${w}%`, background: i === 3 ? "var(--accent-soft)" : "var(--line-softer)", borderRadius: 2, marginBottom: i < 3 ? (i === 0 ? 8 : 5) : 0 }} />
                     ))}
@@ -647,15 +635,15 @@ export function LandingPage() {
               body: "Generates a job-specific resume in your voice — keywords, ordering, emphasis tuned to the role.",
             },
           ].map((f) => (
-            <div key={f.title} className="overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)" }}>
-              <div className="nr-stripes" style={{ height: 180, display: "flex", alignItems: "flex-end", borderBottom: "1px solid var(--line-soft)" }}>
-                <div className="w-full rounded-md overflow-hidden" style={{ margin: "0 16px 16px", background: "var(--surface)", border: "1px solid var(--line-soft)" }}>
+            <div key={f.title} className="overflow-hidden rounded-lg border border-[var(--line-soft)]">
+              <div className="nr-stripes flex items-end border-b border-[var(--line-soft)]" style={{ minHeight: 160 }}>
+                <div className="mx-4 mb-4 w-full overflow-hidden rounded-md border border-[var(--line-soft)] bg-[var(--surface)]">
                   {f.preview}
                 </div>
               </div>
-              <div style={{ padding: 20 }}>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>{f.title}</div>
-                <div style={{ fontSize: 13, color: "var(--muted-foreground)" }}>{f.body}</div>
+              <div className="p-5">
+                <div className="mb-1.5 font-semibold">{f.title}</div>
+                <div className="text-[13px] text-[var(--muted-foreground)]">{f.body}</div>
               </div>
             </div>
           ))}
@@ -663,39 +651,39 @@ export function LandingPage() {
       </section>
 
       {/* ── Social proof ── */}
-      <div style={{ padding: "40px 56px", borderTop: "1px solid var(--line-soft)", borderBottom: "1px solid var(--line-soft)" }}>
-        <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", alignItems: "center", gap: 32, flexWrap: "wrap", justifyContent: "center" }}>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Works on</span>
+      <div className="border-b border-t border-[var(--line-soft)] px-4 py-8 sm:px-8 lg:px-14">
+        <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-center gap-x-6 gap-y-3">
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Works on</span>
           {["LinkedIn", "Indeed", "Naukri", "Greenhouse", "Lever", "Wellfound", "Ashby", "YC Work"].map((b) => (
-            <span key={b} className="font-['DM_Mono']" style={{ fontSize: 14, color: "var(--muted-foreground)" }}>{b}</span>
+            <span key={b} className="font-['DM_Mono'] text-[14px] text-[var(--muted-foreground)]">{b}</span>
           ))}
         </div>
       </div>
 
       {/* ── Pricing teaser ── */}
-      <section style={{ padding: "80px 56px", maxWidth: 1100, margin: "0 auto" }}>
-        <div className="flex items-center gap-2.5" style={{ marginBottom: 16 }}>
-          <span className="font-['DM_Mono'] text-[11px]" style={{ color: "var(--muted-foreground)" }}>03</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: "var(--muted-foreground)" }}>Pricing</span>
-          <div style={{ flex: 1, height: 1, background: "var(--line-soft)" }} />
+      <section className="mx-auto max-w-[1100px] px-4 py-12 sm:px-8 lg:px-14 lg:py-20">
+        <div className="mb-4 flex items-center gap-2.5">
+          <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">03</span>
+          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Pricing</span>
+          <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
-        <h2 style={{ fontSize: 32, letterSpacing: "-0.02em", marginBottom: 36, fontWeight: 600 }}>Three plans. Pay for what you use.</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+        <h2 className="mb-8 text-[26px] font-semibold tracking-[-0.02em] sm:text-[32px]">Three plans. Pay for what you use.</h2>
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           {[
             { name: "Free", price: "$0", sub: "per month", items: ["5 evaluations / day", "1 custom resume / day", "Unlimited saved jobs", "Browser extension"] },
             { name: "Starter", price: "$9", sub: "per month", items: ["Everything in Free", "50 daily credits", "1 autofill / day · basic fields", "Refresh at midnight"] },
             { name: "Pro", price: "$19", sub: "per month", recommended: true, items: ["Everything in Starter", "200 daily credits", "Unlimited autofill, all fields", "Direct resume upload to forms"] },
           ].map((p) => (
-            <div key={p.name} className="rounded-lg" style={{ padding: 28, border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)", position: "relative" }}>
+            <div key={p.name} className="relative rounded-lg p-6 lg:p-7" style={{ border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)" }}>
               {p.recommended && (
-                <div style={{ position: "absolute", top: -10, right: 20, background: "var(--accent)", color: "var(--surface)", padding: "3px 10px", borderRadius: 4, fontSize: 10, fontFamily: "DM Mono, monospace", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <div className="absolute -top-2.5 right-4 rounded px-2.5 py-0.5 font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em] text-[var(--surface)]" style={{ background: "var(--accent)" }}>
                   Recommended
                 </div>
               )}
               <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: p.recommended ? "var(--accent)" : "var(--muted-foreground)" }}>{p.name}</p>
-              <div className="font-['DM_Mono']" style={{ fontSize: 32, fontWeight: 500, margin: "14px 0 4px" }}>{p.price}</div>
-              <div style={{ color: "var(--muted-foreground)", fontSize: 13, marginBottom: 20 }}>{p.sub}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, fontSize: 13.5 }}>
+              <div className="my-3 font-['DM_Mono'] text-[32px] font-medium">{p.price}</div>
+              <div className="mb-5 text-[13px] text-[var(--muted-foreground)]">{p.sub}</div>
+              <div className="flex flex-col gap-2.5 text-[13.5px]">
                 {p.items.map((item) => (
                   <div key={item} className="flex items-center gap-2">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12l5 5L20 7"/></svg>
@@ -706,8 +694,8 @@ export function LandingPage() {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 28, textAlign: "center" }}>
-          <Link href="/pricing" className="text-[13.5px] font-medium transition hover:opacity-70" style={{ color: "var(--accent)" }}>
+        <div className="mt-7 text-center">
+          <Link href="/pricing" className="text-[13.5px] font-medium text-[var(--accent)] transition hover:opacity-70">
             See full pricing details →
           </Link>
         </div>
@@ -1038,18 +1026,18 @@ export function PricingPage() {
       <PublicHeader activePage="pricing" />
 
       {/* Hero */}
-      <section className="px-14 pb-16 pt-[72px] text-center" style={{ maxWidth: 1100, margin: "0 auto" }}>
-        <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]" style={{ marginBottom: 16 }}>· Pricing</p>
-        <h1 className="mx-auto max-w-[720px] font-semibold leading-[1.05] tracking-[-0.025em]" style={{ fontSize: 48, marginBottom: 16 }}>
+      <section className="mx-auto max-w-[1100px] px-4 pb-12 pt-14 text-center sm:px-8 sm:pt-16 lg:px-14 lg:pb-16 lg:pt-[72px]">
+        <p className="mb-4 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">· Pricing</p>
+        <h1 className="mx-auto max-w-[720px] text-[36px] font-semibold leading-[1.05] tracking-[-0.025em] sm:text-[42px] lg:text-[48px]">
           Three plans.<br />One that fits your search.
         </h1>
-        <p className="mx-auto max-w-[500px] text-[17px] leading-[1.6] text-[var(--muted-foreground)]">
+        <p className="mx-auto mt-4 max-w-[500px] text-[16px] leading-[1.6] text-[var(--muted-foreground)] sm:text-[17px]">
           Start free. Add daily credits and autofill when you&apos;re ready to apply faster.
         </p>
       </section>
 
       {/* Plans grid */}
-      <section className="mx-auto max-w-[1100px] px-6 pb-16 sm:px-14">
+      <section className="mx-auto max-w-[1100px] px-4 pb-16 sm:px-8 lg:px-14">
         <PricingCards />
 
         {/* Credits explainer */}
@@ -1071,8 +1059,8 @@ export function PricingPage() {
         </div>
 
         {/* Feature comparison table */}
-        <div className="mt-10 overflow-hidden rounded-2xl border border-[var(--line-soft)]">
-          <table className="w-full text-[13px]">
+        <div className="mt-10 overflow-x-auto rounded-2xl border border-[var(--line-soft)]">
+          <table className="w-full min-w-[480px] text-[13px]">
             <thead>
               <tr className="border-b border-[var(--line-soft)] bg-[var(--surface)]">
                 <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Feature</th>

@@ -38,6 +38,7 @@ const successName    = $("success-job-name");
 const errorMsg       = $("error-message");
 const submittingText = $("submitting-text");
 const btnMarkApplied = $("btn-mark-applied");
+const jobErrorEl     = $("job-error");
 
 let currentJob   = null;
 let currentJobId = null;
@@ -89,6 +90,54 @@ function showJob(job) {
   } else {
     jdPreview.style.display = "none";
   }
+}
+
+// ─── Inline error helpers ─────────────────────────────────────────────────────
+
+const SESSION_ERRORS = ["Session expired", "Unauthorized", "Not logged in", "log in again"];
+
+function isSessionError(msg) {
+  return SESSION_ERRORS.some((s) => msg?.includes(s));
+}
+
+function friendlyError(msg) {
+  if (!msg) return "Something went wrong. Please try again.";
+  if (msg.includes("Failed to fetch") || msg.includes("NetworkError") || msg.includes("Network error")) {
+    return "Network error — please reload the extension at chrome://extensions and try again.";
+  }
+  if (isSessionError(msg)) {
+    return "Your session expired — please sign in again.";
+  }
+  return msg;
+}
+
+function showJobError(msg) {
+  // Auth errors: clear stale tokens + drop straight to login screen
+  if (isSessionError(msg)) {
+    chrome.runtime.sendMessage({ type: "LOGOUT" }, () => {
+      show("login");
+      const errEl = $("login-error");
+      errEl.textContent = "Your session expired — please sign in again.";
+      errEl.classList.remove("hidden");
+      // re-enable the sign-in button just in case
+      const btn = $("btn-login");
+      if (btn) { btn.disabled = false; btn.textContent = "Sign in"; }
+    });
+    return;
+  }
+
+  jobErrorEl.textContent = friendlyError(msg);
+  jobErrorEl.classList.remove("hidden");
+  show("job"); // stay on the job view
+  // Re-enable action buttons
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
+    if (b) b.disabled = false;
+  });
+}
+
+function clearJobError() {
+  jobErrorEl.textContent = "";
+  jobErrorEl.classList.add("hidden");
 }
 
 // ─── API calls via background ─────────────────────────────────────────────────
@@ -159,6 +208,7 @@ async function init() {
   currentJob   = null;
   currentJobId = null;
   resetAppliedButton();
+  clearJobError();
 
   const session = await getSession();
   if (!session.loggedIn) { show("login"); return; }
@@ -183,9 +233,11 @@ async function init() {
 
 // ─── Save job ─────────────────────────────────────────────────────────────────
 
+// Returns job_id on success. Throws on failure so callers can handle inline.
 async function saveJob(label) {
-  if (!currentJob) return;
+  if (!currentJob) throw new Error("No job data available.");
 
+  clearJobError();
   submittingText.textContent = label;
   show("submitting");
 
@@ -197,55 +249,59 @@ async function saveJob(label) {
     source:      "extension",
   });
 
-  currentJobId = res.job_id ?? null;
+  const jobId = res.job_id ?? null;
 
-  if (currentJobId) {
+  if (jobId) {
+    currentJobId = jobId;
     chrome.storage.session.set({
-      nr_last_job_id:    currentJobId,
+      nr_last_job_id:    jobId,
       nr_last_job_title: currentJob.title  ?? "",
       nr_last_company:   currentJob.company ?? "",
     });
   }
+
+  return jobId;
 }
 
 // ─── Action handlers ──────────────────────────────────────────────────────────
 
 async function handleEvaluate() {
+  // Disable buttons while saving to prevent double-clicks
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    await saveJob("Saving & opening evaluation…");
-    if (currentJobId) {
-      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/pipeline?job=${currentJobId}&action=evaluate` });
+    const jobId = await saveJob("Saving & opening evaluation…");
+    if (jobId) {
+      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate` });
     }
     successName.textContent = `${currentJob.title} at ${currentJob.company}`;
     show("success");
   } catch (err) {
-    errorMsg.textContent = err.message;
-    show("error");
+    showJobError(err.message);
   }
 }
 
 async function handlePipeline() {
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     await saveJob("Adding to pipeline…");
     successName.textContent = `${currentJob.title} at ${currentJob.company}`;
     show("success");
   } catch (err) {
-    errorMsg.textContent = err.message;
-    show("error");
+    showJobError(err.message);
   }
 }
 
 async function handleResume() {
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    await saveJob("Saving & opening resume builder…");
-    if (currentJobId) {
-      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/resume?job=${currentJobId}` });
+    const jobId = await saveJob("Saving & opening resume builder…");
+    if (jobId) {
+      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/resume?job=${jobId}` });
     }
     successName.textContent = `${currentJob.title} at ${currentJob.company}`;
     show("success");
   } catch (err) {
-    errorMsg.textContent = err.message;
-    show("error");
+    showJobError(err.message);
   }
 }
 
