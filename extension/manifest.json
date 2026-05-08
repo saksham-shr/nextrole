@@ -3,8 +3,12 @@
   "name": "NextRole — Job Detector",
   "version": "1.0.0",
   "description": "Detect job postings on any site and add them to your NextRole pipeline in one click.",
-  "permissions": ["activeTab", "storage", "scripting", "tabs"],
+  "minimum_chrome_version": "102",
+  "permissions": ["activeTab", "storage", "tabs"],
   "host_permissions": ["<all_urls>"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {

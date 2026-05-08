@@ -86,6 +86,7 @@ function fromLinkedIn() {
   const title = texts([
     ".job-details-jobs-unified-top-card__job-title h1",
     ".job-details-jobs-unified-top-card__job-title",
+    "h1.t-24.t-bold",
     ".topcard__title",
     "h1",
   ]);
@@ -93,8 +94,10 @@ function fromLinkedIn() {
   const company = texts([
     ".job-details-jobs-unified-top-card__company-name a",
     ".job-details-jobs-unified-top-card__company-name",
+    ".job-details-jobs-unified-top-card__primary-description-without-tagline a",
     ".topcard__org-name-link",
     ".topcard__flavor--black-link",
+    '[data-tracking-control-name="public_jobs_topcard-org-name"]',
   ]);
 
   // LinkedIn truncates with .show-more-less-html — grab both variants and pick longer
@@ -102,11 +105,14 @@ function fromLinkedIn() {
     ".show-more-less-html__markup--more",   // expanded state
     ".show-more-less-html__markup",          // any state
     ".jobs-description__content",
+    ".jobs-description-content__text",
     ".description__text",
   ]);
   // Also try the raw innerHTML → strip tags (catches content hidden by max-height CSS)
-  const descEl = document.querySelector(".jobs-box__html-content") ??
-    document.querySelector(".jobs-description-content__text");
+  const descEl =
+    document.querySelector(".jobs-box__html-content") ??
+    document.querySelector(".jobs-description-content__text") ??
+    document.querySelector(".jobs-description");
   const descB = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
   const description = longer(descA, descB);
 
@@ -154,18 +160,23 @@ function fromGlassdoor() {
 
   const title = texts([
     '[data-test="job-title"]',
+    '[class*="JobDetails_jobTitle"]',
     ".job-title",
     "h1",
   ]);
 
   const company = texts([
     '[data-test="employer-name"]',
+    '[class*="JobDetails_companyName"]',
+    '[class*="EmployerProfile_employerName"]',
     ".employer-name",
   ]);
 
-  const descEl = document.querySelector('[class*="JobDetails_jobDescription"]') ??
+  const descEl =
+    document.querySelector('[class*="JobDetails_jobDescription"]') ??
     document.querySelector('[class*="jobDescriptionContent"]') ??
     document.querySelector('[class*="jobDescription"]') ??
+    document.querySelector('[class*="description__Content"]') ??
     document.querySelector(".desc");
 
   // Glassdoor often has full HTML — strip tags for plain text
@@ -288,13 +299,20 @@ function fromWorkday() {
 
   const title = texts([
     '[data-automation-id="jobPostingHeader"]',
+    '[data-automation-id="jobPostingHeader"] h1',
+    '[data-automation-id="jobPostingHeader"] h2',
     "h2[data-automation-id]",
     "h1",
   ]);
 
-  const company = metaContent("og:site_name") ?? companyFromDomain();
+  const company =
+    metaContent("og:site_name") ??
+    text('[data-automation-id="breadcrumb-row"] a') ??
+    companyFromDomain();
 
-  const descEl = document.querySelector('[data-automation-id="jobPostingDescription"]') ??
+  const descEl =
+    document.querySelector('[data-automation-id="jobPostingDescription"]') ??
+    document.querySelector('[data-automation-id="job-posting-description"]') ??
     document.querySelector('[class*="job-description"]');
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
 
@@ -387,7 +405,268 @@ function fromNaukri() {
   return null;
 }
 
-// ─── Extractor 13: Heuristic fallback (any job site) ─────────────────────────
+// ─── Extractor 13: iCIMS ─────────────────────────────────────────────────────
+
+function fromICIMS() {
+  if (!location.hostname.includes("icims.com")) return null;
+
+  const title = texts([
+    ".iCIMS_JobTitle h1",
+    ".iCIMS_Header h1",
+    '[class*="iCIMS_Header"] h1',
+    "h1",
+  ]);
+
+  const company = metaContent("og:site_name") ?? companyFromDomain();
+
+  const descEl =
+    document.querySelector(".iCIMS_JobContent") ??
+    document.querySelector("#iCIMS_Content") ??
+    document.querySelector('[class*="job-description"]') ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "icims" };
+  }
+  return null;
+}
+
+// ─── Extractor 14: BambooHR ──────────────────────────────────────────────────
+
+function fromBambooHR() {
+  if (!location.hostname.includes("bamboohr.com")) return null;
+  if (!location.pathname.includes("/careers") && !location.pathname.includes("/jobs")) return null;
+
+  const title = texts([
+    ".BambooHR-ATS-item-title h2",
+    ".BambooHR-ATS-item-title",
+    ".jopPosition h1",
+    "h1",
+    "h2",
+  ]);
+
+  const company = metaContent("og:site_name") ?? companyFromDomain();
+
+  const descEl =
+    document.querySelector(".BambooHR-ATS-body") ??
+    document.querySelector('[class*="job-description"]') ??
+    document.querySelector(".jopDescription") ??
+    document.querySelector("#description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "bamboohr" };
+  }
+  return null;
+}
+
+// ─── Extractor 15: Taleo (Oracle Recruiting) ─────────────────────────────────
+
+function fromTaleo() {
+  if (!location.hostname.includes("taleo.net")) return null;
+
+  const title = texts([
+    "h1.jobTitle",
+    ".requisitionDetails h1",
+    "[id*='reqTitle']",
+    "[id*='jobTitle']",
+    "h1",
+  ]);
+
+  const company =
+    metaContent("og:site_name") ??
+    metaContent("application-name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector(".jd-info") ??
+    document.querySelector("#description") ??
+    document.querySelector('[class*="requisition-description"]') ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "taleo" };
+  }
+  return null;
+}
+
+// ─── Extractor 16: JazzHR ────────────────────────────────────────────────────
+
+function fromJazzHR() {
+  if (
+    !location.hostname.includes("applytojob.com") &&
+    !location.hostname.includes("jazz.co")
+  ) return null;
+
+  const title = texts([
+    "h1.position-title",
+    "h2.position-title",
+    ".header-company-and-position h2",
+    "h1",
+  ]);
+
+  const company =
+    texts([".company-name", ".header-company-name"]) ??
+    metaContent("og:site_name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector(".job-description") ??
+    document.querySelector(".position-description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "jazzhr" };
+  }
+  return null;
+}
+
+// ─── Extractor 17: Recruitee ─────────────────────────────────────────────────
+
+function fromRecruitee() {
+  if (!location.hostname.includes("recruitee.com")) return null;
+
+  const title = texts([
+    "h1[data-ui='job-name']",
+    ".job-header h1",
+    "h1",
+  ]);
+
+  const company = metaContent("og:site_name") ?? companyFromDomain();
+
+  const descEl =
+    document.querySelector("[data-ui='job-description']") ??
+    document.querySelector(".job-description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "recruitee" };
+  }
+  return null;
+}
+
+// ─── Extractor 18: Breezy HR ─────────────────────────────────────────────────
+
+function fromBreezyHR() {
+  if (!location.hostname.includes("breezy.hr")) return null;
+
+  const title = texts([
+    "h1.position-title",
+    ".header h1",
+    "h1",
+  ]);
+
+  const company =
+    texts([".company-name", ".header .company"]) ??
+    metaContent("og:site_name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector(".description") ??
+    document.querySelector(".position-description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "breezyhr" };
+  }
+  return null;
+}
+
+// ─── Extractor 19: Jobvite ────────────────────────────────────────────────────
+
+function fromJobvite() {
+  if (!location.hostname.includes("jobvite.com")) return null;
+
+  const title = texts([
+    "h1.jv-job-detail-name",
+    ".jv-header-job-title",
+    ".jv-job-title",
+    "h1",
+  ]);
+
+  const company =
+    texts([".jv-company-name", ".jv-header-company-name"]) ??
+    metaContent("og:site_name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector(".jv-job-detail-description") ??
+    document.querySelector(".jv-job-description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "jobvite" };
+  }
+  return null;
+}
+
+// ─── Extractor 20: Teamtailor ─────────────────────────────────────────────────
+
+function fromTeamtailor() {
+  if (!location.hostname.includes("teamtailor.com")) return null;
+
+  const title = texts([
+    "h1.job-title",
+    ".job-header h1",
+    "h1",
+  ]);
+
+  const company =
+    texts([".company-name", ".header__title-company"]) ??
+    metaContent("og:site_name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector(".job-body") ??
+    document.querySelector(".job-content") ??
+    document.querySelector('[class*="description"]') ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "teamtailor" };
+  }
+  return null;
+}
+
+// ─── Extractor 21: Personio ──────────────────────────────────────────────────
+
+function fromPersonio() {
+  if (
+    !location.hostname.includes("personio.com") &&
+    !location.hostname.includes("personio.de")
+  ) return null;
+
+  const title = texts([
+    "h1.jd-title",
+    ".job-listing-head h1",
+    ".job-title",
+    "h1",
+  ]);
+
+  const company = metaContent("og:site_name") ?? companyFromDomain();
+
+  const descEl =
+    document.querySelector(".jd-description") ??
+    document.querySelector(".job-listing-body") ??
+    document.querySelector(".job-description") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "personio" };
+  }
+  return null;
+}
+
+// ─── Extractor 22: Heuristic fallback (any job site) ─────────────────────────
 
 function fromHeuristic() {
   const title = document.querySelector("h1")?.innerText?.trim() ?? null;
@@ -448,6 +727,15 @@ function extractJob() {
     fromWorkable() ??
     fromWellfound() ??
     fromNaukri() ??
+    fromICIMS() ??
+    fromBambooHR() ??
+    fromTaleo() ??
+    fromJazzHR() ??
+    fromRecruitee() ??
+    fromBreezyHR() ??
+    fromJobvite() ??
+    fromTeamtailor() ??
+    fromPersonio() ??
     fromHeuristic();
 
   if (!result) return null;

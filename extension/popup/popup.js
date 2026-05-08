@@ -57,6 +57,15 @@ const SOURCE_LABELS = {
   workable:        "Workable",
   wellfound:       "Wellfound",
   naukri:          "Naukri",
+  icims:           "iCIMS",
+  bamboohr:        "BambooHR",
+  taleo:           "Taleo",
+  jazzhr:          "JazzHR",
+  recruitee:       "Recruitee",
+  breezyhr:        "Breezy HR",
+  jobvite:         "Jobvite",
+  teamtailor:      "Teamtailor",
+  personio:        "Personio",
   heuristic:       "Auto-detected",
 };
 

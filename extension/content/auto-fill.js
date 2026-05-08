@@ -18,6 +18,7 @@ const AF_ATS = [
   /boards\.greenhouse\.io/,
   /grnh\.se/,
   /jobs\.lever\.co/,
+  /lever\.co\/apply/,
   /jobs\.ashbyhq\.com/,
   /myworkdayjobs\.com/,
   /smartrecruiters\.com/,
@@ -25,7 +26,17 @@ const AF_ATS = [
   /linkedin\.com\/jobs\/easy-apply/,
   /icims\.com/,
   /bamboohr\.com\/careers/,
+  /jobs\.jobvite\.com/,
   /recruiting\.ultipro\.com/,
+  /applytojob\.com/,
+  /jazz\.co/,
+  /\.recruitee\.com/,
+  /\.breezy\.hr/,
+  /jobs\.rippling\.com/,
+  /\.freshteam\.com\/jobs/,
+  /\.teamtailor\.com/,
+  /jobs\.personio\./,
+  /taleo\.net/,
 ];
 
 const isAfAts   = AF_ATS.some((p) => p.test(location.href));
