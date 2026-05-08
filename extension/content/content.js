@@ -1184,21 +1184,43 @@ function injectStepStyles() {
 
 // ─── Panel B: Helper panel (after save or from already-saved) ─────────────────
 
-function _showAuthFallback(body, errMsg) {
+function _showReconnectPrompt(body, job, action, card) {
   body.innerHTML = `
-    <div style="margin-top:8px;padding:12px;border-radius:8px;background:#fdf2f2;border:1px solid rgba(181,58,58,0.2);text-align:center;">
-      <div style="font-size:12px;color:#b53a3a;margin-bottom:10px;line-height:1.5;">${escapeHtml(errMsg)}</div>
-      <button class="nr-btn nr-primary" id="nr-fallback-open" style="width:100%;margin-bottom:6px;">Open NextRole →</button>
-      <div style="font-size:11px;color:#9a9286;">Log in at NextRole to complete your account setup, then try again.</div>
+    <div style="margin-top:8px;padding:12px;border-radius:8px;background:#f5f2ee;text-align:center;">
+      <div style="font-size:12px;font-weight:600;margin-bottom:4px;color:#1a1814;">Session expired</div>
+      <div style="font-size:11px;color:#6b6358;margin-bottom:10px;">Please reconnect the extension to continue.</div>
+      <div id="nr-reconnect-err" style="display:none;font-size:11px;color:#b53a3a;background:rgba(181,58,58,0.08);border:1px solid rgba(181,58,58,0.25);border-radius:6px;padding:6px 8px;margin-bottom:8px;"></div>
+      <button id="nr-reconnect-btn" class="nr-btn nr-primary" style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:6px;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        Reconnect to NextRole
+      </button>
     </div>
   `;
-  body.querySelector("#nr-fallback-open")?.addEventListener("click", () => {
-    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/login` });
-    removeCard();
+
+  body.querySelector("#nr-reconnect-btn").addEventListener("click", () => {
+    const btn = body.querySelector("#nr-reconnect-btn");
+    const errEl = body.querySelector("#nr-reconnect-err");
+    errEl.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Reconnecting…";
+
+    chrome.runtime.sendMessage({ type: "CONNECT_EXTENSION" }, (res) => {
+      if (chrome.runtime.lastError || !res?.ok) {
+        errEl.textContent = res?.error ?? "Connection failed. Try again.";
+        errEl.style.display = "block";
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          Reconnect to NextRole`;
+        return;
+      }
+      // Reconnected — retry the action from scratch
+      submitFromCard(job, action, card);
+    });
   });
 }
 
-function submitFromCard(job, action, card, retryCount = 0) {
+function submitFromCard(job, action, card) {
   const pipeBtn = card.querySelector("#nr-card-pipeline");
   const evalBtn = card.querySelector("#nr-card-evaluate");
   if (pipeBtn) pipeBtn.disabled = true;
@@ -1237,11 +1259,7 @@ function submitFromCard(job, action, card, retryCount = 0) {
           if (_isAuthError(errMsg)) {
             const body = card.querySelector(".nr-cb");
             if (!body) return;
-            if (retryCount >= 1) {
-              _showAuthFallback(body, errMsg);
-            } else {
-              _showSignInInContainer(body, job, () => submitFromCard(job, action, card, retryCount + 1));
-            }
+            _showReconnectPrompt(body, job, action, card);
           } else {
             setStep("nr-step-save", "error");
             card.querySelector("#nr-step-save").lastChild.textContent = errMsg;
@@ -1351,11 +1369,7 @@ function submitFromCard(job, action, card, retryCount = 0) {
         if (_isAuthError(errMsg)) {
           const body = card.querySelector(".nr-cb");
           if (!body) return;
-          if (retryCount >= 1) {
-            _showAuthFallback(body, errMsg);
-          } else {
-            _showSignInInContainer(body, job, () => submitFromCard(job, action, card, retryCount + 1));
-          }
+          _showReconnectPrompt(body, job, action, card);
         } else {
           if (pipeBtn) pipeBtn.disabled = false;
           if (evalBtn) evalBtn.disabled = false;

@@ -78,6 +78,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
 
       await saveToken(token);
+
+      // Validate the token actually works before reporting success
+      const testRes = await fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/token", {
+        credentials: "omit",
+        headers: { "Authorization": `Bearer ${token}` },
+      }).catch(() => null);
+
+      if (!testRes || !testRes.ok) {
+        await clearToken();
+        const status = testRes?.status ?? 0;
+        throw new Error(
+          status === 401 ? "Token was not saved — please try again" :
+          status === 429 ? "Too many requests — please wait and try again" :
+          "Connection failed — please try again",
+        );
+      }
+
       sendResponse({ ok: true });
     } catch (err) {
       sendResponse({ ok: false, error: err.message });
