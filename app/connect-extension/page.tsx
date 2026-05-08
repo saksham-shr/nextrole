@@ -21,7 +21,7 @@ export default async function ConnectExtensionPage({
 }) {
   const { redirect_to } = await searchParams;
 
-  if (!isValidRedirectTo(redirect_to)) {
+  if (!isValidRedirectTo(redirect_to ?? null)) {
     redirect("/dashboard");
   }
 
