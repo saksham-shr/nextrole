@@ -641,7 +641,7 @@ function JobPickerPanel({
   hasProvider: boolean;
   onEvaluate: (job: JobRow) => void;
 }) {
-  const [selectedId, setSelectedId] = useState(jobs[0]?.id ?? "");
+  const [selectedId, setSelectedId] = useState("");
   const selected = jobs.find((j) => j.id === selectedId) ?? null;
   const canRun = !!selected && hasCV && hasProvider && !!selected.description;
 
@@ -669,7 +669,7 @@ function JobPickerPanel({
   }
 
   return (
-    <div className="grid gap-4" style={{ gridTemplateColumns: "40fr 60fr" }}>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       {/* Left: picker */}
       <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
         <div className="mb-4 flex items-center gap-3">
@@ -680,39 +680,23 @@ function JobPickerPanel({
           </div>
           <div>
             <div className="text-[14px] font-semibold">Evaluate a job</div>
-            <div className="text-[12px] text-[var(--muted-foreground)]">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</div>
+            <div className="text-[12px] text-[var(--muted-foreground)]">{jobs.length} job{jobs.length !== 1 ? "s" : ""} available</div>
           </div>
         </div>
 
-        {/* Job list */}
-        <div className="mb-4 flex flex-col gap-1 max-h-[340px] overflow-auto">
-          {jobs.map((j) => {
-            const active = j.id === selectedId;
-            return (
-              <button
-                key={j.id}
-                onClick={() => setSelectedId(j.id)}
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition"
-                style={{
-                  background: active ? "var(--accent-soft)" : "transparent",
-                  border: `1px solid ${active ? "rgba(200,74,31,0.2)" : "transparent"}`,
-                }}
-              >
-                <CompanyLogo name={j.company} size={28} />
-                <div className="flex-1 min-w-0">
-                  <div className="truncate text-[13px] font-medium">{j.title}</div>
-                  <div className="text-[11.5px] text-[var(--muted-foreground)]">{j.company}</div>
-                </div>
-                {!j.description && (
-                  <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-600 bg-amber-50 border border-amber-200">
-                    No JD
-                  </span>
-                )}
-                {active && <div className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--accent)]" />}
-              </button>
-            );
-          })}
-        </div>
+        {/* Dropdown */}
+        <select
+          value={selectedId}
+          onChange={(e) => setSelectedId(e.target.value)}
+          className="mb-4 w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)]"
+        >
+          <option value="">— choose a job —</option>
+          {jobs.map((j) => (
+            <option key={j.id} value={j.id}>
+              {j.title} at {j.company}{!j.description ? " (no JD)" : ""}
+            </option>
+          ))}
+        </select>
 
         {/* Warnings */}
         {selected && (!hasCV || !selected.description) && (
@@ -722,7 +706,7 @@ function JobPickerPanel({
           </div>
         )}
 
-        <div className="mb-4 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-2.5 flex justify-between text-[12px]">
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-2.5 text-[12px]">
           <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Uses</span>
           <span className="font-mono text-[12px]">5 credits · NextRole AI</span>
         </div>
@@ -739,7 +723,7 @@ function JobPickerPanel({
         </button>
       </div>
 
-      {/* Right: job preview */}
+      {/* Right: preview */}
       <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
         {selected ? (
           <>
@@ -753,7 +737,7 @@ function JobPickerPanel({
             {selected.description ? (
               <div className="rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-4">
                 <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Job description preview</div>
-                <p className="text-[12.5px] leading-[1.65] text-[var(--muted-foreground)] line-clamp-6">
+                <p className="text-[12.5px] leading-[1.65] text-[var(--muted-foreground)]" style={{ display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {selected.description.slice(0, 600)}{selected.description.length > 600 ? "…" : ""}
                 </p>
               </div>
@@ -761,9 +745,7 @@ function JobPickerPanel({
               <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-6 text-center">
                 <p className="text-[13px] font-medium text-amber-700">No job description</p>
                 <p className="text-[12px] text-amber-600">Paste the JD in the pipeline to enable AI evaluation.</p>
-                <Link href="/dashboard/pipeline" className="mt-1 text-[12px] text-[var(--accent)] hover:underline">
-                  Open pipeline →
-                </Link>
+                <Link href="/dashboard/pipeline" className="mt-1 text-[12px] text-[var(--accent)] hover:underline">Open pipeline →</Link>
               </div>
             )}
           </>
@@ -865,7 +847,7 @@ export function EvaluatePageContent({
 
       {/* Two-column layout when job active */}
       {activeJob && (
-        <div className="grid gap-4" style={{ gridTemplateColumns: "40fr 60fr" }}>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-[40fr_60fr]">
           {/* Left panel — job info */}
           <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
             <div className="mb-5 flex items-start gap-3">

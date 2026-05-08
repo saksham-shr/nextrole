@@ -526,16 +526,7 @@ export function DashboardHome({
   ];
 
   return (
-    <div
-      className="mx-auto"
-      style={{
-        maxWidth: 1280,
-        display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) 320px",
-        gap: 24,
-        alignItems: "start",
-      }}
-    >
+    <div className="mx-auto grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px] lg:items-start" style={{ maxWidth: 1280 }}>
       {/* ── Main column ── */}
       <div className="space-y-6 min-w-0">
 

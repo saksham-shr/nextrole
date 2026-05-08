@@ -394,10 +394,10 @@ export function ResumesPageContent({
         </button>
       </div>
 
-      {/* Split pane */}
-      <div className="flex min-h-0 flex-1 gap-4">
+      {/* Split pane — sidebar on top on mobile, side-by-side on md+ */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
         {/* Sidebar list */}
-        <div className="w-[300px] shrink-0 overflow-auto rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-2">
+        <div className="shrink-0 overflow-auto rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-2 md:w-[300px]" style={{ maxHeight: "calc(50vh)" }}>
           {resumes.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--muted-foreground)]">
               <p>No resumes yet</p>
@@ -479,7 +479,7 @@ export function ResumesPageContent({
         </div>
 
         {/* Main preview */}
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 min-h-[300px] flex-1">
           {showGenerate || !selected ? (
             <GeneratePanel jobs={jobs} tier={tier} onGenerated={handleGenerated} />
           ) : (

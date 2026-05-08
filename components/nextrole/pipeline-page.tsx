@@ -259,7 +259,7 @@ export function PipelinePageContent({
 
       {/* ── Filter bar ── */}
       <div
-        className="flex items-center gap-1 rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]"
+        className="flex items-center gap-1 overflow-x-auto rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]"
         style={{ padding: 8 }}
       >
         {FILTERS.map((f) => (
@@ -300,9 +300,9 @@ export function PipelinePageContent({
       {/* ── Job table ── */}
       <div className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] overflow-hidden">
 
-        {/* Table header */}
+        {/* Table header — desktop only */}
         <div
-          className="grid items-center gap-4 border-b border-[var(--line-soft)] bg-[var(--background)]"
+          className="hidden md:grid items-center gap-4 border-b border-[var(--line-soft)] bg-[var(--background)]"
           style={{
             gridTemplateColumns: "36px 1fr 110px 110px 110px 1fr",
             padding: "10px 18px",
@@ -376,80 +376,105 @@ export function PipelinePageContent({
             return (
               <div
                 key={job.id}
-                className="grid items-center gap-4 transition"
+                className="transition"
                 style={{
-                  gridTemplateColumns: "36px 1fr 110px 110px 110px 1fr",
-                  padding: "14px 18px",
                   borderTop: i === 0 ? "none" : "1px solid var(--line-soft)",
                   background: focused ? "var(--surface-soft)" : "transparent",
                   outline: focused ? "2px solid var(--accent)" : "none",
                   outlineOffset: -2,
                 }}
               >
-                <CompanyLogo name={job.company} size={32} />
-                <div className="min-w-0">
-                  <div style={{ fontWeight: 500, fontSize: 14 }} className="truncate">{job.title}</div>
-                  <div className="text-[12.5px] text-[var(--muted-foreground)]">
-                    {job.company}
-                    {job.archetype ? ` · ${job.archetype}` : ""}
+                {/* Mobile card layout */}
+                <div className="flex items-start gap-3 p-4 md:hidden">
+                  <CompanyLogo name={job.company} size={32} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div style={{ fontWeight: 500, fontSize: 14 }} className="truncate">{job.title}</div>
+                        <div className="text-[12px] text-[var(--muted-foreground)]">{job.company}{job.archetype ? ` · ${job.archetype}` : ""}</div>
+                      </div>
+                      <form action={deleteJob}>
+                        <input type="hidden" name="job_id" value={job.id} />
+                        <input type="hidden" name="return_to" value="/dashboard/pipeline" />
+                        <button type="submit" className="shrink-0 p-1 text-[var(--muted-foreground)] hover:text-[var(--bad)]">
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                        </button>
+                      </form>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <form action={updateJobStatus}>
+                        <input type="hidden" name="job_id" value={job.id} />
+                        <select
+                          name="status"
+                          defaultValue={job.status ?? "pending"}
+                          onChange={(e) => { const form = e.currentTarget.form; if (form) form.requestSubmit(); }}
+                          className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-0.5 text-[11px] outline-none cursor-pointer"
+                          style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.06em", color: "var(--foreground)" }}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="applied">Applied</option>
+                          <option value="interview">Interview</option>
+                          <option value="offer">Offer</option>
+                          <option value="evaluated">Evaluated</option>
+                          <option value="skip">Skip</option>
+                        </select>
+                      </form>
+                      <Link href={`/dashboard/evaluate?job_id=${job.id}`} className="inline-flex items-center gap-1 rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--foreground)] transition hover:border-[var(--line)]">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
+                        Evaluate
+                      </Link>
+                      {job.url && (
+                        <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]">View JD</a>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <span style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12, color: "var(--muted-foreground)" }}>
-                  {addedDate}
-                </span>
-                <span className="text-[12px] text-[var(--muted-foreground)]">—</span>
-                <form action={updateJobStatus}>
-                  <input type="hidden" name="job_id" value={job.id} />
-                  <select
-                    name="status"
-                    defaultValue={job.status ?? "pending"}
-                    onChange={(e) => {
-                      const form = e.currentTarget.form;
-                      if (form) form.requestSubmit();
-                    }}
-                    className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-0.5 text-[11px] outline-none cursor-pointer"
-                    style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.06em", color: "var(--foreground)" }}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="applied">Applied</option>
-                    <option value="interview">Interview</option>
-                    <option value="offer">Offer</option>
-                    <option value="evaluated">Evaluated</option>
-                    <option value="skip">Skip</option>
-                  </select>
-                </form>
-                <div className="flex items-center justify-end gap-1.5">
-                  {job.url && (
-                    <a
-                      href={job.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
-                    >
-                      View JD
-                    </a>
-                  )}
-                  <Link
-                    href={`/dashboard/evaluate?job_id=${job.id}`}
-                    className="inline-flex items-center gap-1 rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--foreground)] transition hover:border-[var(--line)]"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/>
-                    </svg>
-                    Evaluate
-                  </Link>
-                  <form action={deleteJob}>
+
+                {/* Desktop table row */}
+                <div
+                  className="hidden md:grid items-center gap-4"
+                  style={{ gridTemplateColumns: "36px 1fr 110px 110px 110px 1fr", padding: "14px 18px" }}
+                >
+                  <CompanyLogo name={job.company} size={32} />
+                  <div className="min-w-0">
+                    <div style={{ fontWeight: 500, fontSize: 14 }} className="truncate">{job.title}</div>
+                    <div className="text-[12.5px] text-[var(--muted-foreground)]">{job.company}{job.archetype ? ` · ${job.archetype}` : ""}</div>
+                  </div>
+                  <span style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12, color: "var(--muted-foreground)" }}>{addedDate}</span>
+                  <span className="text-[12px] text-[var(--muted-foreground)]">—</span>
+                  <form action={updateJobStatus}>
                     <input type="hidden" name="job_id" value={job.id} />
-                    <input type="hidden" name="return_to" value="/dashboard/pipeline" />
-                    <button
-                      type="submit"
-                      className="inline-flex items-center rounded-[4px] px-2 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:text-[var(--bad)]"
+                    <select
+                      name="status"
+                      defaultValue={job.status ?? "pending"}
+                      onChange={(e) => { const form = e.currentTarget.form; if (form) form.requestSubmit(); }}
+                      className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-0.5 text-[11px] outline-none cursor-pointer"
+                      style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.06em", color: "var(--foreground)" }}
                     >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
-                        <path d="M6 6l12 12M18 6L6 18"/>
-                      </svg>
-                    </button>
+                      <option value="pending">Pending</option>
+                      <option value="applied">Applied</option>
+                      <option value="interview">Interview</option>
+                      <option value="offer">Offer</option>
+                      <option value="evaluated">Evaluated</option>
+                      <option value="skip">Skip</option>
+                    </select>
                   </form>
+                  <div className="flex items-center justify-end gap-1.5">
+                    {job.url && (
+                      <a href={job.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]">View JD</a>
+                    )}
+                    <Link href={`/dashboard/evaluate?job_id=${job.id}`} className="inline-flex items-center gap-1 rounded-[4px] border border-[var(--line-soft)] px-2 py-1 text-[12px] text-[var(--foreground)] transition hover:border-[var(--line)]">
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
+                      Evaluate
+                    </Link>
+                    <form action={deleteJob}>
+                      <input type="hidden" name="job_id" value={job.id} />
+                      <input type="hidden" name="return_to" value="/dashboard/pipeline" />
+                      <button type="submit" className="inline-flex items-center rounded-[4px] px-2 py-1 text-[12px] text-[var(--muted-foreground)] transition hover:text-[var(--bad)]">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
             );
