@@ -187,6 +187,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// ─── Check if job URL already in pipeline ────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "CHECK_JOB_URL") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, exists: false }); return; }
+
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + `/api/extension/job?url=${encodeURIComponent(msg.url)}`, {
+      credentials: "omit",
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) sendResponse({ ok: true, ...data });
+        else sendResponse({ ok: false, exists: false });
+      })
+      .catch(() => sendResponse({ ok: false, exists: false }));
+  });
+
+  return true;
+});
+
 // ─── Open tab ─────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg) => {

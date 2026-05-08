@@ -943,24 +943,42 @@ function showDetectCard(job) {
   removeCard();
   injectCardStyles();
 
-  // Show the new-job card immediately, then upgrade to "already saved" if we
-  // find a matching session record.  This ensures the card always appears even
-  // if chrome.storage.session is unavailable (e.g. after an extension reload
-  // invalidates the runtime context in an existing tab).
+  // Show the new-job card immediately for instant feedback, then check if the
+  // job is already in the pipeline (session cache first, then API).
   showNewJobCard(job);
 
   try {
-    chrome.storage.session.get(["nr_last_job_url", "nr_last_job_id"], (d) => {
-      if (chrome.runtime.lastError) return; // context invalidated — card already shown
+    chrome.storage.session.get(["nr_last_job_url", "nr_last_job_id", "nr_last_job_status"], (d) => {
+      if (chrome.runtime.lastError) {
+        _checkJobUrlViaApi(job);
+        return;
+      }
       if (d.nr_last_job_url === job.url && d.nr_last_job_id) {
-        // Replace with the "already saved" variant
         removeCard();
-        showAlreadySavedCard(job, d.nr_last_job_id);
+        showAlreadySavedCard(job, d.nr_last_job_id, d.nr_last_job_status ?? "pending");
+      } else {
+        _checkJobUrlViaApi(job);
       }
     });
   } catch {
-    // Storage not available — card is already showing, nothing to do
+    _checkJobUrlViaApi(job);
   }
+}
+
+function _checkJobUrlViaApi(job) {
+  if (!job.url) return;
+  chrome.runtime.sendMessage({ type: "CHECK_JOB_URL", url: job.url }, (res) => {
+    if (chrome.runtime.lastError || !res?.ok || !res?.exists) return;
+    chrome.storage.session.set({
+      nr_last_job_url:    job.url,
+      nr_last_job_id:     res.job_id,
+      nr_last_job_status: res.status ?? "pending",
+      nr_last_job_title:  res.title  ?? job.title  ?? "",
+      nr_last_company:    res.company ?? job.company ?? "",
+    });
+    removeCard();
+    showAlreadySavedCard(job, res.job_id, res.status ?? "pending");
+  });
 }
 
 function showNewJobCard(job) {
@@ -1340,7 +1358,10 @@ function submitFromCard(job, action, card) {
                     <span class="nr-eval-decision ${decision}">${decision}</span>
                   </div>
                   ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
-                  <button class="nr-btn nr-primary" id="nr-eval-open" style="margin-top:2px;">View full evaluation →</button>
+                  <div style="display:flex;gap:6px;margin-top:6px;">
+                    <button class="nr-btn nr-secondary" id="nr-eval-open" style="flex:1;">Full report →</button>
+                    <button class="nr-btn nr-primary" id="nr-eval-continue" style="flex:1;">Resume & Fill →</button>
+                  </div>
                 </div>
               `;
               area.querySelector("#nr-eval-open").addEventListener("click", () => {
@@ -1351,6 +1372,11 @@ function submitFromCard(job, action, card) {
                     : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
                 });
                 removeCard();
+              });
+              // Continue to helper panel — shows resume, autofill, and the eval result
+              area.querySelector("#nr-eval-continue").addEventListener("click", () => {
+                removeCard();
+                showHelperPanel(job, jobId, { evalResult: evalRes });
               });
             }
           });
@@ -1400,7 +1426,7 @@ function submitFromCard(job, action, card) {
 
 let _helperResumeHtml = null;
 
-function showHelperPanel(job, jobId) {
+function showHelperPanel(job, jobId, opts = {}) {
   injectCardStyles();
 
   const card = document.createElement("div");
@@ -1448,7 +1474,7 @@ function showHelperPanel(job, jobId) {
     const usage  = p.usage  ?? {};
     const limits = p.limits ?? {};
 
-    renderEvaluateButton(card, job, jobId, tier, usage, limits);
+    renderEvaluateButton(card, job, jobId, tier, usage, limits, opts.evalResult);
     renderResumeButton(card, job, jobId, tier, usage, limits);
     renderAutofillButton(card, job, tier, usage, limits);
   });
@@ -1456,9 +1482,42 @@ function showHelperPanel(job, jobId) {
 
 // ─── Evaluate button (helper panel) ──────────────────────────────────────────
 
-function renderEvaluateButton(card, job, jobId, tier, usage, limits) {
+function _showEvalResultInArea(area, evalRes, jobId) {
+  const score      = evalRes.score ?? 0;
+  const decision   = evalRes.decision ?? "watch";
+  const summary    = evalRes.blocks?.decision?.rationale ?? evalRes.blocks?.role_fit?.summary ?? "";
+  const scoreColor = score >= 3.5 ? "#2f7a3a" : score >= 2.5 ? "#8a6d1a" : "#b53a3a";
+
+  area.innerHTML = `
+    <div class="nr-eval-result" style="margin-bottom:7px;">
+      <div class="nr-eval-score-row">
+        <span class="nr-eval-score" style="--s-color:${scoreColor}">${score.toFixed(1)}</span>
+        <span class="nr-eval-decision ${decision}">${decision}</span>
+      </div>
+      ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
+      <button class="nr-btn nr-primary" id="nr-heval-open" style="margin-top:4px;">View full evaluation →</button>
+    </div>
+  `;
+  area.querySelector("#nr-heval-open")?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({
+      type: "OPEN_TAB",
+      url: evalRes.evaluation_id
+        ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&eval=${evalRes.evaluation_id}`
+        : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
+    });
+    removeCard();
+  });
+}
+
+function renderEvaluateButton(card, job, jobId, tier, usage, limits, evalResult) {
   const area = card.querySelector("#nr-helper-eval-area");
   if (!area || !jobId) return;
+
+  // If we already have a result (came from the detect-card evaluate flow), show it directly
+  if (evalResult) {
+    _showEvalResultInArea(area, evalResult, jobId);
+    return;
+  }
 
   const evalsToday = usage.evaluations_today ?? 0;
   const evalLimit  = limits.evaluations_per_day ?? 1;
@@ -1560,33 +1619,8 @@ function runEvaluateInHelper(area, job, jobId) {
     setHStep("nr-hestep-compare", "done");
     setHStep("nr-hestep-done", "done");
 
-    const score      = evalRes.score ?? 0;
-    const decision   = evalRes.decision ?? "watch";
-    const summary    = evalRes.blocks?.decision?.rationale ?? evalRes.blocks?.role_fit?.summary ?? "";
-    const scoreColor = score >= 3.5 ? "#2f7a3a" : score >= 2.5 ? "#8a6d1a" : "#b53a3a";
-
-    const resultArea = area.querySelector("#nr-heval-result-area");
-    if (resultArea) {
-      resultArea.innerHTML = `
-        <div class="nr-eval-result">
-          <div class="nr-eval-score-row">
-            <span class="nr-eval-score" style="--s-color:${scoreColor}">${score.toFixed(1)}</span>
-            <span class="nr-eval-decision ${decision}">${decision}</span>
-          </div>
-          ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
-          <button class="nr-btn nr-primary" id="nr-heval-open" style="margin-top:2px;">View full evaluation →</button>
-        </div>
-      `;
-      resultArea.querySelector("#nr-heval-open").addEventListener("click", () => {
-        chrome.runtime.sendMessage({
-          type: "OPEN_TAB",
-          url: evalRes.evaluation_id
-            ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&eval=${evalRes.evaluation_id}`
-            : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
-        });
-        removeCard();
-      });
-    }
+    // Reuse shared helper — replaces the steps box with the result
+    _showEvalResultInArea(area, evalRes, jobId);
   });
 }
 
@@ -1713,15 +1747,22 @@ function tailorResumeInCard(card, area, job, jobId, tier) {
         <div class="nr-resume-ready">
           <div style="font-size:12.5px;font-weight:500;color:#2f7a3a;">✓ Resume ready · ${coverage}% keyword match</div>
           <div style="display:flex;gap:6px;margin-top:2px;">
-            <button class="nr-btn nr-primary" id="nr-resume-open" style="flex:1;">Open + Save PDF</button>
+            <button class="nr-btn nr-primary" id="nr-resume-open" style="flex:1;">⬇ Download Resume</button>
             ${res.resume_id ? `<button class="nr-btn nr-secondary" id="nr-resume-dash" style="flex:unset;padding:8px 10px;">View all</button>` : ""}
           </div>
         </div>
       `;
       resultArea.querySelector("#nr-resume-open")?.addEventListener("click", () => {
         const blob = new Blob([_helperResumeHtml], { type: "text/html" });
-        const url = URL.createObjectURL(blob);
-        chrome.runtime.sendMessage({ type: "OPEN_TAB", url });
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const safeName = `NextRole-${(job.company ?? "Resume").replace(/[^a-z0-9]/gi, "-")}-${(job.title ?? "").replace(/[^a-z0-9]/gi, "-").slice(0, 30)}.html`;
+        a.href = blobUrl;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       });
       resultArea.querySelector("#nr-resume-dash")?.addEventListener("click", () => {
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/resumes` });
