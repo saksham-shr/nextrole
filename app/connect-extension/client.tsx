@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/nextrole/brand";
-
-// ─── Google SVG ───────────────────────────────────────────────────────────────
 
 function GoogleIcon() {
   return (
@@ -16,8 +14,6 @@ function GoogleIcon() {
     </svg>
   );
 }
-
-// ─── Shared shell ─────────────────────────────────────────────────────────────
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -39,61 +35,20 @@ function Shell({ children }: { children: React.ReactNode }) {
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
-export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
-  const [phase, setPhase] = useState<"checking" | "login" | "connecting" | "done" | "error">("checking");
-  const [error, setError] = useState("");
-
-  // Login form state
+export function ConnectExtensionLoginClient({
+  redirectTo,
+  error: serverError,
+}: {
+  redirectTo: string;
+  error?: string;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
+  const [loginError, setLoginError] = useState(serverError ?? "");
   const [loginBusy, setLoginBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
 
   const supabase = createClient();
-
-  // On mount: check if already logged in
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        connectExtension().catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "Unknown error");
-          setPhase("error");
-        });
-      } else {
-        setPhase("login");
-      }
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Use a direct fetch to /api/extension/token instead of a server action.
-  // This ensures the browser session cookie is always sent with the request.
-  async function connectExtension() {
-    setPhase("connecting");
-
-    const res = await fetch("/api/extension/token", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: "Browser Extension" }),
-    });
-
-    const data: { token?: string; error?: string } = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(data.error ?? `Request failed (${res.status})`);
-    }
-
-    if (!data.token) {
-      throw new Error("No token returned from server");
-    }
-
-    setPhase("done");
-    window.location.href = `${redirectTo}?token=${encodeURIComponent(data.token)}`;
-  }
 
   async function handleGoogle() {
     setGoogleBusy(true);
@@ -101,7 +56,11 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent("/connect-extension?redirect_to=" + encodeURIComponent(redirectTo))}`,
+        // After OAuth, /auth/callback sets the session cookie then redirects back here.
+        // The server component will then find the session and create the token.
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+          "/connect-extension?redirect_to=" + encodeURIComponent(redirectTo)
+        )}`,
       },
     });
     if (error) {
@@ -114,67 +73,19 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
     e.preventDefault();
     setLoginBusy(true);
     setLoginError("");
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setLoginError(error.message);
       setLoginBusy(false);
       return;
     }
-    try {
-      await connectExtension();
-    } catch (err) {
-      setLoginError(err instanceof Error ? err.message : "Connection failed");
-      setLoginBusy(false);
-    }
+
+    // Session cookie is now set. Reload the page so the server component
+    // picks up the session and creates the token server-side.
+    window.location.reload();
   }
 
-  // ── Checking ──
-  if (phase === "checking") {
-    return (
-      <Shell>
-        <div className="flex flex-col items-center gap-3 py-4">
-          <div className="w-6 h-6 rounded-full border-2 border-[var(--line-soft)] border-t-[var(--accent)] animate-spin" />
-          <p className="text-sm text-[var(--muted)]">Checking session…</p>
-        </div>
-      </Shell>
-    );
-  }
-
-  // ── Connecting / Done ──
-  if (phase === "connecting" || phase === "done") {
-    return (
-      <Shell>
-        <div className="flex flex-col items-center gap-3 py-4">
-          <div className="w-6 h-6 rounded-full border-2 border-[var(--line-soft)] border-t-[var(--accent)] animate-spin" />
-          <p className="text-sm text-[var(--muted)]">Connecting extension…</p>
-        </div>
-      </Shell>
-    );
-  }
-
-  // ── Error ──
-  if (phase === "error") {
-    return (
-      <Shell>
-        <h2 className="font-semibold text-sm text-center mb-1">Connection failed</h2>
-        <p className="text-xs text-[var(--muted)] text-center mb-4">{error}</p>
-        <button
-          className="w-full py-2 rounded-[7px] bg-[var(--accent)] text-white text-xs font-medium"
-          onClick={() => {
-            setPhase("checking");
-            connectExtension().catch((err: unknown) => {
-              setError(err instanceof Error ? err.message : "Unknown error");
-              setPhase("error");
-            });
-          }}
-        >
-          Retry
-        </button>
-      </Shell>
-    );
-  }
-
-  // ── Login ──
   return (
     <Shell>
       <h2 className="font-semibold text-[15px] text-center mb-1 text-[var(--fg)]">
@@ -184,7 +95,6 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
         Sign in to link your extension to your NextRole account.
       </p>
 
-      {/* Google */}
       <button
         type="button"
         disabled={googleBusy || loginBusy}
@@ -195,7 +105,6 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
         {googleBusy ? "Redirecting…" : "Continue with Google"}
       </button>
 
-      {/* Divider */}
       <div className="flex items-center gap-2 mb-3 text-[10px] text-[var(--muted2)] uppercase tracking-wider"
            style={{ fontFamily: "var(--font-mono-stack)" }}>
         <span className="flex-1 h-px bg-[var(--line-soft)]" />
@@ -203,7 +112,6 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
         <span className="flex-1 h-px bg-[var(--line-soft)]" />
       </div>
 
-      {/* Email form */}
       <form onSubmit={handleEmailLogin} className="flex flex-col gap-3">
         {loginError && (
           <div className="text-xs text-[#b53a3a] bg-[rgba(181,58,58,0.08)] border border-[rgba(181,58,58,0.25)] rounded-[6px] px-3 py-2 leading-relaxed">
@@ -246,10 +154,7 @@ export function ConnectExtensionClient({ redirectTo }: { redirectTo: string }) {
         </button>
       </form>
 
-      <a
-        href="/signup"
-        className="block text-center text-xs text-[var(--accent)] mt-3 hover:underline"
-      >
+      <a href="/signup" className="block text-center text-xs text-[var(--accent)] mt-3 hover:underline">
         Don&apos;t have an account? Sign up
       </a>
     </Shell>

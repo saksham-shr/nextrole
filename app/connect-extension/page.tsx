@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
-import { ConnectExtensionClient } from "./client";
+import { randomBytes, createHash } from "crypto";
+import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { ConnectExtensionLoginClient } from "./client";
 
 export const metadata = { title: "Connect Extension — NextRole" };
 
-// Only allow redirect_to URLs that point back to a Chrome extension callback.
 function isValidRedirectTo(value: string | null): value is string {
   if (!value) return false;
   try {
@@ -14,16 +16,60 @@ function isValidRedirectTo(value: string | null): value is string {
   }
 }
 
+function generateToken(): string {
+  return "nrt_" + randomBytes(32).toString("hex");
+}
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export default async function ConnectExtensionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect_to?: string }>;
+  searchParams: Promise<{ redirect_to?: string; error?: string }>;
 }) {
-  const { redirect_to } = await searchParams;
+  const { redirect_to, error } = await searchParams;
 
   if (!isValidRedirectTo(redirect_to ?? null)) {
     redirect("/dashboard");
   }
 
-  return <ConnectExtensionClient redirectTo={redirect_to as string} />;
+  const redirectTo = redirect_to as string;
+
+  // Check if user is already logged in (server-side, reads cookies)
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (user) {
+    // Create token entirely server-side — no client fetch, no CSRF issues
+    try {
+      const admin = createAdminClient();
+      const token = generateToken();
+      const tokenHash = hashToken(token);
+      const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 90).toISOString();
+
+      const { error: insertError } = await admin
+        .from("extension_tokens")
+        .insert({
+          user_id: user.id,
+          token_hash: tokenHash,
+          name: "Browser Extension",
+          expires_at: expiresAt,
+        });
+
+      if (insertError) {
+        const msg = encodeURIComponent(insertError.message);
+        redirect(`/connect-extension?redirect_to=${encodeURIComponent(redirectTo)}&error=${msg}`);
+      }
+
+      // Redirect the browser (and Chrome) to the extension callback URL with the token
+      redirect(`${redirectTo}?token=${encodeURIComponent(token)}`);
+    } catch {
+      redirect(`/connect-extension?redirect_to=${encodeURIComponent(redirectTo)}&error=${encodeURIComponent("Failed to create token — please try again")}`);
+    }
+  }
+
+  // Not logged in — show login UI
+  return <ConnectExtensionLoginClient redirectTo={redirectTo} error={error} />;
 }
