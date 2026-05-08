@@ -29,9 +29,10 @@ export default async function EvaluatePage({
   let hasProvider = false;
   let promptText: string | null = null;
   let pastEvals: PastEval[] = [];
+  let unevaluatedJobs: JobRow[] = [];
 
   if (user) {
-    const [{ data: profile }, { data: evalRows }] = await Promise.all([
+    const [{ data: profile }, { data: evalRows }, { data: pendingJobs }] = await Promise.all([
       supabase.from("profiles").select("base_cv").eq("id", user.id).single(),
       supabase
         .from("evaluations")
@@ -39,6 +40,13 @@ export default async function EvaluatePage({
         .eq("user_id", user.id)
         .order("created_at", { ascending: false })
         .limit(30),
+      supabase
+        .from("jobs")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(50),
     ]);
 
     hasCV = Boolean(profile?.base_cv);
@@ -50,6 +58,7 @@ export default async function EvaluatePage({
       process.env.GEMINI_API_KEY?.trim()
     );
     pastEvals = (evalRows ?? []) as PastEval[];
+    unevaluatedJobs = (pendingJobs ?? []) as JobRow[];
 
     if (job?.description) {
       const userPrompt = buildUserPrompt({
@@ -70,6 +79,7 @@ export default async function EvaluatePage({
       hasProvider={hasProvider}
       promptText={promptText}
       pastEvals={pastEvals}
+      unevaluatedJobs={unevaluatedJobs}
     />
   );
 }

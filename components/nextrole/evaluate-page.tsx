@@ -628,6 +628,155 @@ function PastEvaluationsSection({ evals }: { evals: PastEval[] }) {
   );
 }
 
+// ─── Job picker panel (shown when no job_id in URL) ──────────────────────────
+
+function JobPickerPanel({
+  jobs,
+  hasCV,
+  hasProvider,
+  onEvaluate,
+}: {
+  jobs: JobRow[];
+  hasCV: boolean;
+  hasProvider: boolean;
+  onEvaluate: (job: JobRow) => void;
+}) {
+  const [selectedId, setSelectedId] = useState(jobs[0]?.id ?? "");
+  const selected = jobs.find((j) => j.id === selectedId) ?? null;
+  const canRun = !!selected && hasCV && hasProvider && !!selected.description;
+
+  if (jobs.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-[var(--line-soft)] px-8 py-16 text-center">
+        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[var(--surface-soft)]">
+          <svg width={24} height={24} viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M16 7V5a2 2 0 0 0-4 0v2M12 12v4M10 14h4" />
+          </svg>
+        </div>
+        <p className="text-[16px] font-semibold">No pending jobs</p>
+        <p className="max-w-xs text-[13px] text-[var(--muted-foreground)]">
+          Add jobs to your pipeline first — they&apos;ll appear here ready to evaluate.
+        </p>
+        <Link
+          href="/dashboard/pipeline"
+          className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-[13px] font-medium text-white transition hover:opacity-90"
+        >
+          Go to pipeline →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4" style={{ gridTemplateColumns: "40fr 60fr" }}>
+      {/* Left: picker */}
+      <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--accent-soft)]">
+            <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
+            </svg>
+          </div>
+          <div>
+            <div className="text-[14px] font-semibold">Evaluate a job</div>
+            <div className="text-[12px] text-[var(--muted-foreground)]">{jobs.length} pending</div>
+          </div>
+        </div>
+
+        {/* Job list */}
+        <div className="mb-4 flex flex-col gap-1 max-h-[340px] overflow-auto">
+          {jobs.map((j) => {
+            const active = j.id === selectedId;
+            return (
+              <button
+                key={j.id}
+                onClick={() => setSelectedId(j.id)}
+                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition"
+                style={{
+                  background: active ? "var(--accent-soft)" : "transparent",
+                  border: `1px solid ${active ? "rgba(200,74,31,0.2)" : "transparent"}`,
+                }}
+              >
+                <CompanyLogo name={j.company} size={28} />
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-[13px] font-medium">{j.title}</div>
+                  <div className="text-[11.5px] text-[var(--muted-foreground)]">{j.company}</div>
+                </div>
+                {!j.description && (
+                  <span className="shrink-0 rounded px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-600 bg-amber-50 border border-amber-200">
+                    No JD
+                  </span>
+                )}
+                {active && <div className="h-1.5 w-1.5 rounded-full shrink-0 bg-[var(--accent)]" />}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Warnings */}
+        {selected && (!hasCV || !selected.description) && (
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-[12px] text-amber-700">
+            {!hasCV && <p>· Add your CV in Settings before evaluating</p>}
+            {!selected.description && <p>· This job has no description — paste the JD in the pipeline first</p>}
+          </div>
+        )}
+
+        <div className="mb-4 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-2.5 flex justify-between text-[12px]">
+          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Uses</span>
+          <span className="font-mono text-[12px]">5 credits · NextRole AI</span>
+        </div>
+
+        <button
+          onClick={() => selected && onEvaluate(selected)}
+          disabled={!canRun}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13.5px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
+        >
+          <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
+          </svg>
+          Evaluate with AI
+        </button>
+      </div>
+
+      {/* Right: job preview */}
+      <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
+        {selected ? (
+          <>
+            <div className="mb-4 flex items-start gap-3">
+              <CompanyLogo name={selected.company} size={40} />
+              <div>
+                <div className="text-[17px] font-semibold leading-snug">{selected.title}</div>
+                <div className="text-[13px] text-[var(--muted-foreground)]">{selected.company}</div>
+              </div>
+            </div>
+            {selected.description ? (
+              <div className="rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-4">
+                <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Job description preview</div>
+                <p className="text-[12.5px] leading-[1.65] text-[var(--muted-foreground)] line-clamp-6">
+                  {selected.description.slice(0, 600)}{selected.description.length > 600 ? "…" : ""}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-amber-200 bg-amber-50 p-6 text-center">
+                <p className="text-[13px] font-medium text-amber-700">No job description</p>
+                <p className="text-[12px] text-amber-600">Paste the JD in the pipeline to enable AI evaluation.</p>
+                <Link href="/dashboard/pipeline" className="mt-1 text-[12px] text-[var(--accent)] hover:underline">
+                  Open pipeline →
+                </Link>
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex h-40 items-center justify-center text-[13px] text-[var(--muted-foreground)]">
+            Select a job to preview
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main export ──────────────────────────────────────────────────────────────
 
 export function EvaluatePageContent({
@@ -636,22 +785,26 @@ export function EvaluatePageContent({
   hasProvider,
   promptText,
   pastEvals = [],
+  unevaluatedJobs = [],
 }: {
   job: JobRow | null;
   hasCV: boolean;
   hasProvider: boolean;
   promptText: string | null;
   pastEvals?: PastEval[];
+  unevaluatedJobs?: JobRow[];
 }) {
+  const [activeJob, setActiveJob] = useState<JobRow | null>(job);
   const [mode, setMode] = useState<EvalMode>(hasProvider ? "api" : "manual");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<EvalResponse | null>(null);
 
-  const canRunApi = job && hasCV && hasProvider && !!job.description;
+  const canRunApi = activeJob && hasCV && hasProvider && !!activeJob.description;
 
-  async function runApiEval() {
-    if (!job) return;
+  async function runApiEval(targetJob?: JobRow) {
+    const j = targetJob ?? activeJob;
+    if (!j) return;
     setLoading(true);
     setError(null);
     setResult(null);
@@ -659,7 +812,7 @@ export function EvaluatePageContent({
       const res = await fetch("/api/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: job.id }),
+        body: JSON.stringify({ job_id: j.id }),
       });
       const data = (await res.json()) as EvalResponse;
       if (!res.ok || data.error) setError(data.error ?? "Evaluation failed");
@@ -669,6 +822,11 @@ export function EvaluatePageContent({
     } finally {
       setLoading(false);
     }
+  }
+
+  function handlePickerEvaluate(j: JobRow) {
+    setActiveJob(j);
+    runApiEval(j);
   }
 
   function reset() {
@@ -683,38 +841,40 @@ export function EvaluatePageContent({
         <Link href="/dashboard/pipeline" className="hover:text-[var(--foreground)]">Pipeline</Link>
         <span className="text-[var(--muted-foreground)]">/</span>
         <span className="text-[var(--foreground)]">
-          {job ? `${job.title} · ${job.company}` : "Evaluate"}
+          {activeJob ? `${activeJob.title} · ${activeJob.company}` : "Evaluate"}
         </span>
+        {activeJob && !job && (
+          <button
+            onClick={() => { setActiveJob(null); setResult(null); setError(null); }}
+            className="ml-2 text-[12px] text-[var(--accent)] hover:underline"
+          >
+            ← Pick another
+          </button>
+        )}
       </div>
 
-      {/* No job selected */}
-      {!job && (
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-dashed border-[var(--line-soft)] px-8 py-16 text-center">
-          <p className="text-[18px] font-semibold">No job selected</p>
-          <p className="max-w-md text-[13.5px] text-[var(--muted-foreground)]">
-            Click Evaluate on any job in the pipeline to land here with context pre-loaded.
-          </p>
-          <Link
-            href="/dashboard/pipeline"
-            className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-[13px] font-medium text-white transition hover:opacity-90"
-          >
-            Go to pipeline →
-          </Link>
-        </div>
+      {/* No job selected — show picker */}
+      {!activeJob && (
+        <JobPickerPanel
+          jobs={unevaluatedJobs}
+          hasCV={hasCV}
+          hasProvider={hasProvider}
+          onEvaluate={handlePickerEvaluate}
+        />
       )}
 
-      {/* Two-column layout when job selected */}
-      {job && (
+      {/* Two-column layout when job active */}
+      {activeJob && (
         <div className="grid gap-4" style={{ gridTemplateColumns: "40fr 60fr" }}>
           {/* Left panel — job info */}
           <div className="self-start rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
             <div className="mb-5 flex items-start gap-3">
-              <CompanyLogo name={job.company} size={44} />
+              <CompanyLogo name={activeJob.company} size={44} />
               <div className="flex-1">
-                <h1 className="text-[18px] font-semibold leading-snug tracking-[-0.01em]">{job.title}</h1>
+                <h1 className="text-[18px] font-semibold leading-snug tracking-[-0.01em]">{activeJob.title}</h1>
                 <div className="mt-1 text-[13.5px] text-[var(--muted-foreground)]">
-                  {job.company}
-                  {(job as { location?: string }).location ? ` · ${(job as { location?: string }).location}` : ""}
+                  {activeJob.company}
+                  {(activeJob as { location?: string }).location ? ` · ${(activeJob as { location?: string }).location}` : ""}
                 </div>
               </div>
             </div>
@@ -722,31 +882,31 @@ export function EvaluatePageContent({
             <div className="mb-5 border-t border-[var(--line-soft)]" />
 
             <div className="flex flex-col gap-3 text-[13px]">
-              {job.source && (
+              {activeJob.source && (
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Source</span>
-                  <a href={job.source} target="_blank" rel="noopener noreferrer" className="truncate text-right text-[var(--accent)] hover:underline">
-                    {job.source.replace(/^https?:\/\//, "").slice(0, 40)}…
+                  <a href={activeJob.source} target="_blank" rel="noopener noreferrer" className="truncate text-right text-[var(--accent)] hover:underline">
+                    {activeJob.source.replace(/^https?:\/\//, "").slice(0, 40)}…
                   </a>
                 </div>
               )}
               <div className="flex items-baseline justify-between gap-3">
                 <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Saved</span>
                 <span className="text-[var(--foreground)]">
-                  {new Date(job.created_at).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
+                  {new Date(activeJob.created_at).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
               </div>
-              {(job as { compensation?: string }).compensation && (
+              {(activeJob as { compensation?: string }).compensation && (
                 <div className="flex items-baseline justify-between gap-3">
                   <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Comp</span>
-                  <span className="text-[var(--foreground)]">{(job as { compensation?: string }).compensation}</span>
+                  <span className="text-[var(--foreground)]">{(activeJob as { compensation?: string }).compensation}</span>
                 </div>
               )}
               <div className="mt-1">
                 <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Status</div>
                 <select
                   className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
-                  defaultValue={job.status}
+                  defaultValue={activeJob.status}
                 >
                   <option value="saved">Saved</option>
                   <option value="applied">Applied</option>
@@ -760,7 +920,7 @@ export function EvaluatePageContent({
                 <textarea
                   className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[13px] leading-[1.55] outline-none focus:border-[var(--accent)]"
                   rows={3}
-                  defaultValue={job.notes ?? ""}
+                  defaultValue={activeJob.notes ?? ""}
                   placeholder="Add notes…"
                 />
               </div>
@@ -770,7 +930,7 @@ export function EvaluatePageContent({
 
             <div className="flex flex-col gap-2">
               <Link
-                href={`/dashboard/resumes?job=${job.id}`}
+                href={`/dashboard/resumes?job=${activeJob.id}`}
                 className="flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90"
               >
                 Tailor resume for this job
@@ -813,7 +973,7 @@ export function EvaluatePageContent({
 
                 {mode === "manual" ? (
                   <ManualPanel
-                    jobId={job.id}
+                    jobId={activeJob.id}
                     promptText={promptText}
                     onResult={(r) => setResult(r)}
                   />
@@ -830,10 +990,10 @@ export function EvaluatePageContent({
                     </p>
 
                     {/* Warnings */}
-                    {(!hasCV || !job.description) && (
+                    {(!hasCV || !activeJob.description) && (
                       <div className="mb-5 w-full max-w-[380px] rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-[12.5px] text-amber-700">
                         {!hasCV && <p>· Add your CV in Settings before evaluating</p>}
-                        {!job.description && <p>· This job has no description — paste the JD first</p>}
+                        {!activeJob.description && <p>· This job has no description — paste the JD first</p>}
                       </div>
                     )}
 
@@ -860,7 +1020,7 @@ export function EvaluatePageContent({
                       </div>
                     ) : (
                       <button
-                        onClick={runApiEval}
+                        onClick={() => runApiEval()}
                         disabled={!canRunApi}
                         className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-6 py-3 text-[14px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
                       >
