@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
   }
 
   const score    = clampScore(result.score);
-  const decision = (["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch") as string;
+  const decision = (["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch") as "apply" | "watch" | "skip";
   const archetype = result.archetype ?? null;
 
   // AI succeeded — NOW deduct credits / increment free usage
