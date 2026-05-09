@@ -7,7 +7,8 @@ RULES — NEVER BREAK THESE:
 4. Inject keywords from the job description naturally — only where they align with real experience.
 5. Select 8–12 core competencies most relevant to this role.
 6. Keep bullets concise, achievement-focused, starting with action verbs.
-7. Omit sections (projects, certs, etc.) if no relevant content exists in the CV.
+7. ALWAYS include a Projects section if the CV contains any projects — select the 2–4 most relevant to this role. Only omit if the CV has literally zero projects.
+8. Omit certifications and skills sections only if no relevant content exists in the CV.
 
 You MUST respond with valid JSON only — no markdown, no prose, no code fences. Match this exact structure:
 
