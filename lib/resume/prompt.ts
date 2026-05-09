@@ -7,7 +7,7 @@ RULES — NEVER BREAK THESE:
 4. Inject keywords from the job description naturally — only where they align with real experience.
 5. Select 8–12 core competencies most relevant to this role.
 6. Keep bullets concise, achievement-focused, starting with action verbs.
-7. ALWAYS include a Projects section if the CV contains any projects — select the 2–4 most relevant to this role. Only omit if the CV has literally zero projects.
+7. ALWAYS include a Projects section if the CV contains any projects — select the 3 most relevant to this role (never more than 3, never fewer than 1 if any exist). Only omit if the CV has literally zero projects.
 8. Omit certifications and skills sections only if no relevant content exists in the CV.
 
 You MUST respond with valid JSON only — no markdown, no prose, no code fences. Match this exact structure:
@@ -36,10 +36,11 @@ You MUST respond with valid JSON only — no markdown, no prose, no code fences.
   "projects": [
     {
       "title": "<project name>",
-      "description": "<1–2 sentences>",
+      "description": "<1–2 sentences highlighting relevance to this role>",
       "tech": ["<technology used>"]
     }
   ],
+  "_projects_note": "Include exactly the 1–3 most relevant projects from the CV. Never exceed 3.",
   "education": [
     {
       "degree": "<degree name>",
