@@ -43,6 +43,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, recent_jobs: recentJobs ?? [] });
   }
 
+  type EvalRow = {
+    id: string; score: number; decision: string;
+    role_fit: string | null; compensation_analysis: string | null;
+    cv_match: string | null; personalization_guidance: string | null;
+    interview_signals: string | null; legitimacy_check: string | null;
+    level_strategy: string | null; created_at: string;
+  };
+  type ResumeRow = { id: string; title: string | null; html: string | null; coverage: number | null; created_at: string; };
+
   // Fetch job details, latest evaluation, and latest resume in parallel
   const [{ data: job }, { data: evaluations }, { data: resumes }] = await Promise.all([
     admin
@@ -60,33 +69,33 @@ export async function GET(req: NextRequest) {
       .eq("job_id", jobId)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(1),
+      .limit(1) as unknown as Promise<{ data: EvalRow[] | null; error: unknown }>,
     admin
       .from("resumes")
       .select("id, title, html, coverage, created_at")
       .eq("job_id", jobId)
       .eq("user_id", userId)
       .order("created_at", { ascending: false })
-      .limit(1),
+      .limit(1) as unknown as Promise<{ data: ResumeRow[] | null; error: unknown }>,
   ]);
 
   // Normalise the evaluation row so apply-card.js receives the same shape
   // whether the eval came from a fresh EVALUATE_JOB run (which returns nested
   // `blocks`) or from the DB (which stores flat columns).
-  const evalRow = evaluations?.[0] ?? null;
+  const evalRow = (evaluations as EvalRow[] | null)?.[0] ?? null;
   const normalizedEval = evalRow ? {
     id:       evalRow.id,
     score:    evalRow.score,
     decision: evalRow.decision,
     // Wrap the flat columns into a `blocks` object so renderEvalTab can use one path
     blocks: {
-      role_fit:                evalRow.role_fit,
-      cv_match:                evalRow.cv_match,
-      compensation_analysis:   evalRow.compensation_analysis,
+      role_fit:                 evalRow.role_fit,
+      cv_match:                 evalRow.cv_match,
+      compensation_analysis:    evalRow.compensation_analysis,
       personalization_guidance: evalRow.personalization_guidance,
-      interview_signals:       evalRow.interview_signals,
-      legitimacy_check:        evalRow.legitimacy_check,
-      level_strategy:          evalRow.level_strategy,
+      interview_signals:        evalRow.interview_signals,
+      legitimacy_check:         evalRow.legitimacy_check,
+      level_strategy:           evalRow.level_strategy,
     },
   } : null;
 
@@ -95,6 +104,6 @@ export async function GET(req: NextRequest) {
     recent_jobs: recentJobs    ?? [],
     job:         job           ?? null,
     evaluation:  normalizedEval,
-    resume:      resumes?.[0]  ?? null,
+    resume:      (resumes as ResumeRow[] | null)?.[0] ?? null,
   });
 }
