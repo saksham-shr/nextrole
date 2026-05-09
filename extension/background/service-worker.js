@@ -222,27 +222,32 @@ chrome.runtime.onMessage.addListener((msg) => {
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type !== "FILL_SUGGEST") return false;
 
-  getToken().then((token) => {
+  (async () => {
+    const token = await getToken();
     if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
 
-    fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/suggest", {
-      method: "POST",
-      credentials: "omit",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-      body: JSON.stringify(msg.payload),
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        if (res.ok) {
-          sendResponse({ ok: true, suggestion: data.suggestion });
-        } else if (res.status === 402) {
-          sendResponse({ ok: false, error: data.error ?? "Plan upgrade required.", upgrade: true });
-        } else {
-          sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
-        }
-      })
-      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
-  });
+    let res, data;
+    try {
+      res  = await fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/suggest", {
+        method: "POST",
+        credentials: "omit",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body: JSON.stringify(msg.payload ?? {}),
+      });
+      data = await res.json().catch(() => ({}));
+    } catch (err) {
+      sendResponse({ ok: false, error: `Network error: ${err.message}` });
+      return;
+    }
+
+    if (res.ok) {
+      sendResponse({ ok: true, suggestion: data.suggestion });
+    } else if (res.status === 402) {
+      sendResponse({ ok: false, error: data.error ?? "Plan upgrade required.", upgrade: true });
+    } else {
+      sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
+    }
+  })();
 
   return true;
 });
@@ -294,7 +299,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       .then(async (res) => {
         const data = await res.json().catch(() => ({}));
         if (res.ok) {
-          sendResponse({ ok: true, evaluation_id: data.evaluation_id, score: data.score, decision: data.decision, blocks: data.blocks });
+          sendResponse({ ok: true, evaluation_id: data.evaluation_id, score: data.score, decision: data.decision, archetype: data.archetype ?? null, blocks: data.blocks });
         } else if (res.status === 402 || res.status === 403) {
           sendResponse({ ok: false, error: data.error ?? "Plan upgrade required.", upgrade: true });
         } else {
@@ -305,6 +310,55 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   });
 
   return true;
+});
+
+// ─── Fetch job artifacts for apply-card (recent jobs, evaluation, resume) ────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "GET_JOB_ARTIFACTS") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    const params = new URLSearchParams();
+    if (msg.jobId) params.set("jobId", msg.jobId);
+    const qs = params.toString();
+
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + `/api/extension/job-artifacts${qs ? `?${qs}` : ""}`, {
+      credentials: "omit",
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) sendResponse({ ok: true, ...data });
+        else sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true;
+});
+
+// ─── Report feedback (not-a-job / confirmed) ──────────────────────────────────
+// Fire-and-forget: no sendResponse needed — extension doesn't wait for this.
+// Token is optional; anonymous reports are accepted by the API.
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type !== "REPORT_FEEDBACK") return false;
+
+  getToken().then((token) => {
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/feedback", {
+      method: "POST",
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(msg.payload ?? {}),
+    }).catch(() => {}); // silently swallow — feedback is best-effort
+  });
+
+  return false; // no async sendResponse
 });
 
 // ─── Update job status ────────────────────────────────────────────────────────
