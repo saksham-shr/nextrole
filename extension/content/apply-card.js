@@ -244,6 +244,14 @@ const AC_STYLE = `
   .nr-ac-eval-empty-desc {
     font-size: 12px; color: #6b6358; line-height: 1.55; margin-bottom: 18px;
   }
+  .nr-ac-eval-divider {
+    display: flex; align-items: center; gap: 8px;
+    width: 100%; margin: 16px 0 10px; color: #9a9286; font-size: 11px;
+  }
+  .nr-ac-eval-divider::before,
+  .nr-ac-eval-divider::after {
+    content: ""; flex: 1; height: 1px; background: #e0d8d0;
+  }
   .nr-ac-err     { padding: 10px 12px; background: #faebeb; border-radius: 9px; font-size: 12px; color: #b53a3a; margin-bottom: 10px; }
   .nr-ac-hint    { font-size: 11.5px; color: #6b6358; margin-bottom: 10px; line-height: 1.45; }
   .nr-ac-divider { height: 1px; background: #ede8e0; margin: 12px 0; }
@@ -1002,8 +1010,15 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
         renderEvalTab(container, jobId, job, state, onEvalUpdated);
         return;
       }
-      // Nothing found — fall through to "no eval" UI
+      // Cache recent_jobs for the pipeline picker below
+      state._recentJobs = artifacts?.recent_jobs ?? [];
     }
+
+    // Build pipeline picker options (jobs in pipeline the user can load an eval for)
+    const recentJobs = state._recentJobs ?? [];
+    const pickerOpts = recentJobs
+      .map((j) => `<option value="${esc(j.id)}">${esc(j.title)} — ${esc(j.company)}</option>`)
+      .join("");
 
     container.innerHTML = `
       <div class="nr-ac-eval-empty">
@@ -1013,12 +1028,26 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
           Get an AI fit score, CV match analysis, compensation insights,
           and interview tips tailored to this role.
         </div>
-        <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-run-eval" style="margin-top:4px;">
+        <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-run-eval">
           ✦ Evaluate My Fit
         </button>
-        <div class="nr-ac-status" id="nr-ac-eval-st" style="text-align:center;margin-top:8px;"></div>
+        <div class="nr-ac-status" id="nr-ac-eval-st"></div>
+
+        ${recentJobs.length > 0 ? `
+        <div class="nr-ac-eval-divider"><span>or load from pipeline</span></div>
+        <select class="nr-ac-select" id="nr-ac-eval-picker" style="margin-bottom:8px;">
+          <option value="">— choose a saved job —</option>
+          ${pickerOpts}
+        </select>
+        <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-eval-load">
+          Load Evaluation
+        </button>
+        <div class="nr-ac-status" id="nr-ac-eval-load-st"></div>
+        ` : ""}
       </div>
     `;
+
+    // ── Evaluate this job ──
     container.querySelector("#nr-ac-run-eval")?.addEventListener("click", async () => {
       const btn = container.querySelector("#nr-ac-run-eval");
       const st  = container.querySelector("#nr-ac-eval-st");
@@ -1031,13 +1060,33 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
         if (st) st.textContent = res?.error ?? "Evaluation failed — try again";
         return;
       }
-      // Persist result into shared state so returning to this tab shows it again
       state.evaluation = {
         id: res.evaluation_id, score: res.score,
         decision: res.decision, blocks: res.blocks,
       };
       if (onEvalUpdated) onEvalUpdated();
       renderEvalTab(container, jobId, job, state, onEvalUpdated);
+    });
+
+    // ── Load eval from pipeline ──
+    container.querySelector("#nr-ac-eval-load")?.addEventListener("click", async () => {
+      const picker  = container.querySelector("#nr-ac-eval-picker");
+      const loadBtn = container.querySelector("#nr-ac-eval-load");
+      const loadSt  = container.querySelector("#nr-ac-eval-load-st");
+      const selId   = picker?.value;
+      if (!selId) { if (loadSt) loadSt.textContent = "Please select a job first."; return; }
+
+      loadBtn.disabled = true; loadBtn.textContent = "Loading…";
+      const artifacts = await fetchArtifacts(selId);
+      if (!artifacts?.evaluation) {
+        loadBtn.disabled = false; loadBtn.textContent = "Load Evaluation";
+        if (loadSt) loadSt.textContent = "No evaluation found for that job yet.";
+        return;
+      }
+      // Switch the card context to the selected pipeline job
+      state.evaluation = artifacts.evaluation;
+      if (onEvalUpdated) onEvalUpdated();
+      renderEvalTab(container, selId, artifacts.job ?? job, state, onEvalUpdated);
     });
     return;
   }
