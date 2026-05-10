@@ -1,13 +1,16 @@
 /**
  * NextRole Auto-fill Assistant
  *
- * Floating Action Button (FAB) on job application pages.
- * One click fills every detected form field — direct fields (name, email,
- * phone, LinkedIn…) instantly from profile; AI fields (cover letter,
- * why this company…) via /api/extension/suggest.
+ * Runs on ATS / application pages. Classifies and fills form fields.
  *
- * After filling, a "Submit application" button appears that finds and
- * clicks the form's primary submit/next button with a confirmation prompt.
+ * In the new architecture this module no longer shows any UI — the FAB and
+ * panel have been removed in favour of apply-card.js.  This module instead
+ * responds to two CustomEvents dispatched by apply-card.js:
+ *
+ *   nr:scan-req  → scan all fillable fields; respond with nr:scan-res
+ *   nr:write     → write caller-supplied values into the live form; respond with nr:write-done
+ *
+ * fill-assistant.js is no longer used and has been deleted.
  */
 
 (function () {
@@ -37,6 +40,17 @@ const AF_ATS = [
   /\.teamtailor\.com/,
   /jobs\.personio\./,
   /taleo\.net/,
+  /oraclecloud\.com\/hcmUI/,
+  /oracle\.com\/.*apply/,
+  /fa\.[a-z0-9]+\.oraclecloud\.com/,
+  /naukri\.com/,
+  /indeed\.com\/apply/,
+  /jobs\.workday\.com/,
+  // SAP SuccessFactors
+  /successfactors\.com/,
+  /sapsf\.com/,
+  /career\.sap\.com/,
+  /jobs\.sap\.com/,
 ];
 
 const isAfAts   = AF_ATS.some((p) => p.test(location.href));
@@ -44,256 +58,25 @@ const isAfApply = /apply|application/i.test(location.href) && !!document.querySe
 
 if (!isAfAts && !isAfApply) return;
 
-// ─── Inject styles ────────────────────────────────────────────────────────────
-
-const AF_STYLE = `
-  #nr-fab {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 2147483647;
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: #c84a1f;
-    border: none;
-    cursor: pointer;
-    box-shadow: 0 4px 16px rgba(200,74,31,0.45);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.2s, box-shadow 0.2s;
-  }
-  #nr-fab:hover { transform: scale(1.08); box-shadow: 0 6px 20px rgba(200,74,31,0.55); }
-
-  #nr-panel {
-    position: fixed;
-    bottom: 80px;
-    right: 24px;
-    z-index: 2147483646;
-    width: 320px;
-    max-height: 520px;
-    background: #fffdf8;
-    border: 1.5px solid #2a2620;
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(26,24,20,0.18);
-    font-family: 'Inter', system-ui, sans-serif;
-    font-size: 13px;
-    color: #1a1814;
-    display: none;
-    flex-direction: column;
-    overflow: hidden;
-  }
-  #nr-panel.open { display: flex; }
-
-  .nr-panel-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 14px;
-    background: #1a1814;
-    color: #fffdf8;
-    flex-shrink: 0;
-  }
-  .nr-panel-brand {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-  .nr-panel-close {
-    background: none; border: none;
-    color: rgba(255,253,248,0.5);
-    cursor: pointer; font-size: 16px; line-height: 1;
-    padding: 2px 4px; border-radius: 4px;
-  }
-  .nr-panel-close:hover { color: #fffdf8; }
-
-  .nr-panel-body {
-    padding: 14px;
-    overflow-y: auto;
-    flex: 1;
-  }
-
-  .nr-job-line {
-    font-size: 11.5px;
-    color: #6b6358;
-    margin-bottom: 12px;
-    line-height: 1.5;
-  }
-  .nr-job-line strong { color: #1a1814; }
-
-  .nr-field-count {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    color: #9a9286;
-    margin-bottom: 10px;
-  }
-
-  .nr-progress-bar {
-    height: 4px;
-    background: #ede8e0;
-    border-radius: 2px;
-    margin-bottom: 12px;
-    overflow: hidden;
-  }
-  .nr-progress-fill {
-    height: 100%;
-    background: #c84a1f;
-    border-radius: 2px;
-    transition: width 0.3s;
-    width: 0%;
-  }
-
-  .nr-field-list {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 12px;
-    max-height: 200px;
-    overflow-y: auto;
-  }
-  .nr-field-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 5px 8px;
-    border-radius: 8px;
-    background: #f5f0e8;
-    font-size: 11.5px;
-  }
-  .nr-field-item.done   { background: #eef8f0; }
-  .nr-field-item.skip   { background: #f5f0e8; opacity: 0.5; }
-  .nr-field-item.error  { background: #faebeb; }
-  .nr-field-item.filling { background: #fff5f0; }
-
-  .nr-field-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .nr-field-tag {
-    font-family: 'DM Mono', monospace;
-    font-size: 9px;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
-    flex-shrink: 0;
-  }
-  .nr-field-item.done   .nr-field-tag { color: #2f7a3a; }
-  .nr-field-item.skip   .nr-field-tag { color: #9a9286; }
-  .nr-field-item.error  .nr-field-tag { color: #b53a3a; }
-  .nr-field-item.filling .nr-field-tag { color: #c84a1f; }
-
-  .nr-af-btn {
-    width: 100%;
-    padding: 10px;
-    border-radius: 10px;
-    border: none;
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    cursor: pointer;
-    transition: opacity 0.15s;
-    margin-bottom: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-  }
-  .nr-af-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .nr-af-btn:hover:not(:disabled) { opacity: 0.85; }
-  .nr-af-primary  { background: #c84a1f; color: #fffdf8; }
-  .nr-af-submit   { background: #1a1814; color: #fffdf8; }
-  .nr-af-secondary{ background: #f0ebe3; color: #2a2620; }
-
-  .nr-af-error {
-    font-size: 11.5px;
-    color: #b53a3a;
-    margin-bottom: 8px;
-    line-height: 1.5;
-  }
-  .nr-af-note {
-    font-size: 11px;
-    color: #9a9286;
-    margin-top: 4px;
-    line-height: 1.5;
-  }
-
-  .nr-confirm-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 2147483648;
-    background: rgba(26,24,20,0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .nr-confirm-box {
-    background: #fffdf8;
-    border: 1.5px solid #2a2620;
-    border-radius: 14px;
-    padding: 24px;
-    width: 300px;
-    font-family: 'Inter', system-ui, sans-serif;
-    font-size: 13px;
-    color: #1a1814;
-  }
-  .nr-confirm-box h3 {
-    font-size: 15px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  .nr-confirm-box p {
-    font-size: 12px;
-    color: #6b6358;
-    margin-bottom: 16px;
-    line-height: 1.6;
-  }
-  .nr-confirm-btns {
-    display: flex;
-    gap: 8px;
-  }
-  .nr-confirm-btns button {
-    flex: 1;
-    padding: 9px;
-    border-radius: 8px;
-    border: none;
-    font-family: 'DM Mono', monospace;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
-  .nr-confirm-yes { background: #c84a1f; color: #fffdf8; }
-  .nr-confirm-no  { background: #f0ebe3; color: #2a2620; }
-`;
-
-function injectAfStyles() {
-  if (document.getElementById("nr-af-styles")) return;
-  const el = document.createElement("style");
-  el.id = "nr-af-styles";
-  el.textContent = AF_STYLE;
-  document.head.appendChild(el);
-}
-
 // ─── Field classification ─────────────────────────────────────────────────────
 
 const DIRECT_MAP = {
-  full_name:  [/\bfull.?name\b|\byour.?name\b/i],
-  first_name: [/\bfirst.?name\b|\bgiven.?name\b|\bforename\b/i],
-  last_name:  [/\blast.?name\b|\bsurname\b|\bfamily.?name\b/i],
-  email:      [/\bemail\b/i],
-  phone:      [/\bphone\b|\bmobile\b|\btelephone\b|\bcell\b/i],
-  linkedin:   [/\blinkedin\b/i],
-  github:     [/\bgithub\b/i],
-  website:    [/\bwebsite\b|\bportfolio\b|\bpersonal.?url\b/i],
-  location:   [/\bcity\b|\blocation\b|\bwhere.*based\b|\bcountry\b/i],
-  salary:     [/\bsalary\b|\bcompensation\b|\bexpected.?pay\b|\bdesired.?salary\b/i],
+  full_name:      [/\bfull.?name\b|\byour.?name\b/i],
+  first_name:     [/\bfirst.?name\b|\bgiven.?name\b|\bforename\b/i],
+  last_name:      [/\blast.?name\b|\bsurname\b|\bfamily.?name\b/i],
+  email:          [/\bemail\b/i],
+  phone:          [/\bphone\b|\bmobile\b|\btelephone\b|\bcell\b/i],
+  linkedin:       [/\blinkedin\b/i],
+  github:         [/\bgithub\b/i],
+  website:        [/\bwebsite\b|\bportfolio\b|\bpersonal.?url\b/i],
+  location:       [/\bcity\b|\blocation\b|\bwhere.*based\b|\bcountry\b/i],
+  salary:         [/\bsalary\b|\bcompensation\b|\bexpected.?pay\b|\bdesired.?salary\b/i],
+  // Address sub-fields — profile doesn't store these; getDirectValue returns "".
+  // They are classified so the apply-card can show them in the field list.
+  street_address: [/\baddress\b(?!.{0,20}(?:line\s*2|email|web|url|suite|apt))/i],
+  address_line2:  [/address\s*(?:line\s*)?2\b|apt\.?\b|suite\b|unit\s*\#?(?:\s|$)/i],
+  zip_postal:     [/\bzip\b|\bpostal\s*(?:code)?\b|\bpin\s*code\b|\bpostcode\b/i],
+  state_province: [/\bstate\b(?!\s*(?:ment|d\b|ly\b))|\bprovince\b/i],
 };
 
 const AI_MAP = [
@@ -303,6 +86,128 @@ const AI_MAP = [
   { type: "experience",     pattern: /relevant.*experience|work.*experience|describe.*experience/i },
   { type: "additional_info",pattern: /additional|anything.*else|other.*info|comments/i },
 ];
+
+// ─── Select / dropdown classification ────────────────────────────────────────
+
+const SELECT_FIELD_MAP = [
+  { type: "disability_status",  pattern: /disability|disabled|accommodation\b/i },
+  { type: "veteran_status",     pattern: /veteran|military service|armed.?force|service.?member/i },
+  { type: "gender",             pattern: /\bgender\b(?!.*(pay|gap|neutral))/i },
+  { type: "race_ethnicity",     pattern: /\brace\b|\bethnicity\b|racial\b|ethnic\b|national.?origin/i },
+  { type: "sexual_orientation", pattern: /sexual.?orient|lgbtq/i },
+  { type: "employment_type",    pattern: /employment.*(type|status)|job.*(type|class)|position.*(type|class)|work.*(type|status)/i },
+  { type: "work_mode",          pattern: /work.*(mode|arrangement|location\s*type|setting)|remote.*prefer|office.*prefer|location.*preference(?!.*(city|state|zip|country|street|address))/i },
+  { type: "start_date",         pattern: /when.*can.*start|available.*start|start.*date|notice.*period|earliest.*start|availability.*start/i },
+  { type: "experience_level",   pattern: /experience.*(level|years)|level.*experience|years.*experience(?!\s*in\s*(?:the\s*)?field)/i },
+  { type: "sponsorship",        pattern: /sponsor|visa\b|work.*authoriz|legally.*authoriz|eligible.*work|right.*work/i },
+  { type: "relocation",         pattern: /willing.*relocat|relocat.*willing|open.*relocat/i },
+];
+
+const PREFER_NOT_RE = /prefer.{0,10}not|decline.{0,10}(to|identify|answer)|not.{0,8}disclose|choose.{0,8}not|do\s+not\s+wish|rather\s+not\s+say|no\s+answer|prefer\s+not\s+to\s+provide|i\s+don.{0,4}t.{0,8}(disclose|identify|answer|wish)|not\s+specified/i;
+
+function classifySelectField(el) {
+  if (el.tagName !== "SELECT") return null;
+  if (el.getAttribute("multiple") !== null) return null;
+
+  const label    = getFieldLabel(el).toLowerCase();
+  const name     = (el.name || "").toLowerCase();
+  const elId     = (el.id || "").toLowerCase();
+  const combined = `${label} ${name} ${elId}`;
+
+  const wdId = el.getAttribute("data-automation-id") ||
+    el.closest("[data-automation-id]")?.getAttribute("data-automation-id") || "";
+  if (/gender/i.test(wdId))            return { type: "gender",            kind: "select", label: getFieldLabel(el) };
+  if (/veteran|military/i.test(wdId))  return { type: "veteran_status",    kind: "select", label: getFieldLabel(el) };
+  if (/disability/i.test(wdId))        return { type: "disability_status", kind: "select", label: getFieldLabel(el) };
+  if (/ethnicity|race/i.test(wdId))    return { type: "race_ethnicity",    kind: "select", label: getFieldLabel(el) };
+  if (/employmentType/i.test(wdId))    return { type: "employment_type",   kind: "select", label: getFieldLabel(el) };
+  if (/workRemote|remoteType/i.test(wdId)) return { type: "work_mode",     kind: "select", label: getFieldLabel(el) };
+
+  for (const { type, pattern } of SELECT_FIELD_MAP) {
+    if (pattern.test(combined)) return { type, kind: "select", label: getFieldLabel(el) };
+  }
+  return null;
+}
+
+function nativeFillSelect(el, meta, profile) {
+  const allOpts = [...el.options];
+  const opts = allOpts.filter((o) => {
+    const t = o.text.trim();
+    if (!t) return false;
+    if (/^(-{1,3}|—+|select|choose|please\b|pick\b|none\b$)/i.test(t)) return false;
+    if (o.index === 0 && !o.value) return false;
+    return true;
+  });
+  if (opts.length === 0) return false;
+
+  let target = null;
+
+  switch (meta.type) {
+    case "disability_status":
+    case "veteran_status":
+    case "gender":
+    case "race_ethnicity":
+    case "sexual_orientation": {
+      target = opts.find((o) => PREFER_NOT_RE.test(o.text));
+      if (!target) target = opts.find((o) => /decline|not answer|no answer/i.test(o.text));
+      break;
+    }
+    case "employment_type": {
+      target = opts.find((o) => /\bfull.?time\b|\bpermanent\b/i.test(o.text));
+      break;
+    }
+    case "work_mode": {
+      if (profile?.work_mode) {
+        const MODE_PAT = {
+          remote:   /\bremote\b|work.?from.?home|wfh/i,
+          hybrid:   /\bhybrid\b/i,
+          onsite:   /\bon.?site\b|\bin.?person\b|\bin.?office\b/i,
+          "on-site":/\bon.?site\b|\bin.?person\b|\bin.?office\b/i,
+        };
+        const pat = MODE_PAT[(profile.work_mode || "").toLowerCase().replace(/\s/g, "")];
+        if (pat) target = opts.find((o) => pat.test(o.text));
+      }
+      break;
+    }
+    case "start_date": {
+      target = opts.find((o) => /\bimmediately\b|\basap\b|as soon as possible/i.test(o.text));
+      if (!target) target = opts.find((o) => /\b2\s*weeks?\b|\btwo\s*weeks?\b/i.test(o.text));
+      if (!target) target = opts.find((o) => /\b1\s*month\b|\bone\s*month\b/i.test(o.text));
+      break;
+    }
+    case "experience_level": {
+      if (profile?.seniority) {
+        const SENIORITY_PAT = {
+          junior:    /junior|entry.?level|0.?[-–]2|< ?2\b|less than 2/i,
+          mid:       /mid.?level|intermediate|[23][-–][45]\s*years?|3 to 5/i,
+          senior:    /senior|[5-7]\+?\s*years?|5 or more/i,
+          lead:      /lead|principal|staff\b/i,
+          executive: /executive|director|\bvp\b|c.level/i,
+        };
+        const pat = SENIORITY_PAT[(profile.seniority || "").toLowerCase()];
+        if (pat) target = opts.find((o) => pat.test(o.text));
+      }
+      break;
+    }
+    case "sponsorship":
+    case "relocation":
+    default:
+      return false;
+  }
+
+  if (!target) return false;
+
+  el.focus();
+  const proto  = window.HTMLSelectElement.prototype;
+  const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+  if (setter) setter.call(el, target.value);
+  else el.value = target.value;
+
+  el.dispatchEvent(new Event("input",  { bubbles: true }));
+  el.dispatchEvent(new Event("change", { bubbles: true }));
+  el.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+  return true;
+}
 
 function getFieldLabel(el) {
   const id = el.id;
@@ -314,14 +219,125 @@ function getFieldLabel(el) {
   if (el.placeholder) return el.placeholder.trim();
   const parentLabel = el.closest("label");
   if (parentLabel) return parentLabel.innerText.trim();
+
+  // Oracle JET: label is on the parent oj-* custom element or a sibling oj-label.
+  // el._nrOjHost is set during shadow-DOM scan; closest() cannot cross shadow boundaries.
+  const ojEl = el._nrOjHost ?? el.closest(
+    "oj-input-text, oj-input-email, oj-text-area, oj-input-number, oj-input-password, " +
+    "oj-text-field, oj-text-area-field, " +
+    "[class*='oj-inputtext'], [class*='oj-textarea'], [class*='oj-text-field']"
+  );
+  if (ojEl) {
+    const hint = ojEl.getAttribute("label-hint") || ojEl.getAttribute("aria-label") || ojEl.getAttribute("placeholder");
+    if (hint) return hint.trim();
+    const ojId = ojEl.id;
+    if (ojId) {
+      const lbl = document.querySelector(`oj-label[for="${CSS.escape(ojId)}"], label[for="${CSS.escape(ojId)}"]`);
+      if (lbl) return lbl.innerText.trim();
+    }
+    const prevOjLabel = ojEl.previousElementSibling;
+    if (prevOjLabel && prevOjLabel.tagName.toLowerCase() === "oj-label") {
+      return prevOjLabel.innerText.trim();
+    }
+  }
+
+  // SAP SuccessFactors: data-compid on the input itself
+  const compId = el.getAttribute("data-compid") || "";
+  if (compId) {
+    const readable = compId.replace(/^candidate/i, "").replace(/Input$/i, "").replace(/([A-Z])/g, " $1").trim();
+    if (readable) return readable;
+  }
+
+  // iCIMS: data-field attribute on a parent container
+  const icimsContainer = el.closest("[data-field]");
+  if (icimsContainer) {
+    const df = icimsContainer.getAttribute("data-field") || "";
+    if (df) return df.replace(/_/g, " ").replace(/jobapplication/i, "").trim();
+  }
+
+  // Fieldset/legend — used by Taleo and some older ATSs
+  const legend = el.closest("fieldset")?.querySelector("legend");
+  if (legend?.innerText) return legend.innerText.trim().slice(0, 80);
+
   const prev = el.previousElementSibling;
   if (prev?.innerText) return prev.innerText.trim().slice(0, 80);
   return el.name || el.id || "";
 }
 
+// Workday: data-automation-id on input or nearest ancestor widget div
+const WORKDAY_AUTOMATION_MAP = {
+  "legalNameSection_firstName":        "first_name",
+  "legalNameSection_lastName":         "last_name",
+  "preferredNameSection_firstName":    "first_name",
+  "preferredNameSection_lastName":     "last_name",
+  "email":                             "email",
+  "phone-number":                      "phone",
+  "phoneNumber":                       "phone",
+  "addressSection_city":               "location",
+  "linkedInUrl":                       "linkedin",
+  "linkedInProfile":                   "linkedin",
+  "portfolioUrl":                      "website",
+  "websiteUrl":                        "website",
+  "githubUrl":                         "github",
+  "salaryExpectations":                "salary",
+  "desiredSalary":                     "salary",
+};
+
+// SAP SuccessFactors: data-compid on the input
+const SAP_COMPID_MAP = {
+  "candidatefirstnameinput":           "first_name",
+  "candidatelastnameinput":            "last_name",
+  "candidateemailtextinput":           "email",
+  "candidateprimaryphoneinput":        "phone",
+  "candidateaddressline1input":        "location",
+  "candidatecityinput":                "location",
+  "candidatelinkedinurlinput":         "linkedin",
+  "candidatewebsiteurlinput":          "website",
+};
+
+// iCIMS: predictable id pattern
+const ICIMS_ID_MAP = {
+  "firstname":       "first_name",
+  "lastname":        "last_name",
+  "email":           "email",
+  "phone":           "phone",
+  "linkedin":        "linkedin",
+  "github":          "github",
+  "website":         "website",
+  "city":            "location",
+  "coverlettertext": "cover_letter",
+};
+
 function classifyField(el) {
   if (el.type === "hidden" || el.type === "submit" || el.type === "button"
       || el.type === "checkbox" || el.type === "radio") return null;
+
+  // ── Fast-path: Workday data-automation-id ────────────────────────────────
+  const wdAutoId = (
+    el.getAttribute("data-automation-id") ||
+    el.closest("[data-automation-id]")?.getAttribute("data-automation-id") || ""
+  );
+  if (wdAutoId && WORKDAY_AUTOMATION_MAP[wdAutoId]) {
+    return { type: WORKDAY_AUTOMATION_MAP[wdAutoId], kind: "direct", label: getFieldLabel(el) };
+  }
+  if (wdAutoId === "coverLetter" || /cover.?letter/i.test(wdAutoId)) {
+    return { type: "cover_letter", kind: "ai", label: getFieldLabel(el) };
+  }
+  if (/why.*compan|why.*role|motivation/i.test(wdAutoId)) {
+    return { type: "why_company", kind: "ai", label: getFieldLabel(el) };
+  }
+
+  // ── Fast-path: SAP SuccessFactors data-compid ────────────────────────────
+  const sfCompId = (el.getAttribute("data-compid") || "").toLowerCase();
+  if (sfCompId && SAP_COMPID_MAP[sfCompId]) {
+    return { type: SAP_COMPID_MAP[sfCompId], kind: "direct", label: getFieldLabel(el) };
+  }
+
+  // ── Fast-path: iCIMS id pattern ──────────────────────────────────────────
+  const icimsId = (el.id || "").toLowerCase().replace(/icims_formfield_jobapplication/i, "");
+  if (icimsId && ICIMS_ID_MAP[icimsId]) {
+    return { type: ICIMS_ID_MAP[icimsId], kind: ICIMS_ID_MAP[icimsId] === "cover_letter" ? "ai" : "direct", label: getFieldLabel(el) };
+  }
 
   const label    = getFieldLabel(el).toLowerCase();
   const name     = (el.name || "").toLowerCase();
@@ -341,7 +357,6 @@ function classifyField(el) {
     for (const { type, pattern } of AI_MAP) {
       if (pattern.test(combined)) return { type, kind: "ai", label: getFieldLabel(el) };
     }
-    // Generic textarea — offer AI fill with generic prompt
     return { type: "other", kind: "ai", label: getFieldLabel(el) };
   }
 
@@ -350,17 +365,22 @@ function classifyField(el) {
 
 function getDirectValue(type, profile) {
   switch (type) {
-    case "full_name":  return profile.full_name  ?? "";
-    case "first_name": return profile.first_name ?? "";
-    case "last_name":  return profile.last_name  ?? "";
-    case "email":      return profile.email      ?? "";
-    case "phone":      return profile.phone      ?? "";
-    case "linkedin":   return profile.linkedin   ?? "";
-    case "github":     return profile.github     ?? "";
-    case "website":    return profile.website    ?? "";
-    case "location":   return profile.location   ?? "";
-    case "salary":     return profile.salary     ?? "";
-    default:           return "";
+    case "full_name":      return profile.full_name  ?? "";
+    case "first_name":     return profile.first_name ?? "";
+    case "last_name":      return profile.last_name  ?? "";
+    case "email":          return profile.email      ?? "";
+    case "phone":          return profile.phone      ?? "";
+    case "linkedin":       return profile.linkedin   ?? "";
+    case "github":         return profile.github     ?? "";
+    case "website":        return profile.website    ?? "";
+    case "location":       return profile.location   ?? "";
+    case "salary":         return profile.salary     ?? "";
+    // Address sub-fields — profile doesn't store these; return "" → skip.
+    case "street_address":
+    case "address_line2":
+    case "zip_postal":
+    case "state_province": return "";
+    default:               return "";
   }
 }
 
@@ -368,14 +388,34 @@ function getDirectValue(type, profile) {
 
 function nativeFill(el, value) {
   if (!value) return;
+  el.focus();
+
   const proto = el.tagName === "TEXTAREA"
     ? window.HTMLTextAreaElement.prototype
     : window.HTMLInputElement.prototype;
   const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
   if (setter) setter.call(el, value); else el.value = value;
+
   el.dispatchEvent(new Event("input",  { bubbles: true }));
   el.dispatchEvent(new Event("change", { bubbles: true }));
   el.dispatchEvent(new KeyboardEvent("keyup", { bubbles: true }));
+  el.dispatchEvent(new FocusEvent("blur", { bubbles: true }));
+
+  if (el.value !== value) {
+    try { el.select(); document.execCommand("insertText", false, value); } catch {}
+  }
+
+  // Oracle JET: fire events on parent oj-* component so Knockout observables update.
+  // el._nrOjHost is set during scanFormFields() when input is inside a Shadow Root.
+  const ojParent = el._nrOjHost ?? el.closest(
+    "oj-input-text, oj-text-area, oj-input-number, oj-text-field, oj-text-area-field, " +
+    "[class*='oj-inputtext'], [class*='oj-textarea'], [class*='oj-text-field']"
+  );
+  if (ojParent) {
+    ojParent.dispatchEvent(new Event("input",  { bubbles: true }));
+    ojParent.dispatchEvent(new Event("change", { bubbles: true }));
+    ojParent.dispatchEvent(new CustomEvent("ojValueChanged", { bubbles: true, detail: { value } }));
+  }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -389,15 +429,56 @@ function getSession() {
   });
 }
 
-function getLastJob() {
+// ─── Multi-page field tracking ────────────────────────────────────────────────
+//
+// When a user fills page 1 of a multi-step application, we store the field types
+// filled in chrome.storage.session keyed by domain. On subsequent pages we skip
+// those types to avoid re-filling fields the user already submitted.
+
+function _afDomainKey() {
+  return `nr_filled_fields_${location.hostname.replace(/^www\./, "")}`;
+}
+
+function getFilledFieldTypes() {
   return new Promise((resolve) => {
-    chrome.storage.session.get(["nr_last_job_id", "nr_last_job_title", "nr_last_company"], (d) => {
-      resolve({ jobId: d.nr_last_job_id ?? null, jobTitle: d.nr_last_job_title ?? "", company: d.nr_last_company ?? "" });
+    chrome.storage.session.get(_afDomainKey(), (d) => {
+      const entry = d[_afDomainKey()];
+      if (!entry || (Date.now() - (entry.savedAt ?? 0)) > 90 * 60 * 1000) {
+        resolve([]);
+      } else {
+        resolve(entry.fieldTypes ?? []);
+      }
     });
   });
 }
 
-function getPageJobContext() {
+function markFieldTypesFilled(fieldTypes) {
+  return new Promise((resolve) => {
+    const key = _afDomainKey();
+    chrome.storage.session.get(key, (d) => {
+      const existing = (d[key]?.fieldTypes ?? []);
+      const merged   = [...new Set([...existing, ...fieldTypes])];
+      chrome.storage.session.set({ [key]: { fieldTypes: merged, savedAt: Date.now() } }, resolve);
+    });
+  });
+}
+
+// ─── Job context (for passing to AI suggestion calls) ─────────────────────────
+
+async function getPageJobContext() {
+  // 1. Cross-site context set by content.js when user clicks "Save & Apply"
+  try {
+    const session = await new Promise((resolve) => {
+      chrome.storage.session.get("nr_cross_site_job", (d) => resolve(d.nr_cross_site_job ?? null));
+    });
+    if (session && session.jobTitle && (Date.now() - (session.savedAt ?? 0)) < 60 * 60 * 1000) {
+      const descEl = document.querySelector(".job-description, #job-description, [class*='jobDescription'], article, main");
+      const description = descEl ? descEl.innerText.slice(0, 2000).trim() : session.jobDescription ?? "";
+      return { jobTitle: session.jobTitle, company: session.company, jobDescription: description };
+    }
+  } catch {}
+
+  // 2. Fall back to page scraping
   let title = null, company = null, description = null;
   if (/greenhouse\.io|grnh\.se/.test(location.href)) {
     title   = document.querySelector(".app-title, #header h1, h1")?.innerText?.trim() ?? null;
@@ -410,17 +491,54 @@ function getPageJobContext() {
     title = document.querySelector("h1")?.innerText?.trim() ?? null;
     const parts = location.pathname.split("/").filter(Boolean);
     company = parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1).replace(/-/g, " ") : null;
+  } else if (/oraclecloud\.com|oracle\.com\/.*apply/.test(location.href)) {
+    const siteMatch = location.pathname.match(/\/sites\/([^/]+)\//i);
+    company = siteMatch
+      ? decodeURIComponent(siteMatch[1]).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      : null;
+    const pageTitleParts = document.title.split(/\s*[|·—]\s*/).map((s) => s.trim()).filter(Boolean);
+    const isOracleApply = /\/apply\//i.test(location.pathname);
+    title = isOracleApply
+      ? (pageTitleParts[0]?.length < 120 ? pageTitleParts[0] : null)
+      : (document.querySelector("[data-bind*='Title'], [class*='jobTitle'], [class*='JobTitle'], h1")?.innerText?.trim()
+          ?? (pageTitleParts[0]?.length < 120 ? pageTitleParts[0] : null));
+    if (!company) company = document.querySelector("[data-bind*='OrganizationName']")?.innerText?.trim() ?? null;
+    if (!company && pageTitleParts.length > 2) company = pageTitleParts[pageTitleParts.length - 2];
+  } else if (/myworkdayjobs\.com/.test(location.href)) {
+    title = document.querySelector("[data-automation-id='jobPostingHeader'], h1")?.innerText?.trim() ?? null;
+    const wdSub = location.hostname.match(/^([^.]+)\.(?:wd\d+\.)?myworkdayjobs\.com$/i);
+    company = (wdSub ? wdSub[1].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null)
+           ?? document.querySelector("[data-automation-id='legalEntityName']")?.innerText?.trim()
+           ?? location.hostname.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  } else if (/smartrecruiters\.com/.test(location.href)) {
+    title = document.querySelector(".job-title, h1")?.innerText?.trim() ?? null;
+    company = document.querySelector(".company-name")?.innerText?.trim() ?? null;
+  } else if (/icims\.com/.test(location.href)) {
+    title = document.querySelector("#icims_content_form_title, .iCIMS_Header h3, h1")?.innerText?.trim() ?? null;
+    company = document.querySelector("meta[property='og:site_name']")?.getAttribute("content") ?? null;
+  } else if (/successfactors\.com|sapsf\.com/.test(location.href)) {
+    title   = document.querySelector("[data-compid='jobReqTitle'], .jobReqHeader h1, h1")?.innerText?.trim() ?? null;
+    company = document.querySelector("[data-compid='jobDetailCompanyName'], .companyName")?.innerText?.trim()
+           ?? document.querySelector("meta[property='og:site_name']")?.getAttribute("content")
+           ?? null;
+    if (!company) {
+      const sfCompMatch = location.pathname.match(/\/careers\/([^/?#]+)/);
+      if (sfCompMatch) company = decodeURIComponent(sfCompMatch[1]).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
   } else {
     title = document.querySelector("h1, h2")?.innerText?.trim() ?? null;
     company = document.querySelector("meta[property='og:site_name']")?.getAttribute("content") ?? null;
+    if (!title || !company) {
+      const pgParts = (document.title ?? "").split(/\s*[-–—|]\s*/);
+      if (pgParts.length >= 2) {
+        if (!title) title = pgParts[0].trim();
+        if (!company) company = pgParts[pgParts.length - 1].trim();
+      }
+    }
   }
   const descEl = document.querySelector(".job-description, #job-description, [class*='jobDescription'], article, main");
   description = descEl ? descEl.innerText.slice(0, 2000).trim() : null;
   return { jobTitle: title ?? "", company: company ?? "", jobDescription: description ?? "" };
-}
-
-function escapeHtml(s) {
-  return (s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
 
 // ─── Scan all fillable fields on the page ────────────────────────────────────
@@ -428,8 +546,12 @@ function escapeHtml(s) {
 function scanFormFields() {
   const fields = [];
   const seen = new WeakSet();
+
+  // ── Text inputs & textareas (light DOM) ──────────────────────────────────
   document.querySelectorAll(
-    "input[type='text'], input[type='email'], input[type='tel'], input[type='url'], input[type='number'], input:not([type]), textarea"
+    "input[type='text'], input[type='email'], input[type='tel'], input[type='url'], input[type='number'], input:not([type]), textarea, " +
+    ".oj-inputtext-input, .oj-textarea-input, .oj-text-field-input, .oj-text-area-input, " +
+    "input[data-compid], textarea[data-compid]"
   ).forEach((el) => {
     if (seen.has(el)) return;
     const meta = classifyField(el);
@@ -437,18 +559,44 @@ function scanFormFields() {
     seen.add(el);
     fields.push({ el, meta });
   });
+
+  // ── Oracle JET Shadow DOM (JET v6+ Web Components) ────────────────────────
+  document.querySelectorAll(
+    "oj-input-text, oj-input-email, oj-text-area, oj-input-number, oj-input-password, " +
+    "oj-text-field, oj-text-area-field"
+  ).forEach((ojEl) => {
+    if (ojEl.querySelector("input, textarea")) return; // light DOM already handled above
+    if (!ojEl.shadowRoot) return;
+    const inner = ojEl.shadowRoot.querySelector("input, textarea");
+    if (!inner || seen.has(inner)) return;
+    inner._nrOjHost = ojEl; // store host — closest() can't cross shadow boundary
+    const meta = classifyField(inner);
+    if (!meta) return;
+    seen.add(inner);
+    fields.push({ el: inner, meta });
+  });
+
+  // ── Select / dropdown elements ────────────────────────────────────────────
+  document.querySelectorAll("select").forEach((el) => {
+    if (seen.has(el)) return;
+    const meta = classifySelectField(el);
+    if (!meta) return;
+    seen.add(el);
+    fields.push({ el, meta });
+  });
+
   return fields;
 }
 
 // ─── Submit button detection ──────────────────────────────────────────────────
 
 function findSubmitButton() {
-  // Priority: explicit submit inputs/buttons, then buttons with submit-like text
-  const explicit = document.querySelector(
-    "input[type='submit'], button[type='submit']"
-  );
+  const explicit = document.querySelector("input[type='submit'], button[type='submit']");
   if (explicit) return explicit;
-
+  const sfSubmit = document.querySelector("[data-compid='submitButton'], [data-compid='applyButton']");
+  if (sfSubmit) return sfSubmit;
+  const wdSubmit = document.querySelector("[data-automation-id='bottom-navigation-next-button'], [data-automation-id='Submit-button']");
+  if (wdSubmit) return wdSubmit;
   const candidates = [...document.querySelectorAll("button, input[type='button']")];
   return candidates.find((b) => {
     const t = (b.innerText || b.value || "").toLowerCase();
@@ -456,381 +604,88 @@ function findSubmitButton() {
   }) ?? null;
 }
 
-// ─── Core: auto-fill all fields ──────────────────────────────────────────────
+// ─── Field registry & event protocol ─────────────────────────────────────────
+//
+// apply-card.js dispatches nr:scan-req to request a scan.
+// We scan, build a registry keyed by field ID, and respond with nr:scan-res.
+// apply-card.js then dispatches nr:write with the values to write.
+// We write them using nativeFill / nativeFillSelect and respond with nr:write-done.
 
-// fillMode: "full" (pro — direct + AI), "basic" (starter — direct only)
-async function runAutoFill(panel, fillMode = "full") {
-  const session = await getSession();
-  if (!session.loggedIn) {
-    renderPanel(panel, "error", null, "Not signed in — open extension settings to log in.");
-    return 0;
-  }
+let _fieldRegistry = {}; // fieldId → { el, meta }
+let _lastProfile   = {}; // cached profile for select filling
 
-  // Fetch profile
-  const profileResult = await new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, resolve);
+document.addEventListener("nr:scan-req", async () => {
+  const profileRes = await new Promise((r) => chrome.runtime.sendMessage({ type: "GET_PROFILE" }, r));
+  _lastProfile = profileRes?.profile ?? {};
+
+  const rawFields = scanFormFields();
+  _fieldRegistry  = {};
+
+  const fieldData = rawFields.map((f, i) => {
+    const id = `nrf_${i}`;
+    _fieldRegistry[id] = { el: f.el, meta: f.meta };
+    return {
+      id,
+      label:        f.meta.label || f.meta.type,
+      type:         f.meta.type,
+      kind:         f.meta.kind,
+      profileValue: getDirectValue(f.meta.type, _lastProfile),
+      currentValue: f.el.value ?? "",
+    };
   });
 
-  if (!profileResult?.ok) {
-    renderPanel(panel, "error", null, profileResult?.error ?? "Could not load profile.");
-    return 0;
-  }
-
-  const profile  = profileResult.profile;
-  const fields   = scanFormFields();
-  const lastJob  = await getLastJob();
-  const pageCtx  = getPageJobContext();
-  const jobTitle = lastJob.jobTitle || pageCtx.jobTitle;
-  const company  = lastJob.company  || pageCtx.company;
-  const jobDesc  = pageCtx.jobDescription;
-
-  if (fields.length === 0) {
-    renderPanel(panel, "no_fields", null, null);
-    return 0;
-  }
-
-  // For basic mode, filter to direct fields only
-  const activeFields = fillMode === "basic"
-    ? fields.filter((f) => f.meta.kind === "direct")
-    : fields;
-
-  // Build field status list
-  const statuses = activeFields.map((f) => ({
-    label: f.meta.label || f.meta.type,
-    kind:  f.meta.kind,
-    state: "pending",
-  }));
-
-  renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: 0 }, null, { jobTitle, company });
-
-  let doneCount = 0;
-
-  // Fill direct fields immediately
-  for (let i = 0; i < activeFields.length; i++) {
-    const { el, meta } = activeFields[i];
-    if (meta.kind !== "direct") continue;
-
-    const value = getDirectValue(meta.type, profile);
-    if (value) {
-      nativeFill(el, value);
-      statuses[i].state = "done";
-    } else {
-      statuses[i].state = "skip";
-    }
-    doneCount++;
-    renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount }, null, { jobTitle, company });
-  }
-
-  let needsUpgrade = false;
-
-  if (fillMode === "full") {
-    // Fill AI fields concurrently (max 3 at once) — pro only
-    const aiFields = activeFields.map((f, i) => ({ ...f, index: i })).filter((f) => f.meta.kind === "ai");
-
-    async function fillAiField(f) {
-      statuses[f.index].state = "filling";
-      renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
-
-      const result = await new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          type: "FILL_SUGGEST",
-          payload: {
-            field_type:      f.meta.type,
-            field_label:     f.meta.label,
-            job_title:       jobTitle,
-            company,
-            job_description: jobDesc,
-            current_value:   f.el.value ?? "",
-          },
-        }, resolve);
-      });
-
-      if (result?.ok && result.suggestion) {
-        nativeFill(f.el, result.suggestion);
-        statuses[f.index].state = "done";
-      } else {
-        if (result?.upgrade) needsUpgrade = true;
-        statuses[f.index].state = "error";
-      }
-      doneCount++;
-      renderPanel(panel, "filling", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
-    }
-
-    // Process AI fields in batches of 3
-    for (let i = 0; i < aiFields.length; i += 3) {
-      await Promise.allSettled(aiFields.slice(i, i + 3).map(fillAiField));
-    }
-  }
-
-  renderPanel(panel, "done", { fields: statuses, total: activeFields.length, done: doneCount, needsUpgrade }, null, { jobTitle, company });
-  return statuses.filter((s) => s.state === "done").length;
-}
-
-// Silent fill triggered by content.js card — no FAB panel, dispatches result event
-async function runSilentFill(fillMode) {
-  const profileResult = await new Promise((resolve) => {
-    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, resolve);
-  });
-  if (!profileResult?.ok) {
-    document.dispatchEvent(new CustomEvent("nr-autofill-result", { detail: { filled: 0, error: profileResult?.error ?? "profile fetch failed" } }));
-    return;
-  }
-
-  const profile  = profileResult.profile;
-  const fields   = scanFormFields();
-  const lastJob  = await getLastJob();
-  const pageCtx  = getPageJobContext();
-  const jobTitle = lastJob.jobTitle || pageCtx.jobTitle;
-  const company  = lastJob.company  || pageCtx.company;
-  const jobDesc  = pageCtx.jobDescription;
-
-  let filled = 0;
-
-  // Always fill direct fields
-  for (const { el, meta } of fields) {
-    if (meta.kind !== "direct") continue;
-    const value = getDirectValue(meta.type, profile);
-    if (value) { nativeFill(el, value); filled++; }
-  }
-
-  if (fillMode === "full") {
-    // AI fields for pro tier
-    const aiFields = fields.filter((f) => f.meta.kind === "ai");
-    const aiPromises = aiFields.map(({ el, meta }) =>
-      new Promise((resolve) => {
-        chrome.runtime.sendMessage({
-          type: "FILL_SUGGEST",
-          payload: {
-            field_type:      meta.type,
-            field_label:     meta.label,
-            job_title:       jobTitle,
-            company,
-            job_description: jobDesc,
-            current_value:   el.value ?? "",
-          },
-        }, (result) => {
-          if (result?.ok && result.suggestion) { nativeFill(el, result.suggestion); filled++; }
-          resolve();
-        });
-      })
-    );
-    // Process in batches of 3
-    for (let i = 0; i < aiPromises.length; i += 3) {
-      await Promise.allSettled(aiPromises.slice(i, i + 3));
-    }
-  }
-
-  document.dispatchEvent(new CustomEvent("nr-autofill-result", { detail: { filled } }));
-}
-
-// ─── Submit with confirmation modal ──────────────────────────────────────────
-
-function confirmAndSubmit(company) {
-  const modal = document.createElement("div");
-  modal.className = "nr-confirm-modal";
-  modal.innerHTML = `
-    <div class="nr-confirm-box">
-      <h3>Submit application?</h3>
-      <p>This will click the submit button${company ? ` and send your application to <strong>${escapeHtml(company)}</strong>` : ""}. Make sure all fields are correct before continuing.</p>
-      <div class="nr-confirm-btns">
-        <button class="nr-confirm-yes">Yes, submit</button>
-        <button class="nr-confirm-no">Cancel</button>
-      </div>
-    </div>
-  `;
-  modal.querySelector(".nr-confirm-no").addEventListener("click", () => modal.remove());
-  modal.querySelector(".nr-confirm-yes").addEventListener("click", () => {
-    modal.remove();
-    const btn = findSubmitButton();
-    if (btn) {
-      btn.click();
-    } else {
-      alert("NextRole: Could not find a submit button on this page. Please submit manually.");
-    }
-  });
-  document.body.appendChild(modal);
-}
-
-// ─── Panel render ─────────────────────────────────────────────────────────────
-
-function renderPanel(panel, state, fillData, errorMsg, ctx) {
-  const body = panel.querySelector(".nr-panel-body");
-  if (!body) return;
-
-  const { jobTitle, company } = ctx ?? {};
-
-  if (state === "idle") {
-    const fields = scanFormFields();
-    // Fetch tier to gate buttons
-    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, (profileResult) => {
-      const tier = profileResult?.profile?.tier ?? "free";
-      const directCount = fields.filter((f) => f.meta?.kind === "direct").length;
-
-      if (tier === "free") {
-        body.innerHTML = `
-          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
-          <div class="nr-field-count">${fields.length} fillable field${fields.length !== 1 ? "s" : ""} detected</div>
-          <div class="nr-af-error" style="background:#fff5f0;border:1px solid #f5cfc5;border-radius:8px;padding:10px;color:#c84a1f;margin-bottom:8px;">
-            Autofill is not available on the free plan.
-          </div>
-          <a href="${NEXTROLE_URL}/pricing" target="_blank" class="nr-af-btn nr-af-primary" style="text-decoration:none;display:flex;">Upgrade to Starter →</a>
-          <div class="nr-af-note" style="margin-top:6px">Starter plan: fills name, email, phone, LinkedIn instantly. Pro adds AI-generated cover letters.</div>
-        `;
-      } else if (tier === "starter") {
-        body.innerHTML = `
-          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
-          <div class="nr-field-count">${directCount} direct field${directCount !== 1 ? "s" : ""} detected</div>
-          <button class="nr-af-btn nr-af-primary" id="nr-do-fill">⚡ Fill basic fields</button>
-          <div class="nr-af-note">Fills name, email, phone, LinkedIn and other contact fields instantly.</div>
-          <a href="${NEXTROLE_URL}/pricing" target="_blank" style="display:block;text-align:center;font-size:11px;color:#c84a1f;margin-top:6px;text-decoration:none;">Upgrade to Pro for AI cover letters →</a>
-        `;
-        body.querySelector("#nr-do-fill")?.addEventListener("click", () => runAutoFill(panel, "basic"));
-      } else {
-        // pro+
-        body.innerHTML = `
-          ${jobTitle || company ? `<div class="nr-job-line">Applying for <strong>${escapeHtml(jobTitle || "this role")}${company ? ` at ${escapeHtml(company)}` : ""}</strong></div>` : ""}
-          <div class="nr-field-count">${fields.length} fillable field${fields.length !== 1 ? "s" : ""} detected</div>
-          <button class="nr-af-btn nr-af-primary" id="nr-do-fill">⚡ Auto-fill all fields</button>
-          <div class="nr-af-note">Fills contact fields instantly + generates cover letter and other text fields using AI.</div>
-        `;
-        body.querySelector("#nr-do-fill")?.addEventListener("click", () => runAutoFill(panel, "full"));
-      }
-    });
-    return;
-  }
-
-  if (state === "error") {
-    body.innerHTML = `
-      <div class="nr-af-error">${escapeHtml(errorMsg)}</div>
-      <button class="nr-af-btn nr-af-secondary" id="nr-retry-fill">Retry</button>
-    `;
-    body.querySelector("#nr-retry-fill")?.addEventListener("click", () => runAutoFill(panel));
-    return;
-  }
-
-  if (state === "no_fields") {
-    body.innerHTML = `<div class="nr-af-error">No fillable fields detected on this page.</div>`;
-    return;
-  }
-
-  if (state === "filling" || state === "done") {
-    const { fields, total, done, needsUpgrade } = fillData;
-    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-    const doneCount = fields.filter((f) => f.state === "done").length;
-
-    const listHtml = fields.map((f) => {
-      const tagLabel = {
-        done:    "✓ filled",
-        skip:    "— empty",
-        error:   "✗ error",
-        filling: "ai…",
-        pending: "waiting",
-      }[f.state] ?? f.state;
-      return `<div class="nr-field-item ${f.state}">
-        <span class="nr-field-name">${escapeHtml(f.label || f.kind)}</span>
-        <span class="nr-field-tag">${tagLabel}</span>
-      </div>`;
-    }).join("");
-
-    const isFinished = state === "done";
-
-    body.innerHTML = `
-      ${jobTitle || company ? `<div class="nr-job-line"><strong>${escapeHtml(jobTitle || "")}${company ? ` · ${escapeHtml(company)}` : ""}</strong></div>` : ""}
-      <div class="nr-field-count">${isFinished ? `✓ ${doneCount}/${total} fields filled` : `Filling ${done}/${total}…`}</div>
-      <div class="nr-progress-bar"><div class="nr-progress-fill" style="width:${pct}%"></div></div>
-      <div class="nr-field-list">${listHtml}</div>
-      ${isFinished && needsUpgrade ? `
-        <div class="nr-af-error" style="margin-bottom:8px">AI fields require a plan upgrade.</div>
-        <a href="${NEXTROLE_URL}/pricing" target="_blank" class="nr-af-btn nr-af-primary" style="text-decoration:none;margin-bottom:6px;display:flex;">Upgrade Plan →</a>
-      ` : ""}
-      ${isFinished ? `
-        <button class="nr-af-btn nr-af-submit" id="nr-do-submit">→ Submit application</button>
-        <button class="nr-af-btn nr-af-secondary" id="nr-refill">Re-fill</button>
-      ` : ""}
-    `;
-
-    if (isFinished) {
-      body.querySelector("#nr-do-submit")?.addEventListener("click", () => confirmAndSubmit(company));
-      body.querySelector("#nr-refill")?.addEventListener("click", () => runAutoFill(panel));
-    }
-  }
-}
-
-// ─── FAB + Panel ──────────────────────────────────────────────────────────────
-
-function buildFab() {
-  injectAfStyles();
-
-  // FAB button
-  const fab = document.createElement("button");
-  fab.id = "nr-fab";
-  fab.title = "NextRole Auto-fill";
-  fab.innerHTML = `
-    <svg width="20" height="20" viewBox="0 0 64 64" fill="none">
-      <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-  `;
-
-  // Panel
-  const panel = document.createElement("div");
-  panel.id = "nr-panel";
-  panel.innerHTML = `
-    <div class="nr-panel-header">
-      <div class="nr-panel-brand">
-        <svg width="12" height="12" viewBox="0 0 64 64" fill="none">
-          <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        NextRole
-      </div>
-      <button class="nr-panel-close">×</button>
-    </div>
-    <div class="nr-panel-body"></div>
-  `;
-
-  // Wire close button
-  panel.querySelector(".nr-panel-close").addEventListener("click", () => {
-    panel.classList.remove("open");
-  });
-
-  // Toggle panel on FAB click
-  const pageCtx = getPageJobContext();
-  fab.addEventListener("click", () => {
-    const isOpen = panel.classList.toggle("open");
-    if (isOpen) {
-      getLastJob().then((lastJob) => {
-        renderPanel(panel, "idle", null, null, {
-          jobTitle: lastJob.jobTitle || pageCtx.jobTitle,
-          company:  lastJob.company  || pageCtx.company,
-        });
-      });
-    }
-  });
-
-  // Close panel on outside click
-  document.addEventListener("mousedown", (e) => {
-    if (!panel.contains(e.target) && e.target !== fab) {
-      panel.classList.remove("open");
-    }
-  }, true);
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") panel.classList.remove("open");
-  }, true);
-
-  document.body.appendChild(fab);
-  document.body.appendChild(panel);
-}
-
-// ─── Event: triggered by content.js card ─────────────────────────────────────
-
-document.addEventListener("nr-autofill-trigger", (e) => {
-  const { tier } = e.detail ?? {};
-  const fillMode = tier === "pro" ? "full" : "basic";
-  runSilentFill(fillMode);
+  document.dispatchEvent(new CustomEvent("nr:scan-res", { detail: { fields: fieldData } }));
 });
 
-// ─── Boot ─────────────────────────────────────────────────────────────────────
+document.addEventListener("nr:write", (e) => {
+  const values = e.detail?.values ?? {};
+  let written = 0;
+  const filledTypes = [];
 
-buildFab();
+  for (const [id, value] of Object.entries(values)) {
+    const entry = _fieldRegistry[id];
+    if (!entry) continue;
+
+    if (entry.meta.kind === "select") {
+      // value may be "__select__" (placeholder from apply-card.js) or a real string —
+      // in both cases nativeFillSelect picks the best option using profile + meta.type
+      const ok = nativeFillSelect(entry.el, entry.meta, _lastProfile);
+      if (ok) { written++; filledTypes.push(entry.meta.type); }
+    } else if (value && value !== "__select__") {
+      nativeFill(entry.el, value);
+      written++;
+      filledTypes.push(entry.meta.type);
+    }
+  }
+
+  // Persist for multi-page tracking
+  if (filledTypes.length > 0) {
+    markFieldTypesFilled(filledTypes);
+  }
+
+  document.dispatchEvent(new CustomEvent("nr:write-done", { detail: { written } }));
+});
+
+// ─── SPA navigation support ───────────────────────────────────────────────────
+// Oracle HCM / Workday / Greenhouse are SPAs — navigating from job-preview to
+// apply page uses pushState, so content scripts don't re-run.  Intercept
+// pushState/replaceState, reset the field registry, and notify apply-card.js.
+
+(function () {
+  const _push    = history.pushState.bind(history);
+  const _replace = history.replaceState.bind(history);
+
+  function onSpaNav() {
+    setTimeout(() => {
+      _fieldRegistry = {};
+      // Notify apply-card.js so it can re-evaluate auto-trigger
+      document.dispatchEvent(new CustomEvent("nr:page-changed"));
+    }, 600);
+  }
+
+  history.pushState    = function (...args) { _push(...args);    onSpaNav(); };
+  history.replaceState = function (...args) { _replace(...args); onSpaNav(); };
+  window.addEventListener("popstate", onSpaNav);
+})();
 
 })();
