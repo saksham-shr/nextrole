@@ -45,6 +45,41 @@ export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired"
 
 // Row types (what you get back from SELECT) -------------------
 
+// Structured CV entry shapes (stored as JSONB on profiles)
+export type WorkExperienceEntry = {
+  role: string;
+  company: string;
+  start?: string;       // MM/YYYY or YYYY
+  end?: string;         // MM/YYYY, YYYY, or "Present"
+  current?: boolean;
+  location?: string;
+  description?: string;
+  employment_type?: "full_time" | "part_time" | "contract" | "internship" | "freelance";
+};
+
+export type EducationEntry = {
+  degree: string;
+  institution: string;
+  field?: string;
+  start?: string;       // YYYY
+  end?: string;         // YYYY or "Present"
+  grade?: string;       // e.g. "8.5 CGPA" or "89.5%"
+};
+
+export type CertificationEntry = {
+  title: string;
+  issuer?: string;
+  year?: string;
+  url?: string;
+};
+
+export type ProjectEntry = {
+  title: string;
+  description?: string;
+  tech?: string[];
+  url?: string;
+};
+
 export type ProfileRow = {
   id: string;
   email: string;
@@ -77,6 +112,43 @@ export type ProfileRow = {
   subscription_status: SubscriptionStatus | null;
   subscription_ends_at: string | null;
   onboarding_completed: boolean;
+  // Autofill profile fields (migration 20260511000001)
+  phone: string | null;
+  linkedin_url: string | null;
+  github_url: string | null;
+  portfolio_url: string | null;
+  country: string | null;
+  city: string | null;
+  state_province: string | null;
+  zip_postal: string | null;
+  street_address: string | null;
+  notice_period: string | null;
+  willing_to_relocate: boolean | null;
+  sponsorship_needed: boolean | null;
+  nationality: string | null;
+  gender: string | null;
+  pronouns: string | null;
+  race_ethnicity: string | null;
+  veteran_status: string | null;
+  disability_status: string | null;
+  work_experience: WorkExperienceEntry[] | null;
+  education: EducationEntry[] | null;
+  certifications: CertificationEntry[] | null;
+  projects: ProjectEntry[] | null;
+  skills: string[] | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ProfileFileRow = {
+  id: string;
+  user_id: string;
+  kind: "resume" | "cover_letter";
+  file_name: string;
+  storage_path: string;
+  file_size: number | null;
+  mime_type: string | null;
+  is_default: boolean;
   created_at: string;
   updated_at: string;
 };
@@ -311,6 +383,30 @@ export type Database = {
           subscription_status?: SubscriptionStatus | null;
           subscription_ends_at?: string | null;
           onboarding_completed?: boolean;
+          // Autofill profile fields (migration 20260511000001)
+          phone?: string | null;
+          linkedin_url?: string | null;
+          github_url?: string | null;
+          portfolio_url?: string | null;
+          country?: string | null;
+          city?: string | null;
+          state_province?: string | null;
+          zip_postal?: string | null;
+          street_address?: string | null;
+          notice_period?: string | null;
+          willing_to_relocate?: boolean | null;
+          sponsorship_needed?: boolean | null;
+          nationality?: string | null;
+          gender?: string | null;
+          pronouns?: string | null;
+          race_ethnicity?: string | null;
+          veteran_status?: string | null;
+          disability_status?: string | null;
+          work_experience?: WorkExperienceEntry[] | null;
+          education?: EducationEntry[] | null;
+          certifications?: CertificationEntry[] | null;
+          projects?: ProjectEntry[] | null;
+          skills?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -343,6 +439,30 @@ export type Database = {
           subscription_status?: SubscriptionStatus | null;
           subscription_ends_at?: string | null;
           onboarding_completed?: boolean;
+          // Autofill profile fields (migration 20260511000001)
+          phone?: string | null;
+          linkedin_url?: string | null;
+          github_url?: string | null;
+          portfolio_url?: string | null;
+          country?: string | null;
+          city?: string | null;
+          state_province?: string | null;
+          zip_postal?: string | null;
+          street_address?: string | null;
+          notice_period?: string | null;
+          willing_to_relocate?: boolean | null;
+          sponsorship_needed?: boolean | null;
+          nationality?: string | null;
+          gender?: string | null;
+          pronouns?: string | null;
+          race_ethnicity?: string | null;
+          veteran_status?: string | null;
+          disability_status?: string | null;
+          work_experience?: WorkExperienceEntry[] | null;
+          education?: EducationEntry[] | null;
+          certifications?: CertificationEntry[] | null;
+          projects?: ProjectEntry[] | null;
+          skills?: string[] | null;
           updated_at?: string;
         };
         Relationships: [];
@@ -768,6 +888,27 @@ export type Database = {
         Update: Record<string, never>;
         Relationships: [];
       };
+      profile_files: {
+        Row: ProfileFileRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          kind: "resume" | "cover_letter";
+          file_name: string;
+          storage_path: string;
+          file_size?: number | null;
+          mime_type?: string | null;
+          is_default?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          file_name?: string;
+          is_default?: boolean;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       extension_tokens: {
         Row: {
           id: string;
@@ -843,6 +984,7 @@ export type Database = {
           evaluations: number;
           resumes: number;
           autofills: number;
+          tailor_sessions: number;
           created_at: string;
           updated_at: string;
         };
@@ -852,6 +994,7 @@ export type Database = {
           evaluations?: number;
           resumes?: number;
           autofills?: number;
+          tailor_sessions?: number;
           created_at?: string;
           updated_at?: string;
         };
@@ -859,6 +1002,7 @@ export type Database = {
           evaluations: number;
           resumes: number;
           autofills: number;
+          tailor_sessions: number;
           updated_at: string;
         }>;
         Relationships: [];

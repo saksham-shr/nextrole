@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
 
   if (tier === "free") {
     const { data: usageRow } = await admin
-      .from("daily_usage").select("resumes_count").eq("user_id", userId).eq("date", today).maybeSingle();
-    const resumesToday = (usageRow as { resumes_count?: number } | null)?.resumes_count ?? 0;
+      .from("daily_usage").select("resumes").eq("user_id", userId).eq("date", today).maybeSingle();
+    const resumesToday = (usageRow as { resumes?: number } | null)?.resumes ?? 0;
     if (resumesToday >= FREE_DAILY_LIMITS.resumes) {
       return NextResponse.json({ error: "Daily resume limit reached — upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
     }

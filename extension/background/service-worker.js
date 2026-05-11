@@ -187,6 +187,29 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// ─── Fetch structured CV data for Workday modal auto-fill ────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "GET_CV_STRUCTURE") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/cv-structure", {
+      credentials: "omit",
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) sendResponse({ ok: true, structure: data });
+        else sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true;
+});
+
 // ─── Check if job URL already in pipeline ────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -384,4 +407,150 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   });
 
   return true;
+});
+
+// ─── AI tailoring: single-call multi-field job-aware answer generation ──────
+//
+// Request: { jobId?, evaluationId?, jobTitle?, company?, jobDescription?,
+//            fieldsNeeded: string[] }
+// Response: { ok, answers, experience_bullets, skills_to_emphasize,
+//             tailor_sessions_today, credits_remaining }
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "TAILOR_FILL") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    const payload = {
+      job_id:         msg.jobId         ?? null,
+      evaluation_id:  msg.evaluationId  ?? null,
+      jobTitle:       msg.jobTitle      ?? "",
+      company:        msg.company       ?? "",
+      jobDescription: msg.jobDescription ?? "",
+      fields_needed:  Array.isArray(msg.fieldsNeeded) ? msg.fieldsNeeded : [],
+    };
+
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + "/api/extension/tailor", {
+      method: "POST",
+      credentials: "omit",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) sendResponse({ ok: true, ...data });
+        else sendResponse({
+          ok: false,
+          error: data.error ?? `Server error (${res.status})`,
+          cap_reached: data.cap_reached === true,
+          insufficient_credits: data.insufficient_credits === true,
+          upgrade: data.upgrade === true,
+        });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true;
+});
+
+// ─── List recent evaluations (for apply-card evaluation picker) ──────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "LIST_EVALUATIONS") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    const qs = msg.url ? `?url=${encodeURIComponent(msg.url)}` : "";
+    fetch(NEXTROLE_URL.replace(/\/$/, "") + `/api/extension/evaluations${qs}`, {
+      credentials: "omit",
+      headers: { "Authorization": `Bearer ${token}` },
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) sendResponse({ ok: true, ...data });
+        else sendResponse({ ok: false, error: data.error ?? `Server error (${res.status})` });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true;
+});
+
+// ─── Get user's uploaded profile file (resume or cover letter) ──────────────
+//
+// kind: "resume" | "cover_letter"
+// id?:  specific file id; if omitted, returns the default (or most recent)
+//
+// Returns: { ok, data: number[], type, filename }
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "GET_PROFILE_FILE") return false;
+
+  const kind = msg.kind === "cover_letter" ? "cover_letter" : "resume";
+  const idQs = msg.id ? `&id=${encodeURIComponent(msg.id)}` : "";
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    fetch(
+      NEXTROLE_URL.replace(/\/$/, "") +
+        `/api/extension/profile-file?kind=${encodeURIComponent(kind)}${idQs}`,
+      { credentials: "omit", headers: { "Authorization": `Bearer ${token}` } },
+    )
+      .then(async (res) => {
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          sendResponse({ ok: false, error: d.error ?? `Server error (${res.status})` });
+          return;
+        }
+        const ab       = await res.arrayBuffer();
+        const filename = res.headers.get("X-File-Name") ?? `nextrole_${kind}`;
+        const type     = res.headers.get("Content-Type") ?? "application/octet-stream";
+        sendResponse({
+          ok:       true,
+          data:     Array.from(new Uint8Array(ab)),
+          type,
+          filename,
+        });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true; // async sendResponse
+});
+
+// ─── Get resume file as binary (for Accenture direct upload) ─────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.type !== "GET_RESUME_FILE") return false;
+
+  getToken().then((token) => {
+    if (!token) { sendResponse({ ok: false, error: "Not connected" }); return; }
+
+    fetch(
+      NEXTROLE_URL.replace(/\/$/, "") +
+        `/api/extension/resume-file?jobId=${encodeURIComponent(msg.jobId ?? "")}`,
+      { credentials: "omit", headers: { "Authorization": `Bearer ${token}` } },
+    )
+      .then(async (res) => {
+        if (!res.ok) {
+          const d = await res.json().catch(() => ({}));
+          sendResponse({ ok: false, error: d.error ?? `Server error (${res.status})` });
+          return;
+        }
+        const ab = await res.arrayBuffer();
+        // Convert to plain Array so it survives the structured-clone boundary
+        sendResponse({
+          ok:       true,
+          data:     Array.from(new Uint8Array(ab)),
+          type:     "application/msword",
+          filename: "nextrole_resume.doc",
+        });
+      })
+      .catch((err) => sendResponse({ ok: false, error: `Network error: ${err.message}` }));
+  });
+
+  return true; // async sendResponse
 });

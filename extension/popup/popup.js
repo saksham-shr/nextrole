@@ -69,6 +69,7 @@ const SOURCE_LABELS = {
   icims:           "iCIMS",
   bamboohr:        "BambooHR",
   taleo:           "Taleo",
+  oracle:          "Oracle Recruiting",
   jazzhr:          "JazzHR",
   recruitee:       "Recruitee",
   breezyhr:        "Breezy HR",
@@ -261,6 +262,7 @@ async function saveJob(label) {
     currentJobId = jobId;
     chrome.storage.session.set({
       nr_last_job_id:    jobId,
+      nr_last_job_url:   currentJob.url    ?? "",
       nr_last_job_title: currentJob.title  ?? "",
       nr_last_company:   currentJob.company ?? "",
     });

@@ -79,11 +79,11 @@ export async function POST(req: NextRequest) {
   if (tier === "free") {
     const { data: usageRow } = await admin
       .from("daily_usage")
-      .select("evaluations_count")
+      .select("evaluations")
       .eq("user_id", userId)
       .eq("date", today)
       .maybeSingle();
-    const usedToday = (usageRow as { evaluations_count?: number } | null)?.evaluations_count ?? 0;
+    const usedToday = (usageRow as { evaluations?: number } | null)?.evaluations ?? 0;
     if (usedToday >= FREE_DAILY_LIMITS.evaluations) {
       return NextResponse.json(
         { error: "Daily evaluation limit reached — upgrade for more", upgrade: true },
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
     user_id: userId,
     task_type: "evaluate",
     model: route.model,
-    credits_used: CREDIT_COSTS.evaluate,
+    credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
     byok: false,
   }).then(() => {});
 

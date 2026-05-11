@@ -26,6 +26,7 @@ const TOP_NAV = [
   { id: "pipeline", label: "Pipeline", href: "/dashboard/pipeline" },
   { id: "evaluate", label: "Evaluate", href: "/dashboard/evaluate" },
   { id: "resume",   label: "Resume",   href: "/dashboard/resumes" },
+  { id: "profile",  label: "Profile",  href: "/dashboard/profile" },
   { id: "settings", label: "Settings", href: "/dashboard/settings" },
 ] as const;
 
@@ -36,6 +37,7 @@ function getActiveNav(pathname: string): NavId {
   if (pathname.startsWith("/dashboard/pipeline")) return "pipeline";
   if (pathname.startsWith("/dashboard/evaluate")) return "evaluate";
   if (pathname.startsWith("/dashboard/resumes")) return "resume";
+  if (pathname.startsWith("/dashboard/profile")) return "profile";
   if (
     pathname.startsWith("/dashboard/settings") ||
     pathname.startsWith("/dashboard/billing") ||

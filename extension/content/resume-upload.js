@@ -25,6 +25,7 @@ const RESUME_ATS = [
   /lever\.co\/apply/,
   /jobs\.ashbyhq\.com/,
   /myworkdayjobs\.com/,
+  /jobs\.workday\.com/,
   /smartrecruiters\.com/,
   /apply\.workable\.com/,
   /linkedin\.com\/jobs\/easy-apply/,
@@ -41,6 +42,11 @@ const RESUME_ATS = [
   /\.teamtailor\.com/,
   /jobs\.personio\./,
   /taleo\.net/,
+  /oraclecloud\.com\/hcmUI/,
+  /fa\.[a-z0-9]+\.oraclecloud\.com/,
+  /oracle\.com\/.*apply/,
+  /naukri\.com/,
+  /indeed\.com\/apply/,
 ];
 
 const isResumeAts    = RESUME_ATS.some((p) => p.test(location.href));
@@ -169,7 +175,7 @@ function injectResumeStyles() {
 
 function getToken() {
   return new Promise((resolve) => {
-    chrome.storage.local.get(["nr_access_token"], (d) => resolve(d.nr_access_token ?? ""));
+    chrome.storage.local.get("nr_ext_token", (d) => resolve(d.nr_ext_token ?? ""));
   });
 }
 
@@ -227,13 +233,14 @@ function removeResumeOverlay() {
 function showResumeOverlay({ anchor, state, error, coverage, jobTitle, company }) {
   removeResumeOverlay();
 
-  const rect   = anchor.getBoundingClientRect();
-  const scrollX = window.scrollX, scrollY = window.scrollY;
+  // position:fixed — viewport-relative, no scroll offsets needed
+  // (Oracle HCM, Workday scroll inside custom divs so window.scrollY = 0)
+  const rect = anchor.getBoundingClientRect();
 
   const overlay = document.createElement("div");
   overlay.className = "nr-resume-overlay";
-  overlay.style.top  = (rect.bottom + scrollY + 8) + "px";
-  overlay.style.left = Math.min(rect.left + scrollX, window.innerWidth + scrollX - 360) + "px";
+  overlay.style.top  = (rect.bottom + 8) + "px";
+  overlay.style.left = Math.max(4, Math.min(rect.left, window.innerWidth - 364)) + "px";
 
   let bodyHtml = "";
 

@@ -13,7 +13,8 @@ export const CREDIT_COSTS = {
   evaluate:        5,
   resume_standard: 10,
   resume_premium:  25,
-  autofill:        8,
+  autofill:        2,
+  tailor:          8,   // One tailor session = up to 5 freeform fields, single AI call
 } as const;
 
 export type CreditTask = keyof typeof CREDIT_COSTS;
@@ -25,10 +26,13 @@ export const FREE_DAILY_LIMITS = {
   autofills:   0,
 } as const;
 
-// Starter daily limits on top of monthly credits
-export const STARTER_DAILY_LIMITS = {
-  autofills: 1,
-} as const;
+// Starter daily autofill credit cap (resets at midnight)
+// 16 credits = up to 8 AI suggestions per day at 2cr each
+export const STARTER_DAILY_AUTOFILL_CREDIT_CAP = 16;
+
+// Starter daily tailor cap (one full multi-field tailor session per day).
+// Pro is credit-bound: each tailor session deducts CREDIT_COSTS.tailor.
+export const STARTER_DAILY_TAILOR_CAP = 1;
 
 // Premium resume lifetime cap per user (regardless of tier)
 export const PREMIUM_RESUME_LIFETIME_CAP = 10;
@@ -53,6 +57,7 @@ const GATES: Record<string, Tier[]> = {
 
   // Starter+
   autofill:         ["starter", "pro"],
+  tailor:           ["starter", "pro"],
 
   // Pro only
   resume_premium:   ["pro"],

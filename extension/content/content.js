@@ -80,12 +80,19 @@ function fromJsonLd() {
 
 function fromLinkedIn() {
   if (!location.hostname.includes("linkedin.com")) return null;
-  // Only job detail pages — not company pages, search results, feed, or collections
-  if (!location.pathname.includes("/jobs/view/")) return null;
+  // Job detail pages (/jobs/view/) AND search/collections right-panels (?currentJobId=)
+  const isJobView  = location.pathname.includes("/jobs/view/");
+  const isJobPanel = /[?&]currentJobId=\d+/.test(location.search) &&
+    (location.pathname.startsWith("/jobs/") || location.pathname.startsWith("/feed"));
+  if (!isJobView && !isJobPanel) return null;
 
   const title = texts([
+    // Right-side panel (search / collections) uses h2 inside the unified top card
+    ".job-details-jobs-unified-top-card__job-title h2",
     ".job-details-jobs-unified-top-card__job-title h1",
     ".job-details-jobs-unified-top-card__job-title",
+    ".jobs-unified-top-card__job-title h2",
+    "h2.jobs-unified-top-card__job-title",
     "h1.t-24.t-bold",
     ".topcard__title",
     "h1",
@@ -95,23 +102,28 @@ function fromLinkedIn() {
     ".job-details-jobs-unified-top-card__company-name a",
     ".job-details-jobs-unified-top-card__company-name",
     ".job-details-jobs-unified-top-card__primary-description-without-tagline a",
+    // Panel view on search pages
+    ".jobs-unified-top-card__company-name a",
+    ".jobs-unified-top-card__company-name",
     ".topcard__org-name-link",
     ".topcard__flavor--black-link",
     '[data-tracking-control-name="public_jobs_topcard-org-name"]',
   ]);
 
-  // LinkedIn truncates with .show-more-less-html — grab both variants and pick longer
+  // LinkedIn truncates with .show-more-less-html — grab both variants and pick longer.
+  // Also handles the right-side panel on search/collections pages (.jobs-search__job-details).
   const descA = texts([
     ".show-more-less-html__markup--more",   // expanded state
     ".show-more-less-html__markup",          // any state
     ".jobs-description__content",
     ".jobs-description-content__text",
     ".description__text",
+    ".job-details-module__content",
   ]);
-  // Also try the raw innerHTML → strip tags (catches content hidden by max-height CSS)
   const descEl =
     document.querySelector(".jobs-box__html-content") ??
     document.querySelector(".jobs-description-content__text") ??
+    document.querySelector(".jobs-search__job-details--container .jobs-description") ??
     document.querySelector(".jobs-description");
   const descB = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
   const description = longer(descA, descB);
@@ -305,14 +317,24 @@ function fromWorkday() {
     "h1",
   ]);
 
+  // Workday URLs: <tenant>.wd1.myworkdayjobs.com or <tenant>.myworkdayjobs.com
+  // og:site_name always returns "Workday" (the platform), not the employer — never use it.
+  // The tenant subdomain is the most reliable company identifier.
+  const wdSubMatch = location.hostname.match(/^([^.]+)\.(?:wd\d+\.)?myworkdayjobs\.com$/i);
+  const companyFromSub = wdSubMatch
+    ? wdSubMatch[1].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+
   const company =
-    metaContent("og:site_name") ??
+    companyFromSub ??
     text('[data-automation-id="breadcrumb-row"] a') ??
+    texts(['[data-automation-id="legalEntityName"]', '.css-1cjz7xt']) ??
     companyFromDomain();
 
   const descEl =
     document.querySelector('[data-automation-id="jobPostingDescription"]') ??
     document.querySelector('[data-automation-id="job-posting-description"]') ??
+    document.querySelector('[class*="jobPostingDescription"]') ??
     document.querySelector('[class*="job-description"]');
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
 
@@ -378,34 +400,95 @@ function fromWellfound() {
 function fromNaukri() {
   if (!location.hostname.includes("naukri.com")) return null;
 
-  const title = texts([
-    '[class*="jd-header-title"]',
-    '[class*="job-tittle"] h1',
-    '[class*="jobTitle"]',
-    'h1',
-  ]);
+  // Precise selectors confirmed from real DOM (job-listings pages)
+  const title =
+    attr('[class*="jd-header-title"]', "title") ||
+    texts([
+      '[class*="jd-header-title"]',
+      '[class*="job-tittle"] h1',
+      '[class*="jobTitle"]',
+      'h1',
+    ]);
 
   const company = texts([
+    '[class*="jd-header-comp-name"] a',   // exact class from real DOM
     '[class*="comp-name"] a',
     '[class*="comp-name"]',
     '[class*="company-name"]',
     '[class*="companyName"]',
   ]) ?? companyFromDomain();
 
+  // Prefer the rich inner-html description block; fall back to section
   const descEl =
+    document.querySelector('[class*="dang-inner-html"]') ??
     document.querySelector('[class*="job-desc"]') ??
     document.querySelector('[class*="jobDesc"]') ??
     document.querySelector('[class*="job-description"]') ??
     document.querySelector("section.job-desc");
   const description = descEl ? cleanText(descEl.innerText) : null;
 
+  // Extract Naukri job ID from URL slug (12-digit numeric suffix)
+  const jobIdMatch = location.href.match(/job-listings-.*?-(\d{10,14})(?:[?#]|$)/);
+  const naukriJobId = jobIdMatch?.[1] ?? null;
+
   if (title) {
-    return { title, company, description, confidence: "high", source: "naukri" };
+    return {
+      title, company, description,
+      confidence: "high", source: "naukri",
+      siteJobId: naukriJobId,          // stable ID for JD→apply tracking
+      applyMode: naukriApplyMode(),    // "redirect" | "chatbot" | "unknown"
+    };
   }
   return null;
 }
 
-// ─── Extractor 13: iCIMS ─────────────────────────────────────────────────────
+// Detect which apply mode Naukri will use for this job
+function naukriApplyMode() {
+  // Chatbot panel is already open
+  const chatbot = document.querySelector("#chatbot-container");
+  if (chatbot && chatbot.children.length > 0) return "chatbot";
+  // No strong signal yet — will be updated after user clicks Apply
+  return "unknown";
+}
+
+// ─── Extractor 13: Accenture Careers ─────────────────────────────────────────
+
+function fromAccenture() {
+  if (!location.hostname.includes("accenture.com")) return null;
+  if (!location.pathname.includes("/careers/jobdetails")) return null;
+
+  const params = new URLSearchParams(location.search);
+
+  // Title: prefer URL query param, fall back to DOM h1
+  const rawTitle = params.get("title");
+  const title = rawTitle
+    ? rawTitle.replace(/\+/g, " ")
+    : document.querySelector("h1")?.textContent?.trim() ?? null;
+
+  const accentureJobId = params.get("id") ?? null;
+
+  const descEl =
+    document.querySelector('[class*="job-desc"]') ??
+    document.querySelector('[class*="description"]') ??
+    document.querySelector("main");
+  const description = descEl
+    ? descEl.innerText?.trim() ?? null
+    : null;
+
+  if (title) {
+    return {
+      title,
+      company: "Accenture",
+      description,
+      confidence: "high",
+      source: "accenture",
+      siteJobId: accentureJobId,
+    };
+  }
+  return null;
+}
+
+// ─── Extractor 14: iCIMS ─────────────────────────────────────────────────────
 
 function fromICIMS() {
   if (!location.hostname.includes("icims.com")) return null;
@@ -462,7 +545,7 @@ function fromBambooHR() {
   return null;
 }
 
-// ─── Extractor 15: Taleo (Oracle Recruiting) ─────────────────────────────────
+// ─── Extractor 15: Taleo (Oracle Recruiting, legacy) ─────────────────────────
 
 function fromTaleo() {
   if (!location.hostname.includes("taleo.net")) return null;
@@ -472,23 +555,109 @@ function fromTaleo() {
     ".requisitionDetails h1",
     "[id*='reqTitle']",
     "[id*='jobTitle']",
+    "[class*='requisitionTitle']",
+    "[class*='req-title']",
+    "[data-automation-id='requisition-title']",
     "h1",
-  ]);
+  ]) ?? (() => {
+    // Taleo often puts "Job Title - Company - Taleo" in the page title
+    const parts = document.title.split(/\s[-–—|]\s/).map((s) => s.trim()).filter(Boolean);
+    return (parts[0] && parts[0].length < 120) ? parts[0] : null;
+  })();
 
   const company =
     metaContent("og:site_name") ??
     metaContent("application-name") ??
+    (() => {
+      const parts = document.title.split(/\s[-–—|]\s/).map((s) => s.trim()).filter(Boolean);
+      return parts.length > 1 ? parts[1] : null;
+    })() ??
     companyFromDomain();
 
   const descEl =
     document.querySelector(".jd-info") ??
     document.querySelector("#description") ??
     document.querySelector('[class*="requisition-description"]') ??
+    document.querySelector('[class*="jobDescription"]') ??
     document.querySelector("main");
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
 
   if (title) {
     return { title, company, description, confidence: "high", source: "taleo" };
+  }
+  return null;
+}
+
+// ─── Extractor 15b: Oracle Recruiting Cloud (ORC / HCM) ──────────────────────
+// URLs: [company].fa.[region].oraclecloud.com/hcmUI/CandidateExperience/...
+
+function fromOracleCloud() {
+  if (
+    !location.hostname.includes("oraclecloud.com") ||
+    (!location.pathname.includes("/hcmUI/") && !location.pathname.includes("/CandidateExperience/"))
+  ) return null;
+
+  // On apply/section pages the h1 is the form-section header (e.g. "Contact Information"),
+  // not the job title. Use DOM selectors only on non-apply pages; always fall back to
+  // the document title which Oracle sets to "Job Title | Company | Oracle Recruiting Cloud".
+  const isApplyPage = /\/apply\//i.test(location.pathname);
+
+  const titleFromDom = isApplyPage ? null : texts([
+    '[data-bind*="Title"]',
+    '[class*="job-requisition-title"]',
+    '[class*="JobRequisitionTitle"]',
+    '[class*="JobTitle"]',
+    '[class*="jobTitle"]',
+    '.oj-panel h1',
+    'h1',
+  ]);
+
+  // Page title: "Advanced Software Engineer - hybrid | Apply | Honeywell | Oracle..."
+  // Split on | — but only once; separator may also be · or —
+  const pageTitleParts = document.title.split(/\s*[|·—]\s*/).map((s) => s.trim()).filter(Boolean);
+  const titleFromPage = (pageTitleParts[0] && pageTitleParts[0].length < 120) ? pageTitleParts[0] : null;
+
+  const title = titleFromDom ?? titleFromPage;
+
+  // ── Company ─────────────────────────────────────────────────────────────────
+  // Priority 1: URL path /sites/{Company}/jobs/…  (e.g. /sites/Honeywell/jobs/…)
+  const siteMatch = location.pathname.match(/\/sites\/([^/]+)\//i);
+  const companyFromPath = siteMatch
+    ? decodeURIComponent(siteMatch[1]).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+
+  // Priority 2: DOM selectors (job-detail page)
+  const companyFromDom = isApplyPage ? null : texts([
+    '[data-bind*="OrganizationName"]',
+    '[class*="company-name"]',
+    '[class*="companyName"]',
+  ]);
+
+  // Priority 3: page title second segment (may be company name on detail pages)
+  const companyFromTitle = pageTitleParts.length > 1 ? pageTitleParts[pageTitleParts.length - 2] : null;
+
+  // Priority 4: subdomain — but skip if it looks like a random tenant ID
+  //   Tenant IDs are short alphanumeric strings (e.g. "ibqbjb", "fa12xyz").
+  //   Real company subdomains tend to be recognisable words.
+  const subMatch = location.hostname.match(/^([^.]+)\.fa\./);
+  const subCandidate = subMatch ? subMatch[1] : null;
+  const subLooksLikeCompany = subCandidate && subCandidate.length > 3 && /[a-z]{4,}/i.test(subCandidate);
+  const companyFromSub = subLooksLikeCompany
+    ? subCandidate.charAt(0).toUpperCase() + subCandidate.slice(1).replace(/-/g, " ")
+    : null;
+
+  const company = companyFromPath ?? companyFromDom ?? companyFromTitle ?? companyFromSub ?? companyFromDomain();
+
+  const descEl =
+    document.querySelector('[data-bind*="description"]') ??
+    document.querySelector('[class*="jobDescription"]') ??
+    document.querySelector('[class*="job-description"]') ??
+    document.querySelector('[class*="requisitionDescription"]') ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "oracle" };
   }
   return null;
 }
@@ -666,7 +835,54 @@ function fromPersonio() {
   return null;
 }
 
-// ─── Extractor 22: Heuristic fallback (any job site) ─────────────────────────
+// ─── Extractor 22: SAP SuccessFactors ────────────────────────────────────────
+
+function fromSAPSuccessFactors() {
+  if (
+    !location.hostname.includes("successfactors.com") &&
+    !location.hostname.includes("sapsf.com") &&
+    !location.hostname.includes("career.sap.com") &&
+    !location.hostname.includes("jobs.sap.com")
+  ) return null;
+
+  const title = texts([
+    "[data-compid='jobReqTitle']",
+    ".jobReqHeader h1",
+    "[class*='jobTitle'] h1",
+    "[class*='job-title'] h1",
+    "h1",
+  ]);
+
+  const company =
+    texts(["[data-compid='jobDetailCompanyName']", ".companyName", "[class*='companyName']"]) ??
+    (() => {
+      // SAP SF URL: /careers/<companyId>/job/<jobId>/...
+      const m = location.pathname.match(/\/careers\/([^/?#]+)/);
+      return m ? decodeURIComponent(m[1]).replace(/[-_]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : null;
+    })() ??
+    metaContent("og:site_name") ??
+    companyFromDomain();
+
+  const descEl =
+    document.querySelector("[data-compid='jobDescriptionTxt']") ??
+    document.querySelector(".jobDescriptionTxt") ??
+    document.querySelector("[class*='jobDescription']") ??
+    document.querySelector("[class*='job-description']") ??
+    document.querySelector("main");
+  const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  if (title) {
+    return { title, company, description, confidence: "high", source: "sap_sf" };
+  }
+  return null;
+}
+
+// ─── Extractor 23: Heuristic fallback (any job site) ─────────────────────────
+//
+// Stricter than before: we now require BOTH the URL signal AND at least one
+// additional signal (content OR DOM).  This prevents false positives on
+// blog posts, pricing pages, and company homepages that merely mention
+// "compensation" or have an "Apply" CTA somewhere on the page.
 
 function fromHeuristic() {
   const title = document.querySelector("h1")?.innerText?.trim() ?? null;
@@ -687,20 +903,27 @@ function fromHeuristic() {
 
   const contentText = contentEl?.innerText ?? "";
 
-  // Signal 1: URL contains job-related path segments
-  const JOB_URL = /\/job|\/career|\/vacancy|\/position|\/opening|\/recruit|job[-_]listing|viewjob/i;
+  // Signal A: URL contains job-related path segments (REQUIRED)
+  // Anything without a job-like URL is almost certainly a false positive.
+  const JOB_URL = /\/job[s]?\/|\/career[s]?\/|\/vacancy|\/vacancies|\/position[s]?\/|\/opening[s]?\/|\/recruit|\/job-post|job[-_]listing|viewjob|jobdetail|requisition/i;
+  if (!JOB_URL.test(location.href) && !JOB_URL.test(document.title)) return null;
 
-  // Signal 2: page content mentions job description terms
-  const JOB_CONTENT = /responsibilities|requirements|qualifications|experience required|what you.ll do|about the role|job description|apply now|salary|compensation|benefits|perks/i;
+  // Signal B: job-specific content terms (at least 2 distinct keywords needed)
+  const JOB_KEYWORDS = [
+    /responsibilities/i, /requirements/i, /qualifications/i,
+    /what you.ll do/i, /about the role/i, /job description/i,
+    /we are looking for/i, /you will/i, /years of experience/i,
+  ];
+  const contentMatches = JOB_KEYWORDS.filter((re) => re.test(contentText)).length;
 
-  // Signal 3: common job-page DOM patterns
+  // Signal C: structural DOM clues specific to job pages
   const JOB_DOM = !!(
-    document.querySelector('[class*="apply"], [id*="apply"]') ??
-    document.querySelector('[class*="salary"], [id*="salary"]') ??
-    document.querySelector('[class*="job-title"], [class*="jobTitle"]')
+    document.querySelector('[class*="job-title"], [class*="jobTitle"], [class*="job-role"]') ??
+    document.querySelector('button[class*="apply"], a[class*="apply-now"], [id*="apply-btn"]')
   );
 
-  if (!JOB_URL.test(location.href) && !JOB_CONTENT.test(contentText) && !JOB_DOM) return null;
+  // Need URL signal (already checked) + at least content match OR DOM clue
+  if (contentMatches < 1 && !JOB_DOM) return null;
 
   const company =
     metaContent("og:site_name") ??
@@ -727,8 +950,10 @@ function extractJob() {
     fromWorkable() ??
     fromWellfound() ??
     fromNaukri() ??
+    fromAccenture() ??
     fromICIMS() ??
     fromBambooHR() ??
+    fromOracleCloud() ??   // before Taleo — ORC is current Oracle product
     fromTaleo() ??
     fromJazzHR() ??
     fromRecruitee() ??
@@ -736,6 +961,7 @@ function extractJob() {
     fromJobvite() ??
     fromTeamtailor() ??
     fromPersonio() ??
+    fromSAPSuccessFactors() ??
     fromHeuristic();
 
   if (!result) return null;
@@ -821,6 +1047,20 @@ function injectCardStyles() {
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     #nr-detect-card .nr-actions { display: flex; gap: 6px; }
+    #nr-detect-card .nr-eval-first-btn {
+      width: 100%; margin-bottom: 6px;
+      padding: 8px 12px; border-radius: 8px;
+      border: 1.5px solid rgba(200,74,31,0.45);
+      background: rgba(200,74,31,0.06);
+      color: #c84a1f; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    #nr-detect-card .nr-eval-first-btn:hover:not(:disabled) {
+      background: rgba(200,74,31,0.12); border-color: #c84a1f;
+    }
+    #nr-detect-card .nr-eval-first-btn:disabled { opacity: 0.5; cursor: not-allowed; }
     #nr-detect-card .nr-btn {
       flex: 1; padding: 8px 10px; border-radius: 7px; border: none;
       font-family: monospace; font-size: 10px; font-weight: 500;
@@ -848,6 +1088,22 @@ function injectCardStyles() {
       height: 100%; background: #c84a1f;
       transition: width 1s linear;
     }
+    /* minimized state — only header visible */
+    #nr-detect-card.nr-minimized { width: auto; min-width: 160px; }
+    #nr-detect-card.nr-minimized .nr-cb { display: none; }
+    #nr-detect-card .nr-minimize {
+      background: none; border: none;
+      color: rgba(255,253,248,0.6); cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 2px 5px; border-radius: 4px;
+    }
+    #nr-detect-card .nr-minimize:hover { color: #fffdf8; }
+    #nr-detect-card .nr-minimize-plain {
+      background: none; border: none;
+      color: #9a9286; cursor: pointer;
+      font-size: 16px; line-height: 1; padding: 2px 5px; border-radius: 4px;
+    }
+    #nr-detect-card .nr-minimize-plain:hover { color: #1a1814; }
+
     /* saved confirmation row */
     #nr-detect-card .nr-saved-row {
       display: flex; align-items: center; gap: 8px;
@@ -910,6 +1166,26 @@ function injectCardStyles() {
       font-family: monospace; font-size: 10px; letter-spacing: 0.1em;
       text-transform: uppercase; cursor: pointer;
     }
+    /* "Not a job?" feedback footer */
+    #nr-detect-card .nr-feedback-row {
+      margin-top: 10px; padding-top: 8px; border-top: 1px solid #ede8e0;
+      display: flex; align-items: center; justify-content: flex-end;
+    }
+    #nr-detect-card .nr-not-job-btn {
+      background: none; border: none; cursor: pointer;
+      font-size: 11px; color: #9a9286; padding: 0;
+      font-family: inherit;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    #nr-detect-card .nr-not-job-btn:hover { color: #6b6358; }
+    /* confirm-card style (low-confidence) */
+    #nr-detect-card .nr-confirm-body {
+      padding: 12px;
+    }
+    #nr-detect-card .nr-confirm-q {
+      font-size: 12px; color: #6b6358; margin-bottom: 10px; line-height: 1.5;
+    }
+    #nr-detect-card .nr-confirm-actions { display: flex; gap: 6px; }
     /* spinner */
     #nr-detect-card .nr-spin {
       display: inline-block; width: 14px; height: 14px;
@@ -981,6 +1257,71 @@ function _checkJobUrlViaApi(job) {
   });
 }
 
+// ─── Confirm card (low-confidence / heuristic) ───────────────────────────────
+// Shown when heuristic fires but we're not sure it's really a job page.
+// User can confirm (→ shows full detect card) or dismiss as not a job.
+
+function showConfirmCard(job) {
+  removeCard();
+  injectCardStyles();
+
+  const card = document.createElement("div");
+  card.id = "nr-detect-card";
+  card.innerHTML = `
+    <div class="nr-ch">
+      <div class="nr-brand">
+        <svg width="12" height="12" viewBox="0 0 64 64" fill="none">
+          <rect width="64" height="64" rx="14" fill="rgba(255,253,248,0.18)"/>
+          <path d="M20 14L44 32L20 50" stroke="#fffdf8" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        NextRole
+      </div>
+      <button class="nr-cx" id="nr-confirm-close" title="Dismiss">×</button>
+    </div>
+    <div class="nr-confirm-body">
+      <div style="font-weight:600;font-size:13px;margin-bottom:4px;">${escapeHtml(job.title ?? "")}</div>
+      <div style="font-size:12px;color:#6b6358;margin-bottom:10px;">${escapeHtml(job.company ?? "")}</div>
+      <div class="nr-confirm-q">Is this a job posting you want to track?</div>
+      <div class="nr-confirm-actions">
+        <button class="nr-btn nr-primary" id="nr-confirm-yes" style="flex:1">Yes, track it</button>
+        <button class="nr-btn nr-secondary" id="nr-confirm-no" style="flex:1">Not a job</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(card);
+
+  card.querySelector("#nr-confirm-close").addEventListener("click", removeCard);
+
+  card.querySelector("#nr-confirm-yes").addEventListener("click", () => {
+    sendFeedback("confirmed", job);
+    removeCard();
+    // Upgrade confidence and show the full card
+    showDetectCard({ ...job, confidence: "confirmed" });
+  });
+
+  card.querySelector("#nr-confirm-no").addEventListener("click", () => {
+    sendFeedback("not_a_job", job);
+    removeCard();
+  });
+}
+
+// ─── "Not a job?" helper ──────────────────────────────────────────────────────
+
+function appendNotAJobLink(card, job) {
+  const cb = card.querySelector(".nr-cb");
+  if (!cb) return;
+  const row = document.createElement("div");
+  row.className = "nr-feedback-row";
+  row.innerHTML = `<button class="nr-not-job-btn" title="Report false positive">Not a job? Tell us →</button>`;
+  cb.appendChild(row);
+  row.querySelector(".nr-not-job-btn").addEventListener("click", () => {
+    sendFeedback("not_a_job", job);
+    removeCard();
+  });
+}
+
+// ─── Panel A: Job detected card ───────────────────────────────────────────────
+
 function showNewJobCard(job) {
   const card = document.createElement("div");
   card.id = "nr-detect-card";
@@ -1000,18 +1341,24 @@ function showNewJobCard(job) {
         </svg>
         NextRole · Job Detected
       </div>
-      <button class="nr-cx" id="nr-card-close">×</button>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button class="nr-minimize" id="nr-card-minimize" title="Minimise">─</button>
+        <button class="nr-cx" id="nr-card-close" title="Close">×</button>
+      </div>
     </div>
     <div class="nr-cb">
       <div class="nr-title">${escapeHtml(job.title)}</div>
       <div class="nr-company">${escapeHtml(job.company)}</div>
       <div class="nr-url">${escapeHtml(urlDisplay)}</div>
       <div id="nr-card-body-actions">
+        <button class="nr-eval-first-btn" id="nr-card-evaluate">
+          ✦ Evaluate Fit First
+        </button>
         <div class="nr-actions">
-          <button class="nr-btn nr-secondary" id="nr-card-pipeline">+ Add to Pipeline</button>
-          <button class="nr-btn nr-primary" id="nr-card-evaluate">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>
-            Evaluate
+          <button class="nr-btn nr-secondary" id="nr-card-save-later">Save for Later</button>
+          <button class="nr-btn nr-primary" id="nr-card-save-apply">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg>
+            Save &amp; Apply
           </button>
         </div>
       </div>
@@ -1020,6 +1367,15 @@ function showNewJobCard(job) {
   document.body.appendChild(card);
 
   card.querySelector("#nr-card-close").addEventListener("click", removeCard);
+  card.querySelector("#nr-card-minimize").addEventListener("click", () => {
+    card.classList.toggle("nr-minimized");
+    const btn = card.querySelector("#nr-card-minimize");
+    btn.title = card.classList.contains("nr-minimized") ? "Expand" : "Minimise";
+    btn.textContent = card.classList.contains("nr-minimized") ? "□" : "─";
+  });
+
+  // "Not a job?" feedback link at the bottom
+  appendNotAJobLink(card, job);
 
   // Check login state — swap buttons for sign-in prompt if not authenticated
   try {
@@ -1029,11 +1385,14 @@ function showNewJobCard(job) {
         return;
       }
       // Logged in — wire up action buttons
-      card.querySelector("#nr-card-pipeline").addEventListener("click", () => {
-        submitFromCard(job, "pipeline", card);
-      });
       card.querySelector("#nr-card-evaluate").addEventListener("click", () => {
         submitFromCard(job, "evaluate", card);
+      });
+      card.querySelector("#nr-card-save-later").addEventListener("click", () => {
+        submitFromCard(job, "save_later", card);
+      });
+      card.querySelector("#nr-card-save-apply").addEventListener("click", () => {
+        submitFromCard(job, "save_apply", card);
       });
     });
   } catch {
@@ -1089,19 +1448,21 @@ function _showSignInInContainer(container, job, onSuccess) {
       // Swap back to action buttons without a GET_SESSION round-trip.
       const card = container.closest("#nr-detect-card");
       container.innerHTML = `
+        <button class="nr-eval-first-btn" id="nr-card-evaluate">✦ Evaluate Fit First</button>
         <div class="nr-actions">
-          <button class="nr-btn nr-secondary" id="nr-card-pipeline">+ Add to Pipeline</button>
-          <button class="nr-btn nr-primary" id="nr-card-evaluate">
+          <button class="nr-btn nr-secondary" id="nr-card-save-later">Save for Later</button>
+          <button class="nr-btn nr-primary" id="nr-card-save-apply">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/>
+              <path d="M13 2L4 14h7l-1 8 9-12h-7z"/>
             </svg>
-            Evaluate
+            Save &amp; Apply
           </button>
         </div>
       `;
       if (card) {
-        container.querySelector("#nr-card-pipeline").addEventListener("click", () => submitFromCard(job, "pipeline", card));
         container.querySelector("#nr-card-evaluate").addEventListener("click", () => submitFromCard(job, "evaluate", card));
+        container.querySelector("#nr-card-save-later").addEventListener("click", () => submitFromCard(job, "save_later", card));
+        container.querySelector("#nr-card-save-apply").addEventListener("click", () => submitFromCard(job, "save_apply", card));
       }
     });
   });
@@ -1125,7 +1486,10 @@ function showAlreadySavedCard(job, jobId) {
         </svg>
         NextRole
       </div>
-      <button class="nr-cx-plain" id="nr-card-close">×</button>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button class="nr-minimize-plain" id="nr-card-minimize" title="Minimise">─</button>
+        <button class="nr-cx-plain" id="nr-card-close" title="Close">×</button>
+      </div>
     </div>
     <div class="nr-cb">
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
@@ -1146,14 +1510,44 @@ function showAlreadySavedCard(job, jobId) {
   document.body.appendChild(card);
 
   card.querySelector("#nr-card-close").addEventListener("click", removeCard);
+  card.querySelector("#nr-card-minimize").addEventListener("click", () => {
+    card.classList.toggle("nr-minimized");
+    const btn = card.querySelector("#nr-card-minimize");
+    btn.title = card.classList.contains("nr-minimized") ? "Expand" : "Minimise";
+    btn.textContent = card.classList.contains("nr-minimized") ? "□" : "─";
+  });
   card.querySelector("#nr-card-open-pipeline").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
     removeCard();
   });
   card.querySelector("#nr-card-fill-app").addEventListener("click", () => {
+    // Store cross-site context so apply-card.js auto-shows if user is redirected
+    // to an ATS apply page (includes jobId for artifact lookup).
+    try {
+      chrome.storage.session.set({
+        nr_cross_site_job: {
+          jobId:          jobId,
+          jobTitle:       job.title       ?? "",
+          company:        job.company     ?? "",
+          jobDescription: job.description ?? "",
+          sourceUrl:      location.href,
+          savedAt:        Date.now(),
+        },
+      });
+    } catch {}
     removeCard();
-    showHelperPanel(job, jobId);
+    document.dispatchEvent(new CustomEvent("nr:open-apply-card", {
+      detail: {
+        jobId,
+        jobTitle:       job.title       ?? "",
+        company:        job.company     ?? "",
+        jobDescription: job.description ?? "",
+      },
+    }));
   });
+
+  // "Not a job?" feedback link at the bottom
+  appendNotAJobLink(card, job);
 }
 
 // ─── Multi-step loading styles ─────────────────────────────────────────────────
@@ -1239,154 +1633,14 @@ function _showReconnectPrompt(body, job, action, card) {
 }
 
 function submitFromCard(job, action, card) {
-  const pipeBtn = card.querySelector("#nr-card-pipeline");
-  const evalBtn = card.querySelector("#nr-card-evaluate");
-  if (pipeBtn) pipeBtn.disabled = true;
-  if (evalBtn) evalBtn.disabled = true;
+  const evalBtn  = card.querySelector("#nr-card-evaluate");
+  const saveBtn  = card.querySelector("#nr-card-save-later");
+  const applyBtn = card.querySelector("#nr-card-save-apply");
+  if (evalBtn)  evalBtn.disabled  = true;
+  if (saveBtn)  saveBtn.disabled  = true;
+  if (applyBtn) applyBtn.disabled = true;
 
-  // For evaluate: show in-card loading flow
-  if (action === "evaluate") {
-    injectStepStyles();
-    const body = card.querySelector(".nr-cb");
-    if (body) body.innerHTML = `
-      <div style="font-size:12.5px;font-weight:500;margin-bottom:2px;">${escapeHtml(job.title)}</div>
-      <div style="font-size:12px;color:#6b6358;margin-bottom:4px;">${escapeHtml(job.company)}</div>
-      <div class="nr-steps" id="nr-eval-steps">
-        <div class="nr-step nr-step-active" id="nr-step-save"><span class="nr-step-dot"></span>Saving job to pipeline…</div>
-        <div class="nr-step" id="nr-step-fetch"><span class="nr-step-dot"></span>Fetching your profile</div>
-        <div class="nr-step" id="nr-step-eval"><span class="nr-step-dot"></span>Running AI evaluation</div>
-        <div class="nr-step" id="nr-step-compare"><span class="nr-step-dot"></span>Comparing with your CV</div>
-        <div class="nr-step" id="nr-step-done"><span class="nr-step-dot"></span>Ready</div>
-      </div>
-      <div id="nr-eval-result-area"></div>
-    `;
-
-    function setStep(id, state) {
-      const el = card.querySelector(`#${id}`);
-      if (!el) return;
-      el.className = `nr-step nr-step-${state}`;
-      if (state === "done") el.querySelector(".nr-step-dot").style.background = "#2f7a3a";
-    }
-
-    // Step 1: submit job
-    chrome.runtime.sendMessage(
-      { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
-      (saveRes) => {
-        if (chrome.runtime.lastError || !saveRes?.ok) {
-          const errMsg = saveRes?.error ?? "Save failed — try again";
-          if (_isAuthError(errMsg)) {
-            const body = card.querySelector(".nr-cb");
-            if (!body) return;
-            _showReconnectPrompt(body, job, action, card);
-          } else {
-            setStep("nr-step-save", "error");
-            card.querySelector("#nr-step-save").lastChild.textContent = errMsg;
-            if (pipeBtn) pipeBtn.disabled = false;
-            if (evalBtn) evalBtn.disabled = false;
-          }
-          return;
-        }
-
-        const jobId = saveRes.job_id;
-        if (jobId) {
-          chrome.storage.session.set({ nr_last_job_url: job.url, nr_last_job_id: jobId, nr_last_job_title: job.title ?? "", nr_last_company: job.company ?? "" });
-        }
-
-        setStep("nr-step-save", "done");
-        setStep("nr-step-fetch", "active");
-
-        // Brief pause for visual effect then start eval
-        setTimeout(() => {
-          setStep("nr-step-fetch", "done");
-          setStep("nr-step-eval", "active");
-
-          if (!jobId) {
-            setStep("nr-step-eval", "error");
-            return;
-          }
-
-          // Step 3+4: run evaluation (advance step-compare halfway through wait)
-          const compareTimer = setTimeout(() => {
-            setStep("nr-step-eval", "done");
-            setStep("nr-step-compare", "active");
-          }, 8000);
-
-          chrome.runtime.sendMessage({ type: "EVALUATE_JOB", jobId }, (evalRes) => {
-            clearTimeout(compareTimer);
-
-            if (chrome.runtime.lastError || !evalRes?.ok) {
-              setStep("nr-step-eval", "error");
-              setStep("nr-step-compare", "error");
-              const area = card.querySelector("#nr-eval-result-area");
-              if (area) {
-                area.innerHTML = `
-                  <div style="font-size:12px;color:#b53a3a;padding:8px 0;">
-                    ${escapeHtml(evalRes?.error ?? "Evaluation failed — try again")}
-                  </div>
-                  ${evalRes?.upgrade ? `
-                    <button class="nr-btn nr-primary" id="nr-eval-upgrade" style="margin-top:6px;">Upgrade plan →</button>
-                  ` : `
-                    <button class="nr-btn nr-secondary" id="nr-eval-retry" style="margin-top:6px;">Open in NextRole →</button>
-                  `}
-                `;
-                area.querySelector("#nr-eval-upgrade")?.addEventListener("click", () => {
-                  chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing` });
-                  removeCard();
-                });
-                area.querySelector("#nr-eval-retry")?.addEventListener("click", () => {
-                  chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
-                  removeCard();
-                });
-              }
-              return;
-            }
-
-            setStep("nr-step-compare", "done");
-            setStep("nr-step-done", "done");
-
-            const score    = evalRes.score ?? 0;
-            const decision = evalRes.decision ?? "watch";
-            const summary  = evalRes.blocks?.decision?.rationale ?? evalRes.blocks?.role_fit?.summary ?? "";
-            const scoreColor = score >= 3.5 ? "#2f7a3a" : score >= 2.5 ? "#8a6d1a" : "#b53a3a";
-
-            const area = card.querySelector("#nr-eval-result-area");
-            if (area) {
-              area.innerHTML = `
-                <div class="nr-eval-result">
-                  <div class="nr-eval-score-row">
-                    <span class="nr-eval-score" style="--s-color:${scoreColor}">${score.toFixed(1)}</span>
-                    <span class="nr-eval-decision ${decision}">${decision}</span>
-                  </div>
-                  ${summary ? `<div class="nr-eval-summary">${escapeHtml(summary.slice(0, 120))}${summary.length > 120 ? "…" : ""}</div>` : ""}
-                  <div style="display:flex;gap:6px;margin-top:6px;">
-                    <button class="nr-btn nr-secondary" id="nr-eval-open" style="flex:1;">Full report →</button>
-                    <button class="nr-btn nr-primary" id="nr-eval-continue" style="flex:1;">Resume & Fill →</button>
-                  </div>
-                </div>
-              `;
-              area.querySelector("#nr-eval-open").addEventListener("click", () => {
-                chrome.runtime.sendMessage({
-                  type: "OPEN_TAB",
-                  url: evalRes.evaluation_id
-                    ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&eval=${evalRes.evaluation_id}`
-                    : `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`,
-                });
-                removeCard();
-              });
-              // Continue to helper panel — shows resume, autofill, and the eval result
-              area.querySelector("#nr-eval-continue").addEventListener("click", () => {
-                removeCard();
-                showHelperPanel(job, jobId, { evalResult: evalRes });
-              });
-            }
-          });
-        }, 900);
-      }
-    );
-    return;
-  }
-
-  // Pipeline action: save then show helper panel
+  // Save job to pipeline first
   chrome.runtime.sendMessage(
     { type: "SUBMIT_JOB", job: { title: job.title, company: job.company, url: job.url, description: job.description, source: "extension" } },
     (response) => {
@@ -1394,11 +1648,11 @@ function submitFromCard(job, action, card) {
         const errMsg = response?.error ?? "Error — try again.";
         if (_isAuthError(errMsg)) {
           const body = card.querySelector(".nr-cb");
-          if (!body) return;
-          _showReconnectPrompt(body, job, action, card);
+          if (body) _showReconnectPrompt(body, job, action, card);
         } else {
-          if (pipeBtn) pipeBtn.disabled = false;
-          if (evalBtn) evalBtn.disabled = false;
+          if (evalBtn)  evalBtn.disabled  = false;
+          if (saveBtn)  saveBtn.disabled  = false;
+          if (applyBtn) applyBtn.disabled = false;
           const body = card.querySelector(".nr-cb");
           if (body) {
             const errEl = document.createElement("div");
@@ -1412,12 +1666,41 @@ function submitFromCard(job, action, card) {
       }
 
       const jobId = response.job_id;
+
+      // Write session caches so ATS redirect picks up the job context
       if (jobId) {
-        chrome.storage.session.set({ nr_last_job_url: job.url, nr_last_job_id: jobId, nr_last_job_title: job.title ?? "", nr_last_company: job.company ?? "" });
+        chrome.storage.session.set({
+          nr_last_job_url:   job.url,
+          nr_last_job_id:    jobId,
+          nr_last_job_title: job.title   ?? "",
+          nr_last_company:   job.company ?? "",
+          nr_cross_site_job: {
+            jobId:          jobId,
+            jobTitle:       job.title       ?? "",
+            company:        job.company     ?? "",
+            jobDescription: job.description ?? "",
+            sourceUrl:      location.href,
+            savedAt:        Date.now(),
+          },
+        });
       }
 
       removeCard();
-      showHelperPanel(job, jobId);
+
+      if ((action === "save_apply" || action === "evaluate") && jobId) {
+        // Open the apply card immediately — auto-fill.js and apply-card.js both run on this page.
+        // Pass job data in the event detail so apply-card.js can skip the API round-trip.
+        document.dispatchEvent(new CustomEvent("nr:open-apply-card", {
+          detail: {
+            jobId,
+            jobTitle:       job.title       ?? "",
+            company:        job.company     ?? "",
+            jobDescription: job.description ?? "",
+            mode:           action === "evaluate" ? "evaluate" : "fill",
+          },
+        }));
+      }
+      // "save_later" just saves and dismisses — nothing more to do
     }
   );
 }
@@ -1440,7 +1723,10 @@ function showHelperPanel(job, jobId, opts = {}) {
         </svg>
         NextRole · Application Helper
       </div>
-      <button class="nr-cx" id="nr-helper-close">×</button>
+      <div style="display:flex;align-items:center;gap:2px">
+        <button class="nr-minimize" id="nr-helper-minimize" title="Minimise">─</button>
+        <button class="nr-cx" id="nr-helper-close" title="Close">×</button>
+      </div>
     </div>
     <div class="nr-cb">
       <div class="nr-saved-row">
@@ -1461,6 +1747,12 @@ function showHelperPanel(job, jobId, opts = {}) {
   document.body.appendChild(card);
 
   card.querySelector("#nr-helper-close").addEventListener("click", removeCard);
+  card.querySelector("#nr-helper-minimize").addEventListener("click", () => {
+    card.classList.toggle("nr-minimized");
+    const btn = card.querySelector("#nr-helper-minimize");
+    btn.title     = card.classList.contains("nr-minimized") ? "Expand" : "Minimise";
+    btn.textContent = card.classList.contains("nr-minimized") ? "□" : "─";
+  });
   card.querySelector("#nr-helper-open-pipeline").addEventListener("click", () => {
     chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/pipeline` });
     removeCard();
@@ -1797,16 +2089,16 @@ function renderAutofillButton(card, job, tier, usage, limits) {
     return;
   }
 
-  // Starter — check daily limit
-  const autofillsToday = usage.autofills_today ?? 0;
-  const autofillLimit  = limits.autofills_per_day ?? 1;
-  const atLimit = tier === "starter" && autofillsToday >= autofillLimit;
+  // Starter — check daily credit cap (16 credits = 8 AI suggestions at 2cr each)
+  const STARTER_DAILY_AUTOFILL_CREDIT_CAP = 16;
+  const creditsUsedToday = usage.autofill_credits_used_today ?? 0;
+  const atLimit = tier === "starter" && creditsUsedToday >= STARTER_DAILY_AUTOFILL_CREDIT_CAP;
 
   if (atLimit) {
     area.innerHTML = `
       <div class="nr-upgrade-box">
         <div class="nr-ub-title">⚡ Autofill</div>
-        <div class="nr-ub-desc">You've used your autofill for today. Upgrade to Pro for unlimited autofill.</div>
+        <div class="nr-ub-desc">You've used all 8 AI suggestions for today (16-credit daily cap). Upgrade to Pro for unlimited.</div>
         <div class="nr-ub-actions">
           <button class="nr-ub-primary" id="nr-autofill-upgrade">Upgrade to Pro →</button>
           <button class="nr-ub-secondary" id="nr-autofill-dismiss">Not now</button>
@@ -1821,7 +2113,7 @@ function renderAutofillButton(card, job, tier, usage, limits) {
   }
 
   const label     = "Autofill Fields";
-  const costLabel = tier === "starter" ? "8 credits · 1/day" : "8 credits";
+  const costLabel = tier === "starter" ? "2cr · 8 AI/day" : "2 credits";
 
   area.innerHTML = `
     <div class="nr-action-row" id="nr-autofill-btn">
@@ -1899,16 +2191,37 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   return true;
 });
 
+// Send feedback to server (fire-and-forget)
+function sendFeedback(action, job) {
+  chrome.runtime.sendMessage({
+    type: "REPORT_FEEDBACK",
+    payload: {
+      url:        job?.url ?? location.href,
+      page_title: document.title,
+      action,
+      source:     job?.source     ?? "unknown",
+      confidence: job?.confidence ?? "unknown",
+    },
+  });
+}
+
 // Returns true if any job was found and card shown.
-// Shows card for ALL confidence levels — low-confidence jobs show "Possible Job" label.
+// Low-confidence (heuristic) shows a softer "Is this a job?" prompt —
+// user must confirm before seeing action buttons.
 function detectAndShow() {
   const job = extractJob();
   if (!job) return false;
-  // Badge only for high-confidence (confirmed ATS extractors)
+
   const isHigh = job.confidence !== "low";
   chrome.runtime.sendMessage({ type: "JOB_DETECTED", found: isHigh });
-  showDetectCard(job);
-  return true; // stop retrying — we found something
+
+  if (job.confidence === "low") {
+    // Don't auto-assume — ask the user first.
+    showConfirmCard(job);
+  } else {
+    showDetectCard(job);
+  }
+  return true;
 }
 
 // Retry at 1s → 2.5s → 5s → 9s → 15s after navigation.
@@ -1930,22 +2243,188 @@ function detectWithRetry() {
   tryOnce();
 }
 
+// ── Apply button interception ──────────────────────────────────────────────────
+// When user clicks ANY "Apply" button on a page where we detected a job,
+// save the job context to session storage. This is the universal handoff that
+// ensures the application form page (which may be on a completely different domain)
+// always has the correct job title, company, and JD for autofill and AI suggestions.
+
+const APPLY_TEXT_RE = /^(easy\s+)?apply(\s+(now|online|for\s+this\s+job|to\s+this\s+job|here|for\s+job))?$/i;
+
+document.addEventListener("click", (e) => {
+  // Walk up from click target to find a button or link
+  const el = e.target.closest("a[href], button, input[type='button'], input[type='submit'], [role='button']");
+  if (!el) return;
+
+  // Normalize: strip icon/SVG text from innerText before matching
+  const rawText = (el.getAttribute("aria-label") || el.innerText || el.textContent || el.value || "").trim();
+  // Remove non-letter chars at start (e.g. icon glyphs) and collapse whitespace
+  const text = rawText.replace(/^[^\p{L}]+/u, "").replace(/\s+/g, " ").trim();
+  if (!APPLY_TEXT_RE.test(text)) return;
+
+  // Extract current job context — Oracle HCM renders dynamically so we must
+  // also fall back to whatever the detection card last saw in session storage.
+  const job = extractJob();
+
+  if (job?.title) {
+    try {
+      // Tag Naukri source so the landing ATS page can show a "Redirected from Naukri" banner
+      const isNaukri = location.hostname.includes("naukri.com");
+      chrome.storage.session.set({
+        nr_cross_site_job: {
+          jobTitle:       job.title       ?? "",
+          company:        job.company     ?? "",
+          jobDescription: job.description ?? "",
+          sourceUrl:      location.href,
+          savedAt:        Date.now(),
+          ...(isNaukri && {
+            fromNaukri:   true,
+            naukriJobId:  job.siteJobId ?? null,
+          }),
+        },
+      });
+    } catch {}
+  } else {
+    // Oracle JET / SPA: DOM may not be ready yet — copy from already-saved session context
+    try {
+      chrome.storage.session.get(["nr_last_job_title", "nr_last_company"], (d) => {
+        if (chrome.runtime.lastError) return;
+        if (!d.nr_last_job_title) return;
+        chrome.storage.session.set({
+          nr_cross_site_job: {
+            jobTitle:       d.nr_last_job_title ?? "",
+            company:        d.nr_last_company   ?? "",
+            jobDescription: "",
+            sourceUrl:      location.href,
+            savedAt:        Date.now(),
+          },
+        });
+      });
+    } catch {}
+  }
+}, true); // capture phase — fires before navigation happens
+
+// ── Naukri: clear cross-site context when chatbot opens ──────────────────────
+// When user clicks the chatbot-based "Apply" on Naukri the click interceptor
+// above still saves nr_cross_site_job (we can't know which button type it is at
+// click-time). If the chatbot panel then opens within 5 s we know the user is
+// applying on Naukri itself — no redirect will happen — so the cross-site context
+// would be stale noise on future ATS visits. Clear it.
+if (location.hostname.includes("naukri.com")) {
+  function _watchNaukriChatbot() {
+    const chatbotEl = document.querySelector("#chatbot-container");
+    if (!chatbotEl) return;
+    new MutationObserver(() => {
+      if (chatbotEl.children.length === 0) return; // collapsed / empty — no action
+      try {
+        chrome.storage.session.get("nr_cross_site_job", (d) => {
+          if (chrome.runtime.lastError) return;
+          const ctx = d.nr_cross_site_job;
+          // Only clear if saved very recently (≤5 s) — i.e. from THIS Apply click
+          if (ctx && ctx.fromNaukri && (Date.now() - (ctx.savedAt ?? 0)) <= 5000) {
+            chrome.storage.session.remove("nr_cross_site_job");
+          }
+        });
+      } catch {}
+    }).observe(chatbotEl, { childList: true });
+  }
+  _watchNaukriChatbot();
+  if (document.readyState !== "complete") {
+    window.addEventListener("load", _watchNaukriChatbot, { once: true });
+  }
+}
+
 // Initial detection
 detectWithRetry();
 
-// SPA navigation watcher
-let _lastUrl = location.href;
-new MutationObserver(() => {
+// ── Unified DOM watcher ───────────────────────────────────────────────────────
+//
+// One MutationObserver handles two cases:
+//
+//  Case 1 — SPA navigation (URL changed)
+//    e.g. LinkedIn, Indeed, Greenhouse, Workday, Lever clicking a job card.
+//    → clear card, re-detect immediately with retry.
+//
+//  Case 2 — Popup / panel appeared WITHOUT a URL change
+//    e.g. Naukri right-panel, Wellfound modal, Glassdoor drawer, Oracle drawer,
+//    Shine popup, Foundit panel, company career pages with inline JD overlays.
+//    The JD is injected into the DOM as a large text block.
+//    → debounce 500ms, check for job-like content, re-detect or update session.
+//
+// Job-keyword threshold: ≥ 300 chars added AND matches one of the job signals.
+// This filters out ad refreshes, nav updates, toast messages, etc.
+
+const JOB_POPUP_KEYWORDS = /responsibilit|qualificat|requirement|years.{0,10}experience|skill|we are looking|job description|about.{0,15}role|about.{0,15}position|what you.{0,10}do|what we.{0,10}offer|education|compensation|benefit/i;
+
+let _lastUrl       = location.href;
+let _popupTimer    = null;
+let _lastPopupText = ""; // deduplicate identical popups
+
+new MutationObserver((mutations) => {
+
+  // ── Case 1: URL changed ──────────────────────────────────────────────────
   if (location.href !== _lastUrl) {
     _lastUrl = location.href;
+    clearTimeout(_popupTimer);
     detectWithRetry();
+    return; // URL change takes priority — don't also run popup logic
   }
+
+  // ── Case 2: Content added without URL change ─────────────────────────────
+  // Collect text from newly added element nodes only (not text nodes).
+  // Short-circuit as soon as we have enough chars to test.
+  let addedText = "";
+  outer: for (const m of mutations) {
+    for (const n of m.addedNodes) {
+      if (n.nodeType !== 1) continue;
+      addedText += " " + (n.textContent ?? "");
+      if (addedText.length > 500) break outer;
+    }
+  }
+
+  const trimmed = addedText.trim();
+  if (trimmed.length < 300) return;                      // too small — skip
+  if (!JOB_POPUP_KEYWORDS.test(trimmed)) return;         // not job content — skip
+  if (trimmed === _lastPopupText) return;                 // same popup re-rendered — skip
+  _lastPopupText = trimmed;
+
+  clearTimeout(_popupTimer);
+  _popupTimer = setTimeout(() => {
+    const job = extractJob();
+    if (!job) return;
+
+    // Always cache whatever description we found so the apply page has it.
+    // This is the key handoff: JD from listing/detail panel → apply form.
+    if (job.description) {
+      try {
+        chrome.storage.session.get("nr_cross_site_job", (d) => {
+          const prev = d.nr_cross_site_job;
+          // Overwrite if: no existing context, or it's the same job, or context is stale (> 10 min).
+          const isStale   = !prev || (Date.now() - (prev.savedAt ?? 0)) > 10 * 60 * 1000;
+          const isSameJob = prev?.jobTitle === job.title;
+          if (isStale || isSameJob) {
+            chrome.storage.session.set({
+              nr_cross_site_job: {
+                jobTitle:       job.title       ?? "",
+                company:        job.company     ?? "",
+                jobDescription: job.description ?? "",
+                sourceUrl:      location.href,
+                savedAt:        Date.now(),
+              },
+            });
+          }
+        });
+      } catch {}
+    }
+
+    // Show detection card if one isn't already visible.
+    if (!document.getElementById("nr-detect-card")) {
+      detectWithRetry();
+    }
+  }, 500);
+
 }).observe(document.body, { childList: true, subtree: true });
 
 // bfcache restore — fires when the user hits back/forward to a frozen page.
 // Scripts don't re-run in bfcache, so we must re-detect here.
-window.addEventListener("pageshow", (event) => {
-  if (event.persisted) {
-    detectWithRetry();
-  }
-});
+window.addEventListener("pageshow", (e) => { if (e.persisted) detectWithRetry(); });
