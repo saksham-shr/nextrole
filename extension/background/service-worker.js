@@ -5,6 +5,18 @@
  */
 importScripts("../config.js");
 
+// ─── Grant content scripts access to chrome.storage.session ───────────────────
+// By default storage.session is gated to extension contexts only. Content
+// scripts (apply-card.js, content.js) need it for per-tab tailor state and
+// cross-site job carry-over, so widen the access level on startup.
+try {
+  chrome.storage.session.setAccessLevel({
+    accessLevel: "TRUSTED_AND_UNTRUSTED_CONTEXTS",
+  });
+} catch (e) {
+  console.warn("[NextRole] storage.session.setAccessLevel failed", e);
+}
+
 // ─── Badge + action management ────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, sender) => {
