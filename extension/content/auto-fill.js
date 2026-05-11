@@ -1222,30 +1222,6 @@ async function _fillAccentureStep(stepNum, profile, resumeBlob) {
   return result;
 }
 
-// ─── CV structure cache (for Workday modal auto-fill) ────────────────────────
-
-const CV_STRUCTURE_CACHE_KEY = "nr_cv_structure_cache";
-const CV_STRUCTURE_TTL_MS    = 24 * 60 * 60 * 1000; // 24 hours
-
-function getCVStructure() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get(CV_STRUCTURE_CACHE_KEY, (d) => {
-      const entry = d[CV_STRUCTURE_CACHE_KEY];
-      if (entry && (Date.now() - (entry.savedAt ?? 0)) < CV_STRUCTURE_TTL_MS) {
-        resolve(entry.structure);
-        return;
-      }
-      chrome.runtime.sendMessage({ type: "GET_CV_STRUCTURE" }, (res) => {
-        if (chrome.runtime.lastError || !res?.ok) { resolve(null); return; }
-        chrome.storage.local.set({
-          [CV_STRUCTURE_CACHE_KEY]: { structure: res.structure, savedAt: Date.now() },
-        });
-        resolve(res.structure);
-      });
-    });
-  });
-}
-
 // ─── Workday date input helper ────────────────────────────────────────────────
 // Workday date fields are either plain text inputs (type date or text) or
 // fkit date-section widgets with separate month / year inputs.
@@ -1647,20 +1623,14 @@ async function _fillWorkdaySection(section, profile, resumeBlob, coverLetterBlob
     hit(_wdInput(["gitHubHomePage",   "githubUrl",   "gitHubUrl"],  profile.github));
     hit(_wdInput(["portfolioUrl",     "websiteUrl",  "personalUrl"], profile.website));
 
-    // Work Experience, Education, Certifications — primary source is the
-    // structured arrays on profile (migration 20260511000001). Falls back to
-    // on-demand AI parsing of base_cv only if the profile arrays are empty
-    // (legacy users who haven't filled out the Profile page yet).
-    let workExp        = profile.work_experience ?? [];
-    let education      = profile.education       ?? [];
-    let certifications = profile.certifications  ?? [];
-
-    if (workExp.length === 0 && education.length === 0 && certifications.length === 0) {
-      const fallback = await getCVStructure();
-      workExp        = fallback?.work_experience  ?? [];
-      education      = fallback?.education        ?? [];
-      certifications = fallback?.certifications   ?? [];
-    }
+    // Work Experience, Education, Certifications — single source of truth is
+    // the structured arrays the user filled on /dashboard/profile. We do NOT
+    // fall back to CV parsing: if the profile is empty, surface a clear error
+    // so the user knows to populate the Profile page rather than getting
+    // unpredictable AI-extracted data injected into their application.
+    const workExp        = profile.work_experience ?? [];
+    const education      = profile.education       ?? [];
+    const certifications = profile.certifications  ?? [];
 
     if (workExp.length) {
       const expResult = await _fillWorkdayExperienceEntries(workExp);
