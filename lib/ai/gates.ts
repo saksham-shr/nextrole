@@ -30,6 +30,12 @@ export const FREE_DAILY_LIMITS = {
 // 16 credits = up to 8 AI suggestions per day at 2cr each
 export const STARTER_DAILY_AUTOFILL_CREDIT_CAP = 16;
 
+// Starter-tier daily hard limits (on top of the credit balance).
+// `autofills` here is the credits-used cap, matching the column on daily_usage.
+export const STARTER_DAILY_LIMITS = {
+  autofills: STARTER_DAILY_AUTOFILL_CREDIT_CAP,
+} as const;
+
 // Starter daily tailor cap (one full multi-field tailor session per day).
 // Pro is credit-bound: each tailor session deducts CREDIT_COSTS.tailor.
 export const STARTER_DAILY_TAILOR_CAP = 1;
