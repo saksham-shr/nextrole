@@ -1377,6 +1377,123 @@ async function _wdFillFkitDate(wrap, mmYyyy) {
 // profile skill we: focus the input → set its value → wait for the filtered
 // promptOption list → click the closest match (exact > prefix > substring).
 // Returns { added, skipped }.
+// Generic Workday typeahead commit: types a value into a multiSelect search
+// input, presses Enter to trigger Workday's search, and clicks the closest
+// matching option in the resulting suggestion list. Used for Skills,
+// Field of Study, and any tenant-variant school-name typeahead.
+//
+// Returns true if a pill was successfully added (or — for single-value
+// typeaheads — if the option was selected and the input shows the value).
+async function _wdTypeaheadAdd(wrap, value, debugTag = "typeahead") {
+  if (!wrap || !value) return false;
+  const input = wrap.querySelector('input[data-uxi-widget-type="selectinput"]')
+             ?? wrap.querySelector("input");
+  if (!input) return false;
+
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, "value",
+  )?.set;
+
+  function pillsLower() {
+    const set = new Set();
+    wrap.querySelectorAll('[data-automation-id="selectedItem"]').forEach((p) => {
+      const t = (p.getAttribute("title") ?? p.textContent ?? "").trim().toLowerCase();
+      if (t) set.add(t);
+    });
+    return set;
+  }
+  const before = pillsLower();
+  if (before.has(value.toLowerCase())) return false; // already present
+
+  // Click the input to open the listbox
+  try {
+    const r = input.getBoundingClientRect();
+    const init = { bubbles: true, cancelable: true, clientX: r.left + r.width/2, clientY: r.top + r.height/2, button: 0 };
+    input.dispatchEvent(new MouseEvent("mousedown", init));
+    input.dispatchEvent(new MouseEvent("mouseup",   init));
+    input.dispatchEvent(new MouseEvent("click",     init));
+  } catch { /* nop */ }
+  await new Promise((r) => setTimeout(r, 180));
+  input.focus();
+  await new Promise((r) => setTimeout(r, 80));
+
+  // Clear then type char-by-char
+  if (valueSetter) valueSetter.call(input, "");
+  else input.value = "";
+  input.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "deleteContentBackward" }));
+  await new Promise((r) => setTimeout(r, 40));
+
+  for (let i = 0; i < value.length; i++) {
+    const ch = value[i];
+    const partial = value.slice(0, i + 1);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true, cancelable: true }));
+    if (valueSetter) valueSetter.call(input, partial);
+    else input.value = partial;
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "insertText", data: ch }));
+    input.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 25));
+  }
+
+  // Enter triggers Workday's search
+  ["keydown", "keypress", "keyup"].forEach((type) => {
+    input.dispatchEvent(new KeyboardEvent(type, {
+      key: "Enter", code: "Enter", keyCode: 13, which: 13,
+      bubbles: true, cancelable: true,
+    }));
+  });
+  await new Promise((r) => setTimeout(r, 250));
+
+  // Poll for suggestion options
+  const lower = value.toLowerCase();
+  let target = null;
+  for (let i = 0; i < 20; i++) {
+    await new Promise((r) => setTimeout(r, 100));
+    const opts = [
+      ...document.querySelectorAll('[data-automation-id="promptOption"]'),
+      ...document.querySelectorAll('[data-automation-id="menuItem"]'),
+      ...document.querySelectorAll('[role="option"]'),
+      ...document.querySelectorAll('li[data-automation-id]'),
+    ];
+    if (opts.length === 0) continue;
+    target = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === lower)
+          ?? opts.find((o) => (o.textContent ?? "").trim().toLowerCase().startsWith(lower))
+          ?? opts.find((o) => (o.textContent ?? "").trim().toLowerCase().includes(lower));
+    if (target) break;
+  }
+  if (!target) {
+    console.log("[NextRole][" + debugTag + "] no option matched for:", value);
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    return false;
+  }
+
+  // Click target with full pointer/mouse sequence
+  const rect = target.getBoundingClientRect();
+  const evtInit = { bubbles: true, cancelable: true, clientX: rect.left + rect.width/2, clientY: rect.top + rect.height/2, button: 0 };
+  ["pointerover", "mouseover", "pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+    try {
+      const Evt = type.startsWith("pointer") ? PointerEvent : MouseEvent;
+      target.dispatchEvent(new Evt(type, evtInit));
+    } catch { /* fall back to MouseEvent for tenants without PointerEvent support */
+      target.dispatchEvent(new MouseEvent(type.replace("pointer", "mouse"), evtInit));
+    }
+  });
+  await new Promise((r) => setTimeout(r, 320));
+
+  // Verify pill added; if not, try Enter on highlighted
+  let after = pillsLower();
+  if (after.size <= before.size) {
+    ["keydown", "keyup"].forEach((type) => {
+      input.dispatchEvent(new KeyboardEvent(type, {
+        key: "Enter", code: "Enter", keyCode: 13, which: 13,
+        bubbles: true, cancelable: true,
+      }));
+    });
+    await new Promise((r) => setTimeout(r, 320));
+    after = pillsLower();
+  }
+  return after.size > before.size;
+}
+
 async function _wdAddSkills(skills) {
   const result = { added: 0, skipped: 0 };
   if (!Array.isArray(skills) || skills.length === 0) return result;
@@ -1713,14 +1830,23 @@ async function _fillWorkdayEducationEntries(entries) {
     let filledFields = 0;
     const field = (name) => _wdGetFieldByFkit(document, "education", idx, name);
 
-    // School name
-    const schoolInp = field("schoolName")?.querySelector("input");
-    if (schoolInp && entry.institution) {
-      _angularFillInput(schoolInp, entry.institution);
-      filledFields++;
+    // School name — most tenants use a plain text input; some (with university
+    // dictionaries) render it as a typeahead. Detect by presence of a
+    // multiSelectContainer inside the field wrapper.
+    if (entry.institution) {
+      const schoolWrap  = field("schoolName");
+      const schoolMulti = schoolWrap?.querySelector('[data-automation-id="multiSelectContainer"]');
+      if (schoolMulti) {
+        if (await _wdTypeaheadAdd(schoolWrap, entry.institution, "school")) filledFields++;
+      } else {
+        const schoolInp = schoolWrap?.querySelector('input[type="text"]')
+                       ?? schoolWrap?.querySelector("input");
+        if (schoolInp && _angularFillInput(schoolInp, entry.institution)) filledFields++;
+      }
     }
 
-    // Degree (dropdown)
+    // Degree (closed dropdown — many tenants have a limited dictionary, so
+    // mismatches are expected and silently skipped)
     if (entry.degree) {
       const degreeBtn = field("degree")?.querySelector("button");
       if (degreeBtn) {
@@ -1729,14 +1855,14 @@ async function _fillWorkdayEducationEntries(entries) {
       }
     }
 
-    // Field of study (fkit multi-select combobox)
+    // Field of Study — fkit multi-select typeahead (same pattern as Skills:
+    // type → Enter → pick from suggestions)
     if (entry.field) {
       const fieldWrap = field("fieldOfStudy");
-      const fieldPat = new RegExp(entry.field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      if (await _wdFkitCombobox(fieldWrap, fieldPat)) filledFields++;
+      if (await _wdTypeaheadAdd(fieldWrap, entry.field, "field-of-study")) filledFields++;
     }
 
-    // First / last year attended (year-only inputs)
+    // First / last year attended (year-only spinbutton inputs)
     const firstYearInp = field("firstYearAttended")?.querySelector("input");
     if (firstYearInp) {
       const y = yearFrom(entry.start);
@@ -1748,7 +1874,7 @@ async function _fillWorkdayEducationEntries(entries) {
       if (y) { _angularFillInput(lastYearInp, y); filledFields++; }
     }
 
-    // Grade average (optional)
+    // Grade average (plain text — pass the user's GPA as-is, e.g. "8.5 CGPA")
     if (entry.grade) {
       const gradeInp = field("gradeAverage")?.querySelector("input");
       if (gradeInp) { _angularFillInput(gradeInp, entry.grade); filledFields++; }
