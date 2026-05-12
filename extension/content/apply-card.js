@@ -2665,28 +2665,30 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       ${fillBtnHtml}
     `;
   } else if (section === "My Experience") {
+    const workCount  = Array.isArray(p.work_experience) ? p.work_experience.length : 0;
+    const eduCount   = Array.isArray(p.education)       ? p.education.length       : 0;
+    const skillCount = Array.isArray(p.skills)          ? p.skills.length          : 0;
+
     sectionContent = `
-      ${note("nr-ac-manual-note", "Resume, work history &amp; education will be filled from your CV")}
       <div class="nr-ac-step-section">
-        <div class="nr-ac-step-section-title">Will be auto-filled</div>
+        <div class="nr-ac-step-section-title">Auto-fill targets</div>
         <div class="nr-ac-field-list">
-          ${qaRow("Resume",         "nextrole_resume.doc", "auto-uploaded")}
-          ${qaRow("LinkedIn",       p.linkedin,            "from profile")}
-          ${qaRow("GitHub",         p.github,              "from profile")}
-          ${qaRow("Portfolio",      p.website,             "from profile")}
-          ${qaRow("Work History",   "from CV",             "each entry added via Add modal")}
-          ${qaRow("Education",      "from CV",             "each entry added via Add modal")}
-          ${qaRow("Certifications", "from CV",             "if present in CV")}
+          ${qaRow("Resume",       "see below", "")}
+          ${qaRow("LinkedIn",     p.linkedin, "Add LinkedIn URL in profile")}
+          ${qaRow("Skills",       skillCount ? `${skillCount} from profile` : null, "Add skills in profile")}
+          ${qaRow("Work history", workCount  ? `${workCount} entr${workCount === 1 ? "y" : "ies"} from profile` : null,  "Add work history in profile")}
+          ${qaRow("Education",    eduCount   ? `${eduCount} entr${eduCount === 1 ? "y" : "ies"} from profile`   : null,  "Add education in profile")}
         </div>
       </div>
       <div class="nr-ac-step-section">
-        <div class="nr-ac-step-section-title">Manual</div>
-        <div class="nr-ac-field-list">
-          ${qaRow("Skills", null, "Search and add from profile")}
+        <div class="nr-ac-step-section-title">Resume for this application</div>
+        <div id="nr-ac-wd-resume-status" style="font-size:12.5px;color:#6b6358;line-height:1.5;margin-bottom:8px;">Checking…</div>
+        <div style="display:flex;gap:6px;">
+          <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-wd-gen-resume" style="flex:1;">Generate tailored resume</button>
+          <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-wd-open-profile" style="flex:0 0 auto;padding:9px 12px;">Profile</button>
         </div>
       </div>
       ${fillBtnHtml}
-      <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-resume-open" style="margin-top:4px;">Download Resume from NextRole</button>
     `;
   } else {
     // Self Identify, Voluntary Disclosures, Application Questions, Review, etc.
@@ -2729,13 +2731,83 @@ async function renderWorkdayHelper(container, jobId, job, section) {
   `;
   wireEvalPicker(container, evalCtx.state);
 
-  // Resume manual download
-  container.querySelector("#nr-ac-wd-resume-open")?.addEventListener("click", () => {
+  // ── Resume block (My Experience only) ────────────────────────────────────
+  const resumeStatusEl  = container.querySelector("#nr-ac-wd-resume-status");
+  const genResumeBtn    = container.querySelector("#nr-ac-wd-gen-resume");
+  const openProfileBtn  = container.querySelector("#nr-ac-wd-open-profile");
+
+  function setResumeStatus(html, kind = "neutral") {
+    if (!resumeStatusEl) return;
+    const colors = {
+      ok:      "color:#166534;",
+      warn:    "color:#92400e;",
+      neutral: "color:#6b6358;",
+      err:     "color:#991b1b;",
+    };
+    resumeStatusEl.style.cssText = `font-size:12.5px;line-height:1.5;margin-bottom:8px;${colors[kind] ?? colors.neutral}`;
+    resumeStatusEl.innerHTML = html;
+  }
+
+  // Detect existing resume state on render: tailored for this job > profile default > none.
+  if (resumeStatusEl) {
+    (async () => {
+      // 1. Tailored resume tied to this job?
+      if (jobId) {
+        const arts = await fetchArtifacts(jobId);
+        if (arts?.resume) {
+          setResumeStatus("Tailored resume ready — will be uploaded.", "ok");
+          if (genResumeBtn) genResumeBtn.textContent = "Regenerate";
+          return;
+        }
+      }
+      // 2. Profile default resume uploaded?
+      const profRes = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
+      if (profRes?.ok && profRes.data) {
+        setResumeStatus(
+          `Will use your default resume: <strong>${esc(profRes.filename ?? "resume")}</strong>. Generate a tailored version for stronger match.`,
+          "neutral",
+        );
+        return;
+      }
+      // 3. Nothing — user must generate or upload.
+      setResumeStatus(
+        "No resume available. Generate a tailored one for this job, or upload one to your profile.",
+        "warn",
+      );
+    })();
+  }
+
+  // Generate tailored resume → fetched on next Fill click via fetchResumeBlob(jobId)
+  genResumeBtn?.addEventListener("click", async () => {
+    if (!jobId) {
+      setResumeStatus(
+        "Link this job to your pipeline first (Evaluation tab → Save to pipeline).",
+        "warn",
+      );
+      return;
+    }
+    genResumeBtn.disabled = true;
+    const originalLabel = genResumeBtn.textContent;
+    genResumeBtn.textContent = "Generating…";
+    setResumeStatus("Tailoring your resume to this job — usually 20-40 seconds.", "neutral");
+
+    const res = await swMsg({ type: "TAILOR_RESUME", payload: { job_id: jobId } });
+    if (!res?.ok) {
+      setResumeStatus(`Generation failed: ${esc(res?.error ?? "try again")}`, "err");
+      genResumeBtn.disabled = false;
+      genResumeBtn.textContent = originalLabel;
+      return;
+    }
+    setResumeStatus("Tailored resume generated — will be uploaded on Fill.", "ok");
+    genResumeBtn.disabled = false;
+    genResumeBtn.textContent = "Regenerate";
+  });
+
+  // Open Application Profile in a new tab
+  openProfileBtn?.addEventListener("click", () => {
     chrome.runtime.sendMessage({
       type: "OPEN_TAB",
-      url: jobId
-        ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}`
-        : `${NEXTROLE_URL}/dashboard/pipeline`,
+      url: `${NEXTROLE_URL}/dashboard/profile`,
     });
   });
 
