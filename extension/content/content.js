@@ -237,32 +237,45 @@ function fromLever() {
 // ─── Extractor 6: Greenhouse ──────────────────────────────────────────────────
 
 function fromGreenhouse() {
-  // ATS is at boards.greenhouse.io — greenhouse.io itself is the product site
+  // ATS hosts:
+  //   boards.greenhouse.io       — classic format
+  //   job-boards.greenhouse.io   — modern React format (May 2026+)
+  //   grnh.se                    — shortlink
+  const host = location.hostname;
   if (
-    !location.hostname.includes("boards.greenhouse.io") &&
-    !location.hostname.includes("grnh.se")
+    !host.includes("boards.greenhouse.io") &&
+    !host.includes("job-boards.greenhouse.io") &&
+    !host.includes("grnh.se")
   ) return null;
-  // Detail pages: /company/jobs/12345 — listing pages: /company
-  if (location.hostname.includes("boards.greenhouse.io")) {
-    const parts = location.pathname.split("/").filter(Boolean);
-    if (!parts.some((p) => /^\d+$/.test(p)) && !location.pathname.includes("/jobs/")) return null;
-  }
+  // Detail pages contain /jobs/<id>; listing pages don't
+  const parts = location.pathname.split("/").filter(Boolean);
+  const hasJobsSegment = parts.includes("jobs");
+  if (!hasJobsSegment && !parts.some((p) => /^\d+$/.test(p))) return null;
 
   const title = texts([
     ".app-title",
     "#header h1",
     "h1.section-header__title",
+    ".job__title h1",
     "h1",
   ]);
 
   const company = texts([".company-name", ".logo-text"]) ?? (() => {
-    const m = location.hostname.match(/^(.+)\.greenhouse\.io$/);
-    if (m) return m[1].charAt(0).toUpperCase() + m[1].slice(1);
-    const parts = location.pathname.split("/").filter(Boolean);
-    return parts[0] ? parts[0].charAt(0).toUpperCase() + parts[0].slice(1) : null;
+    const m = host.match(/^(.+)\.greenhouse\.io$/);
+    if (m && m[1] !== "boards" && m[1] !== "job-boards") {
+      return m[1].charAt(0).toUpperCase() + m[1].slice(1);
+    }
+    // URL path's first segment is the company slug for both classic and modern.
+    if (parts[0]) {
+      const slug = parts[0];
+      return slug.charAt(0).toUpperCase() + slug.slice(1);
+    }
+    return null;
   })();
 
-  const descEl = document.querySelector("#content") ??
+  const descEl =
+    document.querySelector(".job__description") ??
+    document.querySelector("#content") ??
     document.querySelector(".section--text") ??
     document.querySelector("#application");
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
