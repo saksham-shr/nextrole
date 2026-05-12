@@ -1526,7 +1526,14 @@ async function _wdAddSkills(skills) {
 
     input.focus();
     await typeInto(skill);
-    log("typed:", skill, "→ polling for matching option…");
+    log("typed:", skill, "→ pressing Enter to trigger search…");
+
+    // Workday's UXI skills typeahead only runs its search after Enter.
+    // Press Enter once → suggestion box opens → click the best match.
+    input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent("keypress", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+    await new Promise((r) => setTimeout(r, 250));
 
     const target = await findOption(skill.toLowerCase());
 
@@ -1542,12 +1549,13 @@ async function _wdAddSkills(skills) {
     await pickOption(target);
     await new Promise((r) => setTimeout(r, 350));
 
-    // Confirm pill landed. If pointer events didn't commit, try Enter as fallback.
     let after = alreadyAddedSet();
     if (after.size <= have.size) {
-      log("pointer click didn't commit, trying Enter fallback");
-      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", bubbles: true }));
+      // Some tenants commit selection on Enter when an option is highlighted.
+      // The highlight may have moved with the first Enter; try Enter again.
+      log("pointer click didn't commit, trying Enter on highlighted option");
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
+      input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", keyCode: 13, which: 13, bubbles: true, cancelable: true }));
       await new Promise((r) => setTimeout(r, 350));
       after = alreadyAddedSet();
     }
