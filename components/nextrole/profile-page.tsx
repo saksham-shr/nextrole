@@ -295,6 +295,8 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
   const [sponsor, setSponsor] = useState(p.sponsorship_needed ?? false);
   const [roles, setRoles] = useState<string[]>(p.target_roles ?? []);
   const [locations, setLocations] = useState<string[]>(p.target_locations ?? []);
+  useEffect(() => { setRoles(p.target_roles ?? []); }, [p.target_roles]);
+  useEffect(() => { setLocations(p.target_locations ?? []); }, [p.target_locations]);
 
   async function save() {
     setBusy(true);
@@ -557,6 +559,7 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
 
 function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
   const [entries, setEntries] = useState<WorkExperienceEntry[]>(p.work_experience ?? []);
+  useEffect(() => { setEntries(p.work_experience ?? []); }, [p.work_experience]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<WorkExperienceEntry | null>(null);
@@ -681,6 +684,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
 
 function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
   const [entries, setEntries] = useState<EducationEntry[]>(p.education ?? []);
+  useEffect(() => { setEntries(p.education ?? []); }, [p.education]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<EducationEntry | null>(null);
@@ -769,6 +773,7 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<string[]>(p.skills ?? []);
+  useEffect(() => { setSkills(p.skills ?? []); }, [p.skills]);
 
   async function save() {
     setBusy(true);
@@ -809,6 +814,7 @@ function LanguagesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [langs, setLangs] = useState<string[]>(p.languages ?? []);
+  useEffect(() => { setLangs(p.languages ?? []); }, [p.languages]);
 
   async function save() {
     setBusy(true);
@@ -847,6 +853,7 @@ function LanguagesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
 
 function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
   const [entries, setEntries] = useState<ProjectEntry[]>(p.projects ?? []);
+  useEffect(() => { setEntries(p.projects ?? []); }, [p.projects]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<ProjectEntry | null>(null);
@@ -929,6 +936,7 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
 
 function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
   const [entries, setEntries] = useState<CertificationEntry[]>(p.certifications ?? []);
+  useEffect(() => { setEntries(p.certifications ?? []); }, [p.certifications]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<CertificationEntry | null>(null);
