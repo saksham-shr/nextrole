@@ -237,26 +237,25 @@ function fromLever() {
 // ─── Extractor 6: Greenhouse ──────────────────────────────────────────────────
 
 function fromGreenhouse() {
-  // ATS hosts:
-  //   boards.greenhouse.io       — classic format
-  //   job-boards.greenhouse.io   — modern React format (May 2026+)
-  //   grnh.se                    — shortlink
   const host = location.hostname;
-  if (
-    !host.includes("boards.greenhouse.io") &&
-    !host.includes("job-boards.greenhouse.io") &&
-    !host.includes("grnh.se")
-  ) return null;
+  const isGreenhouseHost =
+    host.includes("greenhouse.io") || host.includes("grnh.se");
+  if (!isGreenhouseHost) return null;
+
   // Detail pages contain /jobs/<id>; listing pages don't
   const parts = location.pathname.split("/").filter(Boolean);
   const hasJobsSegment = parts.includes("jobs");
-  if (!hasJobsSegment && !parts.some((p) => /^\d+$/.test(p))) return null;
+  if (!hasJobsSegment && !parts.some((p) => /^\d+$/.test(p))) {
+    console.log("[NextRole][detect] greenhouse: skipped (not a detail page) parts=", parts);
+    return null;
+  }
 
   const title = texts([
+    ".job__title h1",
+    "h1.section-header",
     ".app-title",
     "#header h1",
     "h1.section-header__title",
-    ".job__title h1",
     "h1",
   ]);
 
@@ -265,7 +264,6 @@ function fromGreenhouse() {
     if (m && m[1] !== "boards" && m[1] !== "job-boards") {
       return m[1].charAt(0).toUpperCase() + m[1].slice(1);
     }
-    // URL path's first segment is the company slug for both classic and modern.
     if (parts[0]) {
       const slug = parts[0];
       return slug.charAt(0).toUpperCase() + slug.slice(1);
@@ -279,6 +277,13 @@ function fromGreenhouse() {
     document.querySelector(".section--text") ??
     document.querySelector("#application");
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
+
+  console.log("[NextRole][detect] greenhouse:", {
+    host, pathname: location.pathname, hasJobsSegment,
+    foundTitle: !!title, title,
+    foundCompany: !!company, company,
+    foundDescEl: !!descEl, descLen: description?.length ?? 0,
+  });
 
   if (title) {
     return { title, company: company ?? companyFromDomain(), description, confidence: "high", source: "greenhouse" };
