@@ -846,7 +846,7 @@ const AC_ATS_PATTERNS = [
 // "Save & Apply". The floating card is for the actual application form.
 // True apply pages always carry a clear URL signal — listed here per ATS.
 const AC_APPLY_FORM_URL_PATTERNS = [
-  /\/apply(\/|$|\?|#)/i,                  // Lever, generic
+  /\/apply(?:\b|[\/?#_-])/i,               // Lever, generic, Keka (/applyjob/), keka.com careers
   /\/applications?\/new/i,                 // Greenhouse classic
   /#application[_-]?form/i,                // Greenhouse hash anchor
   /\/applicationform/i,
@@ -1172,16 +1172,18 @@ async function loadEvalContext(jobUrl = location.href) {
   ]);
   const recent     = evalRes?.ok ? (evalRes.recent ?? []) : [];
   const autoMatch  = evalRes?.ok ? (evalRes.auto_match ?? null) : null;
-  const tier       = profileRes?.profile?.tier ?? "free";
-  const tailorUsesToday = profileRes?.profile?.usage?.tailor_sessions_today
-                       ?? profileRes?.profile?.usage?.tailor_sessions
+  const profile    = profileRes?.profile ?? null;
+  const tier       = profile?.tier ?? "free";
+  const tailorUsesToday = profile?.usage?.tailor_sessions_today
+                       ?? profile?.usage?.tailor_sessions
                        ?? 0;
   // Apply auto-match as default if no manual selection was made yet
   if (!state.evaluation_id && autoMatch) {
     state.evaluation_id = autoMatch.evaluation_id;
     await saveTailorState({ evaluation_id: autoMatch.evaluation_id });
   }
-  return { recent, autoMatch, state, tier, tailorUsesToday };
+  // Return the full profile too so callers don't need a separate GET_PROFILE round-trip.
+  return { recent, autoMatch, state, tier, tailorUsesToday, profile, profileError: profileRes?.error ?? null };
 }
 
 // Called by the ATS-specific filler right before doing the actual fill.
@@ -1792,13 +1794,12 @@ async function renderFillUniform(opts) {
 
   container.innerHTML = `<div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Loading profile…</div>`;
 
-  const [profileRes, evalCtx] = await Promise.all([
-    swMsg({ type: "GET_PROFILE" }),
-    loadEvalContext(),
-  ]);
+  // loadEvalContext already fetches the profile — avoid a duplicate GET_PROFILE round-trip.
+  const evalCtx = await loadEvalContext();
+  const p       = evalCtx.profile;
 
-  if (!profileRes || profileRes.ok === false || !profileRes.profile) {
-    const errMsg = profileRes?.error ?? "Could not load profile";
+  if (!p) {
+    const errMsg = evalCtx.profileError ?? "Could not load profile";
     const isAuth = /unauthor|not\s*connected|401/i.test(errMsg);
     container.innerHTML = `
       <div style="padding:14px;font-size:13px;color:var(--nr-fg);">
@@ -1814,7 +1815,6 @@ async function renderFillUniform(opts) {
     return;
   }
 
-  const p    = profileRes.profile;
   const rows = (() => { try { return buildRows(p) ?? []; } catch (e) { console.warn("[NextRole] buildRows failed", e); return []; } })();
 
   const fillBtnLabel = multiStep ? "Fill This Section" : "Fill This Form";
@@ -4832,23 +4832,53 @@ async function renderResumeTab(container, jobId, job, state) {
   const resume = state.resume;
 
   if (!resume) {
-    // Lazy-load safety net: one attempt to load a prior tailored resume from the API
+    // Always fetch artifacts on first load — even on subsequent renders if we
+    // didn't have a resume yet. This lets us populate the "saved resumes"
+    // picker AND auto-load a tailored resume tied to this jobId.
     if (!state._resumeFetchAttempted) {
       state._resumeFetchAttempted = true;
       container.innerHTML = `<div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Checking for existing resume…</div>`;
       const artifacts = await fetchArtifacts(jobId);
+      state._recentResumes = artifacts?.recent_resumes ?? [];
       if (artifacts?.resume) {
         state.resume = artifacts.resume;
         renderResumeTab(container, jobId, job, state);
         return;
       }
-      // Nothing found — fall through to "no resume" UI
+      // Fall through with state._recentResumes populated
     }
 
+    const recent = (state._recentResumes ?? []).filter((r) => r.id);
+    const pickerOpts = recent.map((r) => {
+      const t = r.job_title || r.title || "Untitled";
+      const c = r.company ? ` — ${r.company}` : "";
+      const cov = typeof r.coverage === "number" ? ` (${r.coverage}%)` : "";
+      return `<option value="${esc(r.id)}">${esc(t + c + cov)}</option>`;
+    }).join("");
+
     container.innerHTML = `
-      <div class="nr-ac-empty">No tailored resume yet for this job.</div>
-      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-gen-resume">Generate Tailored Resume</button>
-      <div class="nr-ac-status" id="nr-ac-resume-st"></div>
+      <div class="nr-ac-eval-empty">
+        <div class="nr-ac-eval-empty-title">No tailored resume for this job</div>
+        <div class="nr-ac-eval-empty-desc">
+          Generate one tuned to this JD, or load any of your previously generated resumes.
+        </div>
+        ${NR.btn({ variant: "primary", full: true, id: "nr-ac-gen-resume", label: "Generate Tailored Resume", icon: NR.icon.spark })}
+        <div class="nr-ac-status" id="nr-ac-resume-st"></div>
+
+        ${recent.length > 0 ? `
+          <div class="nr-ac-eval-divider"><span>or load a saved resume</span></div>
+          <select class="nr-ac-select" id="nr-ac-resume-picker" style="margin-bottom:8px;">
+            <option value="">— choose a saved resume —</option>
+            ${pickerOpts}
+          </select>
+          ${NR.btn({ variant: "outline", full: true, id: "nr-ac-resume-load", label: "Load saved resume" })}
+          <div class="nr-ac-status" id="nr-ac-resume-load-st"></div>
+        ` : `
+          <div class="nr-mono" style="margin-top:10px;text-align:center;">
+            You have no saved resumes yet
+          </div>
+        `}
+      </div>
     `;
     container.querySelector("#nr-ac-gen-resume")?.addEventListener("click", async () => {
       const btn = container.querySelector("#nr-ac-gen-resume");
@@ -4862,8 +4892,36 @@ async function renderResumeTab(container, jobId, job, state) {
         if (st) st.textContent = res?.error ?? "Generation failed — try again";
         return;
       }
-      // Persist result into shared state so returning to this tab shows it again
       state.resume = { id: res.resume_id, html: res.html, coverage: res.coverage };
+      renderResumeTab(container, jobId, job, state);
+    });
+
+    container.querySelector("#nr-ac-resume-load")?.addEventListener("click", async () => {
+      const picker = container.querySelector("#nr-ac-resume-picker");
+      const loadBtn = container.querySelector("#nr-ac-resume-load");
+      const st = container.querySelector("#nr-ac-resume-load-st");
+      const id = picker?.value;
+      if (!id) { if (st) st.textContent = "Please choose a resume first."; return; }
+      loadBtn.disabled = true; loadBtn.textContent = "Loading…";
+
+      // Find the picked resume in the cached list — we need its job_id and
+      // any cached HTML. Best path: fetch artifacts for that job_id to get
+      // the full HTML, coverage, etc.
+      const match = (state._recentResumes ?? []).find((r) => r.id === id);
+      if (!match?.job_id) {
+        if (st) st.textContent = "Resume metadata missing — try regenerating.";
+        loadBtn.disabled = false; loadBtn.textContent = "Load saved resume";
+        return;
+      }
+      const arts = await fetchArtifacts(match.job_id);
+      if (!arts?.resume) {
+        if (st) st.textContent = "Couldn't load that resume — try another.";
+        loadBtn.disabled = false; loadBtn.textContent = "Load saved resume";
+        return;
+      }
+      state.resume = arts.resume;
+      // Also flag it as the upload override for autofill (Fill tab Resume block)
+      _resumeJobOverride = match.job_id;
       renderResumeTab(container, jobId, job, state);
     });
     return;
