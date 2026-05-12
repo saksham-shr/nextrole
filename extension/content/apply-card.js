@@ -563,30 +563,30 @@ function buildEvalPickerHtml({ tier, autoMatch, recent, state, tailorUsesToday }
   // Tier-specific toggle label
   let toggleLabel, toggleDisabled = false, toggleHint;
   if (tier === "pro") {
-    toggleLabel = "Tailor freeform answers with AI ✨";
+    toggleLabel = "Tailor freeform answers with AI";
     toggleHint  = "Uses 8 credits per session";
   } else if (tier === "starter") {
     const remaining = Math.max(0, 1 - (tailorUsesToday ?? 0));
-    toggleLabel = "Tailor freeform answers with AI ✨";
+    toggleLabel = "Tailor freeform answers with AI";
     toggleHint  = remaining > 0
       ? `${remaining} tailor session left today (Starter)`
       : "Daily tailor used — resets at midnight (or upgrade to Pro)";
     toggleDisabled = remaining === 0;
   } else {
-    toggleLabel = "Tailor with AI ✨ — Starter+";
+    toggleLabel = "Tailor with AI — Starter+";
     toggleHint  = "Upgrade to Starter or Pro to unlock AI tailoring";
     toggleDisabled = true;
   }
 
   const evalOptions = recent.map((r) => {
-    const label = `${r.job_title} · ${r.company}${r.score ? ` · ⭐ ${r.score.toFixed(1)}` : ""}`;
+    const label = `${r.job_title} · ${r.company}${r.score ? ` · ★ ${r.score.toFixed(1)}` : ""}`;
     const selected = state.evaluation_id === r.evaluation_id ? "selected" : "";
     return `<option value="${r.evaluation_id}" ${selected}>${escapeAttr(label)}</option>`;
   }).join("");
 
   const autoMatchBanner = autoMatch
     ? `<div style="font-size:11px;color:#166534;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:4px 8px;margin-bottom:6px;">
-         ✓ Auto-matched: ⭐ ${autoMatch.score?.toFixed(1) ?? "?"} for <strong>${escapeAttr(autoMatch.job_title)}</strong>
+         Auto-matched: ★ ${autoMatch.score?.toFixed(1) ?? "?"} for <strong>${escapeAttr(autoMatch.job_title)}</strong>
        </div>`
     : "";
 
@@ -890,7 +890,7 @@ async function loadConfirmScreen(jobId, ctxHint = null) {
       <div class="nr-ac-err" style="margin-bottom:12px;">
         Could not reach NextRole. Check your connection and try again.
       </div>
-      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-retry">↻ Retry</button>
+      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-retry">Retry</button>
     </div>`;
   inner.querySelector("#nr-ac-retry")?.addEventListener("click", () => loadConfirmScreen(jobId, ctxHint));
 }
@@ -946,7 +946,7 @@ function renderConfirmScreen(currentJobId, currentJob, recentJobs, evaluation, r
   // Show a banner when the user landed here via a Naukri redirect
   const naukriBanner = ctxHint?.fromNaukri ? `
     <div class="nr-ac-naukri-banner" style="margin-bottom:12px;">
-      <div class="nr-ac-naukri-banner-icon">↗</div>
+      <div class="nr-ac-naukri-banner-icon"></div>
       <div>
         <div class="nr-ac-naukri-banner-title">Redirected from Naukri</div>
         <div class="nr-ac-naukri-banner-sub">
@@ -1192,7 +1192,7 @@ async function renderFillTab(container, jobId, job) {
         No fillable fields detected on this page.<br>
         <span style="font-size:11.5px;">Navigate to the application form, then click Re-scan.</span>
       </div>
-      <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:4px;">↻ Re-scan</button>
+      <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:4px;">Re-scan</button>
     `;
     container.querySelector("#nr-ac-rescan")?.addEventListener("click", () => renderFillTab(container, jobId, job));
     return;
@@ -1222,7 +1222,7 @@ async function renderFillTab(container, jobId, job) {
       <div class="nr-ac-field-row nr-ac-select-row">
         <div class="nr-ac-field-lbl" title="${esc(f.label)}">${esc(f.label.slice(0, 13))}</div>
         <div class="nr-ac-field-val">
-          <div class="nr-ac-select-note">✓ Auto-select best option</div>
+          <div class="nr-ac-select-note">Auto-select best option</div>
         </div>
       </div>`
     ).join("");
@@ -1234,12 +1234,12 @@ async function renderFillTab(container, jobId, job) {
           <div class="nr-ac-field-lbl" title="${esc(f.label)}">${esc(f.label.slice(0, 13))}</div>
           <div class="nr-ac-field-val">
             <textarea class="nr-ac-finput" data-fid="${esc(f.id)}" rows="2"
-              placeholder="Click ✦ Generate…">${esc(val)}</textarea>
+              placeholder="Click Generate…">${esc(val)}</textarea>
             <button class="nr-ac-gen-btn"
               data-fid="${esc(f.id)}"
               data-ftype="${esc(f.type)}"
               data-flabel="${esc(f.label)}"
-            >✦ Generate</button>
+            >Generate</button>
           </div>
         </div>`;
     }).join("");
@@ -1253,11 +1253,11 @@ async function renderFillTab(container, jobId, job) {
       </div>
       <div class="nr-ac-field-list">${directHtml}${selectHtml}${aiHtml}</div>
       <div class="nr-ac-row">
-        <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-rescan" style="flex:0 0 auto;padding:9px 12px;">↻ Re-scan</button>
+        <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-rescan" style="flex:0 0 auto;padding:9px 12px;">Re-scan</button>
         <button class="nr-ac-btn nr-ac-primary" id="nr-ac-write" style="flex:1;">Apply to Form</button>
       </div>
       <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-generic-autopilot" style="margin-top:8px;background:linear-gradient(90deg,#475569 0%,#0f172a 100%);">
-        🚀 Auto-fill ALL steps (stops at Review)
+        Auto-fill ALL steps (stops at Review)
       </button>
       <div id="nr-ac-generic-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f1f5f9;border:1px solid #cbd5e1;color:#1e293b;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
       <div class="nr-ac-status" id="nr-ac-fill-status"></div>
@@ -1268,7 +1268,7 @@ async function renderFillTab(container, jobId, job) {
       inp.addEventListener("input", () => { _fieldVals[inp.dataset.fid] = inp.value; });
     });
 
-    // ✦ Generate buttons
+    // Generate buttons
     container.querySelectorAll(".nr-ac-gen-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const fid    = btn.dataset.fid;
@@ -1293,13 +1293,13 @@ async function renderFillTab(container, jobId, job) {
           _fieldVals[fid] = res.suggestion;
           const ta = container.querySelector(`textarea[data-fid="${CSS.escape(fid)}"]`);
           if (ta) ta.value = res.suggestion;
-          btn.textContent = "✦ Regenerate";
+          btn.textContent = "Regenerate";
         } else {
           const errMsg = res?.upgrade
             ? "Upgrade to Pro for AI generation"
             : (res?.error ?? "Failed — try again").slice(0, 36);
           btn.textContent = errMsg;
-          setTimeout(() => { btn.textContent = "✦ Generate"; }, 3000);
+          setTimeout(() => { btn.textContent = "Generate"; }, 3000);
         }
         btn.disabled = false;
       });
@@ -1336,7 +1336,7 @@ async function renderFillTab(container, jobId, job) {
         done = true;
         document.removeEventListener("nr:write-done", doneHandler);
         const written = e.detail?.written ?? 0;
-        if (status) status.textContent = `✓ ${written} field${written !== 1 ? "s" : ""} filled`;
+        if (status) status.textContent = `${written} field${written !== 1 ? "s" : ""} filled`;
         if (writeBtn) { writeBtn.disabled = false; writeBtn.textContent = "Apply to Form"; }
       };
       document.addEventListener("nr:write-done", doneHandler);
@@ -1360,7 +1360,7 @@ async function renderFillTab(container, jobId, job) {
   if (genericAutopilotBtn && genericAutopilotStatus) {
     genericAutopilotBtn.addEventListener("click", async () => {
       genericAutopilotBtn.disabled = true;
-      genericAutopilotBtn.textContent = "🚀 Running…";
+      genericAutopilotBtn.textContent = "Running…";
       genericAutopilotStatus.style.display = "block";
       genericAutopilotStatus.textContent = "Starting…";
 
@@ -1416,8 +1416,8 @@ async function renderFillTab(container, jobId, job) {
 
       genericAutopilotBtn.disabled = false;
       genericAutopilotBtn.textContent = ok
-        ? "🚀 Auto-fill ALL steps (stops at Review)"
-        : "🔁 Run autopilot again";
+        ? "Auto-fill ALL steps (stops at Review)"
+        : "Run autopilot again";
     });
   }
 
@@ -1466,7 +1466,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
     ["Email",             p.email     || "—"],
     ["Phone",             p.phone     || "—"],
     ["Country",           "India"],
-    ["Resume",            jobId ? "✓ Will fetch generated resume" : "—  No job linked"],
+    ["Resume",            jobId ? "Will fetch generated resume" : "—  No job linked"],
     ["LinkedIn",          p.linkedin  || "—"],
     ["How did you hear",  "Job Board / Naukri"],
     ["Country (Q)",       "India"],
@@ -1478,7 +1478,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
     ["BrightHire consent","Yes, I consent"],
     ["Privacy / GDPR",    "I Acknowledge / I Accept"],
     ["Demographic consent","Yes"],
-    ["GDPR checkbox",     "✓ Will check"],
+    ["GDPR checkbox",     "Will check"],
   ];
 
   const manualRows = [
@@ -1496,13 +1496,13 @@ async function renderGreenhouseHelper(container, jobId, job) {
 
     const manualHtml = manualRows.map((m) => `
       <div style="display:flex;align-items:flex-start;gap:5px;padding:2px 0;font-size:12px;color:#6b6560;">
-        <span style="margin-top:1px;">✏️</span><span>${m}</span>
+        <span style="margin-top:1px;"></span><span>${m}</span>
       </div>`).join("");
 
     container.innerHTML = `
       <div style="padding:10px 14px;overflow-y:auto;max-height:100%;">
         <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">
-          <span style="font-size:18px;">📋</span>
+          <span style="font-size:18px;"></span>
           <div>
             <div style="font-weight:600;font-size:13px;">Greenhouse Application</div>
             <div style="font-size:11px;color:#6b6560;">${job?.title ?? "This role"} · Single-page form</div>
@@ -1528,7 +1528,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
         })}
 
         <button id="nr-gh-fill-btn" style="width:100%;padding:9px;background:#c84a1f;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.02em;">
-          ⚡ Fill This Form
+          Fill This Form
         </button>
         <div id="nr-gh-result" style="display:none;margin-top:8px;"></div>
       </div>`;
@@ -1538,13 +1538,13 @@ async function renderGreenhouseHelper(container, jobId, job) {
 
     btn.addEventListener("click", async () => {
       btn.disabled = true;
-      btn.textContent = "⏳ Filling…";
+      btn.textContent = "Filling…";
       resultEl.style.display = "none";
 
       // Fetch resume + cover letter + tailor (if enabled) in parallel.
       const tailorState = await loadTailorState();
       const tailorPromise = tailorState.tailor_enabled
-        ? (btn.textContent = "✨ Tailoring with AI…", runTailorIfEnabled({ jobId, job }))
+        ? (btn.textContent = "Tailoring with AI…", runTailorIfEnabled({ jobId, job }))
         : Promise.resolve(null);
 
       const [resumeData, coverLetterData, tailorResult] = await Promise.all([
@@ -1555,13 +1555,13 @@ async function renderGreenhouseHelper(container, jobId, job) {
 
       if (!resumeData) {
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
-        resultEl.innerHTML = "⚠️ No resume available. <a href='" + (NEXTROLE_URL ?? "") + "/dashboard/profile#section-resume' target='_blank' style='color:inherit;text-decoration:underline;'>Upload one</a> or generate a tailored resume first.";
+        resultEl.innerHTML = "No resume available. <a href='" + (NEXTROLE_URL ?? "") + "/dashboard/profile#section-resume' target='_blank' style='color:inherit;text-decoration:underline;'>Upload one</a> or generate a tailored resume first.";
         btn.disabled = false;
-        btn.textContent = "⚡ Fill This Form";
+        btn.textContent = "Fill This Form";
         return;
       }
 
-      btn.textContent = "⏳ Filling…";
+      btn.textContent = "Filling…";
       const res = await requestGreenhouseFill(resumeData, coverLetterData, tailorResult);
 
       const hasErrors = res.errors && res.errors.length > 0;
@@ -1571,11 +1571,11 @@ async function renderGreenhouseHelper(container, jobId, job) {
 
       resultEl.style.cssText = `display:block;padding:8px 10px;border-radius:8px;font-size:12px;background:${color};border:1px solid ${border};color:${text};`;
       resultEl.innerHTML = `
-        <strong>✓ ${res.filled} filled · ${res.skipped} skipped</strong>
+        <strong>${res.filled} filled · ${res.skipped} skipped</strong>
         ${hasErrors ? `<ul style="margin:4px 0 0 14px;padding:0;font-size:11px;">${res.errors.map((e) => `<li>${e}</li>`).join("")}</ul>` : ""}`;
 
       btn.disabled = false;
-      btn.textContent = "⚡ Fill Again";
+      btn.textContent = "Fill Again";
     });
   }
 
@@ -1655,8 +1655,8 @@ async function renderSimpleHelper(opts) {
     ["Location", p.city ?? p.location ?? "—"],
     ["LinkedIn", p.linkedin   || "—"],
     ["GitHub",   p.github     || "—"],
-    ["Resume",   "✓ Auto-uploads from your profile"],
-    ["Cover letter", p.has_cover_letter ? "✓ Auto-uploads" : "AI-tailored when toggle is on"],
+    ["Resume",   "Auto-uploads from your profile"],
+    ["Cover letter", p.has_cover_letter ? "Auto-uploads" : "AI-tailored when toggle is on"],
     ["Work auth", p.sponsorship_needed ? "Yes — needs sponsorship" : "Yes — no sponsorship needed"],
     ["Relocate", p.willing_to_relocate === false ? "No" : "Yes"],
     ["Demographics (EEO)", "From profile or 'Prefer not to say'"],
@@ -1671,7 +1671,7 @@ async function renderSimpleHelper(opts) {
   container.innerHTML = `
     <div style="padding:10px 14px;overflow-y:auto;max-height:100%;">
       <div style="display:flex;align-items:center;gap:7px;margin-bottom:10px;">
-        <span style="font-size:18px;">⚡</span>
+        <span style="font-size:18px;"></span>
         <div>
           <div style="font-weight:600;font-size:13px;">${esc(ats)} Application</div>
           <div style="font-size:11px;color:#6b6560;">${esc(job?.title ?? "This role")} · Single-page form</div>
@@ -1692,11 +1692,11 @@ async function renderSimpleHelper(opts) {
       })}
 
       <button id="nr-fill-btn" style="width:100%;padding:9px;background:${accent};color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.02em;">
-        ⚡ Fill ${multiStep ? "This Step" : "This Form"}
+        Fill ${multiStep ? "This Step" : "This Form"}
       </button>
       ${multiStep ? `
         <button class="nr-ac-btn" id="nr-autopilot-btn" style="width:100%;padding:9px;margin-top:6px;background:linear-gradient(90deg,${accent} 0%,${accent}cc 100%);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.02em;">
-          🚀 Auto-fill ALL steps (stops at Review)
+          Auto-fill ALL steps (stops at Review)
         </button>
         <div id="nr-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f0f4ff;border:1px solid #c7d2fe;color:#3730a3;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
       ` : ""}
@@ -1710,13 +1710,13 @@ async function renderSimpleHelper(opts) {
 
   btn.addEventListener("click", async () => {
     btn.disabled = true;
-    btn.textContent = "⏳ Filling…";
+    btn.textContent = "Filling…";
     resultEl.style.display = "none";
 
     // Tailor + file fetch in parallel
     const tailorState = await loadTailorState();
     const tailorPromise = tailorState.tailor_enabled
-      ? (btn.textContent = "✨ Tailoring with AI…", runTailorIfEnabled({ jobId, job }))
+      ? (btn.textContent = "Tailoring with AI…", runTailorIfEnabled({ jobId, job }))
       : Promise.resolve(null);
     const [resumeData, coverLetterData, tailorData] = await Promise.all([
       fetchResumeBlob(jobId),
@@ -1726,17 +1726,17 @@ async function renderSimpleHelper(opts) {
 
     if (!resumeData && !optionalResume) {
       resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
-      resultEl.innerHTML = `⚠️ No resume available. <a href="#" id="nr-fill-upload-link" style="color:inherit;text-decoration:underline;">Upload one in your profile</a>.`;
+      resultEl.innerHTML = `No resume available. <a href="#" id="nr-fill-upload-link" style="color:inherit;text-decoration:underline;">Upload one in your profile</a>.`;
       container.querySelector("#nr-fill-upload-link")?.addEventListener("click", (ev) => {
         ev.preventDefault();
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile#section-resume` });
       });
       btn.disabled = false;
-      btn.textContent = "⚡ Fill This Form";
+      btn.textContent = "Fill This Form";
       return;
     }
 
-    btn.textContent = "⏳ Filling…";
+    btn.textContent = "Filling…";
     const r = await requestFill(resumeData, coverLetterData, tailorData);
 
     const hasErrors = r.errors && r.errors.length > 0;
@@ -1756,7 +1756,7 @@ async function renderSimpleHelper(opts) {
           return `<li>${esc(lbl)}</li>`;
         }).join("");
         validationHtml = `<div style="margin-top:6px;padding:6px 10px;border-radius:6px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:11px;">
-          ⚠ Form flagged ${invalid.length} field${invalid.length !== 1 ? "s" : ""} as invalid — review:
+          Form flagged ${invalid.length} field${invalid.length !== 1 ? "s" : ""} as invalid — review:
           <ul style="margin:3px 0 0 14px;padding:0;">${items}</ul>
         </div>`;
         resultEl.innerHTML += validationHtml;
@@ -1765,11 +1765,11 @@ async function renderSimpleHelper(opts) {
 
     resultEl.style.cssText = `display:block;padding:8px 10px;border-radius:8px;font-size:12px;background:${color};border:1px solid ${border};color:${text};`;
     resultEl.innerHTML = `
-      <strong>✓ ${r.filled} filled · ${r.skipped} skipped</strong>
+      <strong>${r.filled} filled · ${r.skipped} skipped</strong>
       ${hasErrors ? `<ul style="margin:4px 0 0 14px;padding:0;font-size:11px;">${r.errors.map((e) => `<li>${esc(e)}</li>`).join("")}</ul>` : ""}`;
 
     btn.disabled = false;
-    btn.textContent = multiStep ? "⚡ Fill This Step Again" : "⚡ Fill Again";
+    btn.textContent = multiStep ? "Fill This Step Again" : "Fill Again";
   });
 
   // ── Autopilot button (multi-step sites only) ────────────────────────────────
@@ -1778,7 +1778,7 @@ async function renderSimpleHelper(opts) {
   if (autopilotBtn && autopilotStatus) {
     autopilotBtn.addEventListener("click", async () => {
       autopilotBtn.disabled = true;
-      autopilotBtn.textContent = "🚀 Running…";
+      autopilotBtn.textContent = "Running…";
       btn.disabled = true;
       autopilotStatus.style.display = "block";
       autopilotStatus.style.color = "#3730a3";
@@ -1809,7 +1809,7 @@ async function renderSimpleHelper(opts) {
 
       autopilotBtn.disabled = false;
       btn.disabled = false;
-      autopilotBtn.textContent = ok ? "🚀 Auto-fill ALL steps (stops at Review)" : "🔁 Run autopilot again";
+      autopilotBtn.textContent = ok ? "Auto-fill ALL steps (stops at Review)" : "Run autopilot again";
     });
   }
 }
@@ -2120,7 +2120,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
   if (!sessionRes?.ok || !sessionRes?.loggedIn) {
     if (statusEl) {
       statusEl.style.color = "#991b1b";
-      statusEl.innerHTML = `⚠ Not connected to NextRole. <a href="#" id="nr-wd-connect" style="color:inherit;text-decoration:underline;">Sign in</a> first.`;
+      statusEl.innerHTML = `Not connected to NextRole. <a href="#" id="nr-wd-connect" style="color:inherit;text-decoration:underline;">Sign in</a> first.`;
       statusEl.querySelector("#nr-wd-connect")?.addEventListener("click", (ev) => {
         ev.preventDefault();
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/login` });
@@ -2134,7 +2134,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
   let resumeData = null, coverLetterData = null, tailorData = null;
 
   if (tailorState.tailor_enabled) {
-    if (statusEl) statusEl.textContent = "✨ Tailoring once for the whole application…";
+    if (statusEl) statusEl.textContent = "Tailoring once for the whole application…";
     const tailorResult = await runTailorIfEnabled({ jobId, job });
     if (tailorResult?.__tailorError) {
       let label = tailorResult.message ?? "Tailor failed";
@@ -2142,7 +2142,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
       else if (tailorResult.insufficient_credits) label = "Not enough credits for tailoring. Continuing without it.";
       else if (tailorResult.upgrade)             label = "AI tailoring is a Starter+ feature. Continuing without it.";
       if (statusEl) {
-        statusEl.innerHTML = `⚠ ${esc(label)}`;
+        statusEl.innerHTML = `${esc(label)}`;
         await new Promise((r) => setTimeout(r, 1800));
       }
       tailorData = null;
@@ -2162,7 +2162,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
     if (_detectCaptcha()) {
       if (statusEl) {
         statusEl.style.color = "#92400e";
-        statusEl.innerHTML = `🤖 CAPTCHA detected — solve it manually, then re-run autopilot`;
+        statusEl.innerHTML = `CAPTCHA detected — solve it manually, then re-run autopilot`;
       }
       allErrors.push(`Step ${step}: captcha required`);
       break;
@@ -2177,7 +2177,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
     if (section === "Review") {
       if (statusEl) {
         statusEl.style.color = "#166534";
-        statusEl.innerHTML = `🎉 Reached <strong>Review</strong> — verify everything and click <strong>Submit</strong> yourself`;
+        statusEl.innerHTML = `Reached <strong>Review</strong> — verify everything and click <strong>Submit</strong> yourself`;
       }
       break;
     }
@@ -2187,7 +2187,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
     }
     visited.add(section);
 
-    if (statusEl) statusEl.innerHTML = `📋 Step ${step}: filling <strong>${esc(section)}</strong>…`;
+    if (statusEl) statusEl.innerHTML = `Step ${step}: filling <strong>${esc(section)}</strong>…`;
 
     // Resume + cover letter only needed for "My Experience". Fetch on demand.
     if (section === "My Experience" && !resumeData) {
@@ -2197,7 +2197,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
       ]);
       if (!resumeData) {
         allErrors.push(`No resume available for My Experience — stopping`);
-        if (statusEl) statusEl.innerHTML = `⚠ No resume uploaded. <a href="#" id="nr-wd-up" style="color:inherit;text-decoration:underline;">Upload one</a> and re-run.`;
+        if (statusEl) statusEl.innerHTML = `No resume uploaded. <a href="#" id="nr-wd-up" style="color:inherit;text-decoration:underline;">Upload one</a> and re-run.`;
         statusEl?.querySelector("#nr-wd-up")?.addEventListener("click", (ev) => {
           ev.preventDefault();
           chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile#section-resume` });
@@ -2223,7 +2223,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
       );
       if (statusEl) {
         statusEl.style.color = "#991b1b";
-        statusEl.innerHTML = `⚠ <strong>${section}</strong>: ${invalid.length} field${invalid.length !== 1 ? "s" : ""} flagged invalid — review and re-run.<br><span style="font-size:11px;">${labels.map(esc).join(", ")}</span>`;
+        statusEl.innerHTML = `<strong>${section}</strong>: ${invalid.length} field${invalid.length !== 1 ? "s" : ""} flagged invalid — review and re-run.<br><span style="font-size:11px;">${labels.map(esc).join(", ")}</span>`;
       }
       allErrors.push(`${section}: ${invalid.length} validation errors`);
       break;
@@ -2232,7 +2232,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
     // Click Save and Continue
     const nextBtn = _wdFindNextButton();
     if (!nextBtn) {
-      if (statusEl) statusEl.innerHTML = `⚠ Couldn't find <strong>Save and Continue</strong> on ${esc(section)} — finish manually`;
+      if (statusEl) statusEl.innerHTML = `Couldn't find <strong>Save and Continue</strong> on ${esc(section)} — finish manually`;
       allErrors.push(`${section}: no continue button found`);
       break;
     }
@@ -2243,7 +2243,7 @@ async function runWorkdayAutopilot({ jobId, job, statusEl, onStepResult }) {
     // Wait for section to change (React route swap on Workday SPA)
     const newSection = await _wdWaitForSectionChange(section, 12000);
     if (!newSection) {
-      if (statusEl) statusEl.innerHTML = `⚠ Page didn't advance after <strong>${esc(section)}</strong> — Workday may still be validating. Try again or continue manually.`;
+      if (statusEl) statusEl.innerHTML = `Page didn't advance after <strong>${esc(section)}</strong> — Workday may still be validating. Try again or continue manually.`;
       allErrors.push(`${section}: continue didn't navigate`);
       break;
     }
@@ -2416,7 +2416,7 @@ async function runGenericMultiStepAutopilot({
   if (!sessionRes?.ok || !sessionRes?.loggedIn) {
     if (statusEl) {
       statusEl.style.color = "#991b1b";
-      statusEl.innerHTML = `⚠ Not connected to NextRole. <a href="#" id="nr-ap-connect" style="color:inherit;text-decoration:underline;">Sign in</a> first.`;
+      statusEl.innerHTML = `Not connected to NextRole. <a href="#" id="nr-ap-connect" style="color:inherit;text-decoration:underline;">Sign in</a> first.`;
       statusEl.querySelector("#nr-ap-connect")?.addEventListener("click", (ev) => {
         ev.preventDefault();
         chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/login` });
@@ -2430,7 +2430,7 @@ async function runGenericMultiStepAutopilot({
   let resumeData = null, coverLetterData = null, tailorData = null;
 
   if (tailorState.tailor_enabled) {
-    if (statusEl) statusEl.textContent = "✨ Tailoring once for the whole application…";
+    if (statusEl) statusEl.textContent = "Tailoring once for the whole application…";
     const tailorResult = await runTailorIfEnabled({ jobId, job });
 
     // Detect typed error from runTailorIfEnabled
@@ -2440,7 +2440,7 @@ async function runGenericMultiStepAutopilot({
         if (tailorResult.cap_reached)         label = "Daily tailor limit reached (Starter: 1/day). Continuing without AI tailoring.";
         else if (tailorResult.insufficient_credits) label = "Not enough credits for tailoring. Continuing without AI tailoring.";
         else if (tailorResult.upgrade)        label = "AI tailoring is a Starter+ feature. Continuing without it.";
-        statusEl.innerHTML = `⚠ ${esc(label)}`;
+        statusEl.innerHTML = `${esc(label)}`;
         await new Promise((r) => setTimeout(r, 1800));   // let user read it
       }
       tailorData = null;
@@ -2461,7 +2461,7 @@ async function runGenericMultiStepAutopilot({
     if (requireResume && !resumeData) {
       if (statusEl) {
         statusEl.style.color = "#991b1b";
-        statusEl.innerHTML = `⚠ No resume uploaded. <a href="#" id="nr-ap-up" style="color:inherit;text-decoration:underline;">Upload one</a> first.`;
+        statusEl.innerHTML = `No resume uploaded. <a href="#" id="nr-ap-up" style="color:inherit;text-decoration:underline;">Upload one</a> first.`;
         statusEl.querySelector("#nr-ap-up")?.addEventListener("click", (ev) => {
           ev.preventDefault();
           chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile#section-resume` });
@@ -2483,7 +2483,7 @@ async function runGenericMultiStepAutopilot({
     if (_detectCaptcha()) {
       if (statusEl) {
         statusEl.style.color = "#92400e";
-        statusEl.innerHTML = `🤖 CAPTCHA detected — solve it manually, then run autopilot again`;
+        statusEl.innerHTML = `CAPTCHA detected — solve it manually, then run autopilot again`;
       }
       allErrors.push(`Step ${step}: captcha required`);
       break;
@@ -2493,7 +2493,7 @@ async function runGenericMultiStepAutopilot({
     if (_isReviewOrSubmitStep()) {
       if (statusEl) {
         statusEl.style.color = "#166534";
-        statusEl.innerHTML = `🎉 Reached <strong>Review</strong> — verify everything and click <strong>Submit</strong> yourself`;
+        statusEl.innerHTML = `Reached <strong>Review</strong> — verify everything and click <strong>Submit</strong> yourself`;
       }
       break;
     }
@@ -2501,7 +2501,7 @@ async function runGenericMultiStepAutopilot({
     const snap = _pageSnapshot();
     if (visited.has(snap)) {
       allErrors.push(`Step ${step}: loop detected on same page — stopping`);
-      if (statusEl) statusEl.innerHTML = `⚠ Loop detected — finish manually from here`;
+      if (statusEl) statusEl.innerHTML = `Loop detected — finish manually from here`;
       break;
     }
     visited.add(snap);
@@ -2513,13 +2513,13 @@ async function runGenericMultiStepAutopilot({
       'textarea:not([disabled]), select:not([disabled])'
     ).length;
     if (fillableFieldCount === 0) {
-      if (statusEl) statusEl.innerHTML = `⚠ Step ${step}: no fillable fields detected — finish manually`;
+      if (statusEl) statusEl.innerHTML = `Step ${step}: no fillable fields detected — finish manually`;
       allErrors.push(`Step ${step}: empty page`);
       break;
     }
 
     const headingText = (document.querySelector("h1, h2, h3")?.textContent ?? "").trim().slice(0, 40);
-    if (statusEl) statusEl.innerHTML = `📋 Step ${step}: filling${headingText ? ` <strong>${esc(headingText)}</strong>` : ""}…`;
+    if (statusEl) statusEl.innerHTML = `Step ${step}: filling${headingText ? ` <strong>${esc(headingText)}</strong>` : ""}…`;
 
     const r = await requestFill(resumeData, coverLetterData, tailorData);
     totalFilled  += r.filled;
@@ -2539,7 +2539,7 @@ async function runGenericMultiStepAutopilot({
       );
       if (statusEl) {
         statusEl.style.color = "#991b1b";
-        statusEl.innerHTML = `⚠ Step ${step}: ${invalid.length} field${invalid.length !== 1 ? "s" : ""} flagged invalid — review<br><span style="font-size:11px;">${labels.map(esc).join(", ")}</span>`;
+        statusEl.innerHTML = `Step ${step}: ${invalid.length} field${invalid.length !== 1 ? "s" : ""} flagged invalid — review<br><span style="font-size:11px;">${labels.map(esc).join(", ")}</span>`;
       }
       allErrors.push(`Step ${step}: ${invalid.length} validation errors`);
       break;
@@ -2548,7 +2548,7 @@ async function runGenericMultiStepAutopilot({
     // Find + click Next button (ranked — prefers primary over Skip/Back)
     const nextBtn = _findGenericNextButton();
     if (!nextBtn) {
-      if (statusEl) statusEl.innerHTML = `⚠ No Continue/Next button found on step ${step} — finish manually`;
+      if (statusEl) statusEl.innerHTML = `No Continue/Next button found on step ${step} — finish manually`;
       allErrors.push(`Step ${step}: no continue button`);
       break;
     }
@@ -2561,7 +2561,7 @@ async function runGenericMultiStepAutopilot({
     // for 600ms so we don't react to interstitial modal flashes).
     const newSnap = await _waitForStablePageChange(snap, 12000);
     if (!newSnap) {
-      if (statusEl) statusEl.innerHTML = `⚠ Page didn't advance after step ${step} — finish manually`;
+      if (statusEl) statusEl.innerHTML = `Page didn't advance after step ${step} — finish manually`;
       allErrors.push(`Step ${step}: didn't navigate after click`);
       break;
     }
@@ -2594,7 +2594,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
     const isAuth = /unauthor|not\s*connected|401/i.test(errMsg);
     container.innerHTML = `
       <div style="padding:16px;font-size:13px;color:#374151;">
-        <div style="font-weight:600;color:#991b1b;margin-bottom:6px;">⚠ ${esc(errMsg)}</div>
+        <div style="font-weight:600;color:#991b1b;margin-bottom:6px;">${esc(errMsg)}</div>
         ${isAuth
           ? `<div>Please <a href="#" id="nr-wd-signin" style="color:#ea580c;text-decoration:underline;">sign in to NextRole</a> and try again.</div>`
           : `<div style="color:#6b7280;">Check that the NextRole webapp is running and reachable, then reload this page.</div>`}
@@ -2629,7 +2629,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
   const needsResume = section === "My Experience";
   const canFill     = section === "My Information" || section === "My Experience";
 
-  const fillLabel = needsResume ? "⬆ Upload Resume + Fill" : "⚡ Fill This Step";
+  const fillLabel = needsResume ? "Upload Resume + Fill" : "Fill This Step";
   const fillBtnHtml = canFill
     ? `<button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-wd-fill" style="margin-top:6px;">${fillLabel}</button>`
     : "";
@@ -2666,7 +2666,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
     `;
   } else if (section === "My Experience") {
     sectionContent = `
-      ${note("nr-ac-manual-note", "📄 Resume, work history &amp; education will be filled from your CV")}
+      ${note("nr-ac-manual-note", "Resume, work history &amp; education will be filled from your CV")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Will be auto-filled</div>
         <div class="nr-ac-field-list">
@@ -2686,7 +2686,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
         </div>
       </div>
       ${fillBtnHtml}
-      <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-resume-open" style="margin-top:4px;">↗ Download Resume from NextRole</button>
+      <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-resume-open" style="margin-top:4px;">Download Resume from NextRole</button>
     `;
   } else {
     // Self Identify, Voluntary Disclosures, Application Questions, Review, etc.
@@ -2706,7 +2706,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
 
   container.innerHTML = `
     <div class="nr-ac-workday-banner">
-      <div class="nr-ac-workday-banner-icon">🔷</div>
+      <div class="nr-ac-workday-banner-icon"></div>
       <div>
         <div class="nr-ac-workday-banner-title">
           Workday${section && section !== "unknown" ? ` — ${esc(section)}` : ""}
@@ -2725,7 +2725,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       tailorUsesToday: evalCtx.tailorUsesToday,
     })}
     <div id="nr-ac-wd-fill-result" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;"></div>
-    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-rescan" style="margin-top:6px;">↻ Re-scan (moved to next section)</button>
+    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-rescan" style="margin-top:6px;">Re-scan (moved to next section)</button>
   `;
   wireEvalPicker(container, evalCtx.state);
 
@@ -2746,7 +2746,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
   if (fillBtn && resultEl) {
     fillBtn.addEventListener("click", async () => {
       fillBtn.disabled = true;
-      fillBtn.textContent = needsResume ? "⏳ Fetching resume…" : "⏳ Filling…";
+      fillBtn.textContent = needsResume ? "Fetching resume…" : "Filling…";
       resultEl.style.display = "none";
 
       let resumeData = null;
@@ -2755,19 +2755,19 @@ async function renderWorkdayHelper(container, jobId, job, section) {
 
       const tailorState = await loadTailorState();
       if (tailorState.tailor_enabled) {
-        fillBtn.textContent = "✨ Tailoring with AI…";
+        fillBtn.textContent = "Tailoring with AI…";
         tailorData = await runTailorIfEnabled({ jobId, job });
       }
 
       if (needsResume) {
-        fillBtn.textContent = "⏳ Fetching resume…";
+        fillBtn.textContent = "Fetching resume…";
         [resumeData, coverLetterData] = await Promise.all([
           fetchResumeBlob(jobId),
           fetchCoverLetterBlob(),
         ]);
         if (!resumeData) {
           resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
-          resultEl.innerHTML = `⚠ No resume available. <a href="#" id="nr-ac-wd-upload-link" style="color:#c84a1f;text-decoration:underline;">Upload one in your profile</a> or generate a tailored resume in NextRole.`;
+          resultEl.innerHTML = `No resume available. <a href="#" id="nr-ac-wd-upload-link" style="color:#c84a1f;text-decoration:underline;">Upload one in your profile</a> or generate a tailored resume in NextRole.`;
           container.querySelector("#nr-ac-wd-upload-link")?.addEventListener("click", (ev) => {
             ev.preventDefault();
             chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile#section-resume` });
@@ -2776,9 +2776,9 @@ async function renderWorkdayHelper(container, jobId, job, section) {
           fillBtn.textContent = fillLabel;
           return;
         }
-        fillBtn.textContent = "⏳ Uploading & filling…";
+        fillBtn.textContent = "Uploading & filling…";
       } else {
-        fillBtn.textContent = "⏳ Filling…";
+        fillBtn.textContent = "Filling…";
       }
 
       const res = await requestWorkdayFill(section, resumeData, coverLetterData, tailorData);
@@ -2786,12 +2786,12 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       const hasErrors = res.errors && res.errors.length > 0;
       if (res.filled > 0) {
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;";
-        resultEl.innerHTML = `✓ Filled ${res.filled} field${res.filled !== 1 ? "s" : ""}` +
+        resultEl.innerHTML = `Filled ${res.filled} field${res.filled !== 1 ? "s" : ""}` +
           (res.skipped > 0 ? ` &nbsp;·&nbsp; ${res.skipped} skipped` : "") +
           (hasErrors ? `<br><span style="color:#92400e;font-size:11px;">${res.errors.join("; ")}</span>` : "");
       } else {
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;";
-        resultEl.innerHTML = `⚠ Nothing filled — ${res.errors?.join("; ") || "fields not found on page"}`;
+        resultEl.innerHTML = `Nothing filled — ${res.errors?.join("; ") || "fields not found on page"}`;
       }
 
       fillBtn.disabled = false;
@@ -2804,7 +2804,7 @@ async function renderWorkdayHelper(container, jobId, job, section) {
     btn.addEventListener("click", () => {
       navigator.clipboard.writeText(btn.dataset.val ?? "").catch(() => {});
       const orig = btn.textContent;
-      btn.textContent = "✓";
+      btn.textContent = "";
       setTimeout(() => { btn.textContent = orig; }, 1200);
     });
   });
@@ -2931,7 +2931,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
   const canAutoFill = stepNum >= 1 && stepNum <= 8 && stepNum !== 7;
   const fillBtnHtml = canAutoFill
     ? `<button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-acc-fill" style="margin-top:6px;">
-         ⚡ Fill This Step
+         Fill This Step
        </button>`
     : ``;
 
@@ -2939,7 +2939,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
 
   if (stepNum === 1) {
     stepContent = `
-      ${note("nr-ac-manual-note", "📄 Upload your resume (.doc/.docx/.pdf, max 4.5 MB)")}
+      ${note("nr-ac-manual-note", "Upload your resume (.doc/.docx/.pdf, max 4.5 MB)")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Actions</div>
         <div class="nr-ac-field-list">
@@ -2948,17 +2948,17 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
         </div>
       </div>
       <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-acc-fill" style="margin-bottom:8px;">
-        ⬆ Auto-Upload Resume
+        Auto-Upload Resume
       </button>
       <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-acc-resume-open" style="margin-bottom:4px;">
-        ↗ Download from NextRole (manual)
+        Download from NextRole (manual)
       </button>
       <div class="nr-ac-hint">Auto-Upload fetches your NextRole resume and injects it directly into the file field.</div>
     `;
   } else if (stepNum === 2) {
     stepContent = `
-      ${note("nr-ac-readonly-note", "✓ Nationality & DOB are usually pre-filled from your Accenture account")}
-      ${note("nr-ac-manual-note", "⚠ Have your PAN Card ready — pattern: AAAAA9999A")}
+      ${note("nr-ac-readonly-note", "Nationality & DOB are usually pre-filled from your Accenture account")}
+      ${note("nr-ac-manual-note", "Have your PAN Card ready — pattern: AAAAA9999A")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Will be auto-filled</div>
         <div class="nr-ac-field-list">
@@ -2977,7 +2977,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     `;
   } else if (stepNum === 3) {
     stepContent = `
-      ${note("nr-ac-readonly-note", "✓ Name, Email, Phone are pre-filled from your Accenture account")}
+      ${note("nr-ac-readonly-note", "Name, Email, Phone are pre-filled from your Accenture account")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Will be auto-filled</div>
         <div class="nr-ac-field-list">
@@ -2992,7 +2992,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
   } else if (stepNum === 4) {
     const city = p.location ?? null;
     stepContent = `
-      ${note("nr-ac-manual-note", "📍 Enter your current residential address")}
+      ${note("nr-ac-manual-note", "Enter your current residential address")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Will be auto-filled</div>
         <div class="nr-ac-field-list">
@@ -3024,12 +3024,12 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
           ${qaRow("Skills (up to 5)", skillStr, "Type to search and select")}
         </div>
       </div>
-      ${note("nr-ac-hint", "💡 Skills are added one by one via typeahead — may take a few seconds.")}
+      ${note("nr-ac-hint", "Skills are added one by one via typeahead — may take a few seconds.")}
       ${fillBtnHtml}
     `;
   } else if (stepNum === 6) {
     stepContent = `
-      ${note("nr-ac-manual-note", "📚 Enter your highest education details as per your degree certificate")}
+      ${note("nr-ac-manual-note", "Enter your highest education details as per your degree certificate")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Will be auto-filled</div>
         <div class="nr-ac-field-list">
@@ -3049,7 +3049,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     `;
   } else if (stepNum === 7) {
     stepContent = `
-      ${note("nr-ac-manual-note", "📷 Take a clear selfie using your webcam")}
+      ${note("nr-ac-manual-note", "Take a clear selfie using your webcam")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Photo tips (manual only)</div>
         <div class="nr-ac-field-list">
@@ -3063,17 +3063,17 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     `;
   } else if (stepNum === 8) {
     stepContent = `
-      ${note("nr-ac-readonly-note", "✅ Review all your details before submitting")}
+      ${note("nr-ac-readonly-note", "Review all your details before submitting")}
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Checkboxes (auto-checked)</div>
         <div class="nr-ac-field-list">
-          ${qaRow("Terms checkbox", "✓ Acknowledge information is true", "")}
-          ${qaRow("Privacy checkbox", "✓ Agree to data processing", "")}
-          ${qaRow("Consent checkbox", "✓ Consent to AI screening", "")}
+          ${qaRow("Terms checkbox", "Acknowledge information is true", "")}
+          ${qaRow("Privacy checkbox", "Agree to data processing", "")}
+          ${qaRow("Consent checkbox", "Consent to AI screening", "")}
         </div>
       </div>
       ${fillBtnHtml}
-      ${note("nr-ac-manual-note", "⚠ Submit button is NOT auto-clicked — review first, then click Submit yourself.")}
+      ${note("nr-ac-manual-note", "Submit button is NOT auto-clicked — review first, then click Submit yourself.")}
     `;
   } else {
     stepContent = `
@@ -3086,7 +3086,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
 
   container.innerHTML = `
     <div class="nr-ac-accenture-banner">
-      <div class="nr-ac-accenture-banner-icon">🏢</div>
+      <div class="nr-ac-accenture-banner-icon"></div>
       <div>
         <div class="nr-ac-accenture-banner-title">
           Accenture${currentStep && currentStep !== "unknown" ? ` — ${esc(currentStep)}` : " Application"}
@@ -3099,10 +3099,10 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     ${stepContent}
     <div id="nr-ac-fill-result" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;"></div>
     <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-acc-autopilot" style="margin-top:8px;background:linear-gradient(90deg,#a100ff 0%,#c84a1f 100%);">
-      🚀 Auto-fill ALL 8 steps (stops at Review)
+      Auto-fill ALL 8 steps (stops at Review)
     </button>
     <div id="nr-ac-acc-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fdf4ff;border:1px solid #f5d0fe;color:#86198f;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
-    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:6px;">↻ Re-scan (moved to next step)</button>
+    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:6px;">Re-scan (moved to next step)</button>
   `;
 
   // ── Wire up: Download fallback (step 1 manual download button)
@@ -3122,7 +3122,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
   if (fillBtn && resultEl) {
     fillBtn.addEventListener("click", async () => {
       fillBtn.disabled = true;
-      fillBtn.textContent = stepNum === 1 ? "⏳ Fetching resume…" : "⏳ Filling…";
+      fillBtn.textContent = stepNum === 1 ? "Fetching resume…" : "Filling…";
       resultEl.style.display = "none";
 
       let resumeData = null;
@@ -3131,16 +3131,16 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
         resumeData = await fetchResumeBlob(jobId);
         if (!resumeData) {
           resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
-          resultEl.innerHTML = "⚠ No resume found for this job. <a href='#' id='nr-ac-gen-resume-link' style='color:#c84a1f;text-decoration:underline;'>Generate one in NextRole first.</a>";
+          resultEl.innerHTML = "No resume found for this job. <a href='#' id='nr-ac-gen-resume-link' style='color:#c84a1f;text-decoration:underline;'>Generate one in NextRole first.</a>";
           container.querySelector("#nr-ac-gen-resume-link")?.addEventListener("click", (ev) => {
             ev.preventDefault();
             chrome.runtime.sendMessage({ type: "OPEN_TAB", url: jobId ? `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}` : `${NEXTROLE_URL}/dashboard/pipeline` });
           });
           fillBtn.disabled = false;
-          fillBtn.textContent = "⬆ Auto-Upload Resume";
+          fillBtn.textContent = "Auto-Upload Resume";
           return;
         }
-        fillBtn.textContent = "⏳ Uploading…";
+        fillBtn.textContent = "Uploading…";
       }
 
       const res = await requestAccentureFill(stepNum, resumeData);
@@ -3149,16 +3149,16 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
       const hasErrors = res.errors && res.errors.length > 0;
       if (res.filled > 0) {
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f0fdf4;border:1px solid #bbf7d0;color:#166534;";
-        resultEl.innerHTML = `✓ Filled ${res.filled} field${res.filled !== 1 ? "s" : ""}` +
+        resultEl.innerHTML = `Filled ${res.filled} field${res.filled !== 1 ? "s" : ""}` +
           (res.skipped > 0 ? ` &nbsp;·&nbsp; ${res.skipped} skipped` : "") +
           (hasErrors ? `<br><span style="color:#92400e;font-size:11px;">${res.errors.join("; ")}</span>` : "");
       } else {
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;";
-        resultEl.innerHTML = `⚠ Nothing filled — ${res.errors?.join("; ") || "fields not found on page"}`;
+        resultEl.innerHTML = `Nothing filled — ${res.errors?.join("; ") || "fields not found on page"}`;
       }
 
       fillBtn.disabled = false;
-      fillBtn.textContent = stepNum === 1 ? "⬆ Auto-Upload Resume" : "⚡ Fill This Step";
+      fillBtn.textContent = stepNum === 1 ? "Auto-Upload Resume" : "Fill This Step";
     });
   }
 
@@ -3167,7 +3167,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     btn.addEventListener("click", () => {
       navigator.clipboard.writeText(btn.dataset.val ?? "").catch(() => {});
       const orig = btn.textContent;
-      btn.textContent = "✓";
+      btn.textContent = "";
       setTimeout(() => { btn.textContent = orig; }, 1200);
     });
   });
@@ -3185,7 +3185,7 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
   if (accAutopilotBtn && accAutopilotStatus) {
     accAutopilotBtn.addEventListener("click", async () => {
       accAutopilotBtn.disabled = true;
-      accAutopilotBtn.textContent = "🚀 Running…";
+      accAutopilotBtn.textContent = "Running…";
       accAutopilotStatus.style.display = "block";
       accAutopilotStatus.textContent = "Starting…";
 
@@ -3216,8 +3216,8 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
 
       accAutopilotBtn.disabled = false;
       accAutopilotBtn.textContent = ok
-        ? "🚀 Auto-fill ALL 8 steps (stops at Review)"
-        : "🔁 Run autopilot again";
+        ? "Auto-fill ALL 8 steps (stops at Review)"
+        : "Run autopilot again";
     });
   }
 }
@@ -3319,7 +3319,7 @@ async function renderNaukriQAHelper(container, jobId, job) {
 
   container.innerHTML = `
     <div class="nr-ac-naukri-banner">
-      <div class="nr-ac-naukri-banner-icon">💬</div>
+      <div class="nr-ac-naukri-banner-icon"></div>
       <div>
         <div class="nr-ac-naukri-banner-title">Naukri Q&amp;A Detected</div>
         <div class="nr-ac-naukri-banner-sub">
@@ -3332,7 +3332,7 @@ async function renderNaukriQAHelper(container, jobId, job) {
     <div class="nr-ac-hint" style="margin-top:2px;">
       Missing values? Update your profile in NextRole and re-scan.
     </div>
-    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:4px;">↻ Re-scan</button>
+    <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:4px;">Re-scan</button>
   `;
 
   // Wire up copy buttons
@@ -3341,7 +3341,7 @@ async function renderNaukriQAHelper(container, jobId, job) {
       const val = btn.dataset.val ?? "";
       navigator.clipboard.writeText(val).then(() => {
         const orig = btn.textContent;
-        btn.textContent = "✓";
+        btn.textContent = "";
         setTimeout(() => { btn.textContent = orig; }, 1500);
       }).catch(() => {});
     });
@@ -3370,10 +3370,10 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
       if (!res?.ok) {
         container.innerHTML = `
           <div class="nr-ac-eval-empty">
-            <div class="nr-ac-eval-empty-icon">✦</div>
+            <div class="nr-ac-eval-empty-icon"></div>
             <div class="nr-ac-eval-empty-title">Evaluation failed</div>
             <div class="nr-ac-err" style="width:100%;margin-bottom:12px;">${esc(res?.error ?? "Could not run evaluation — please try again")}</div>
-            <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-run-eval">↻ Retry Evaluation</button>
+            <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-run-eval">Retry Evaluation</button>
           </div>
         `;
         container.querySelector("#nr-ac-run-eval")?.addEventListener("click", () => {
@@ -3412,14 +3412,14 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
 
     container.innerHTML = `
       <div class="nr-ac-eval-empty">
-        <div class="nr-ac-eval-empty-icon">✦</div>
+        <div class="nr-ac-eval-empty-icon"></div>
         <div class="nr-ac-eval-empty-title">No evaluation yet</div>
         <div class="nr-ac-eval-empty-desc">
           Get an AI fit score, CV match analysis, compensation insights,
           and interview tips tailored to this role.
         </div>
         <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-run-eval">
-          ✦ Evaluate My Fit
+          Evaluate My Fit
         </button>
         <div class="nr-ac-status" id="nr-ac-eval-st"></div>
 
@@ -3446,7 +3446,7 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
 
       const res = await swMsg({ type: "EVALUATE_JOB", jobId });
       if (!res?.ok) {
-        btn.disabled = false; btn.textContent = "✦ Evaluate My Fit";
+        btn.disabled = false; btn.textContent = "Evaluate My Fit";
         if (st) st.textContent = res?.error ?? "Evaluation failed — try again";
         return;
       }
@@ -3522,7 +3522,7 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
     <button class="nr-ac-btn nr-ac-ghost" id="nr-ac-eval-open">View full report in NextRole →</button>
     <div class="nr-ac-row" style="margin-top:10px;">
       <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-eval-fill">Fill Application →</button>
-      <button class="nr-ac-btn nr-ac-primary"   id="nr-ac-eval-pipeline">✓ In Pipeline</button>
+      <button class="nr-ac-btn nr-ac-primary"   id="nr-ac-eval-pipeline">In Pipeline</button>
     </div>
   `;
 
@@ -3540,7 +3540,7 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
     if (state._switchTab) state._switchTab("fill");
   });
 
-  // "✓ In Pipeline" → open pipeline page
+  // "In Pipeline" → open pipeline page
   container.querySelector("#nr-ac-eval-pipeline")?.addEventListener("click", () => {
     chrome.runtime.sendMessage({
       type: "OPEN_TAB",
@@ -3570,7 +3570,7 @@ async function renderResumeTab(container, jobId, job, state) {
 
     container.innerHTML = `
       <div class="nr-ac-empty">No tailored resume yet for this job.</div>
-      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-gen-resume">✦ Generate Tailored Resume</button>
+      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-gen-resume">Generate Tailored Resume</button>
       <div class="nr-ac-status" id="nr-ac-resume-st"></div>
     `;
     container.querySelector("#nr-ac-gen-resume")?.addEventListener("click", async () => {
@@ -3581,7 +3581,7 @@ async function renderResumeTab(container, jobId, job, state) {
 
       const res = await swMsg({ type: "TAILOR_RESUME", payload: { job_id: jobId } });
       if (!res?.ok) {
-        btn.disabled = false; btn.textContent = "✦ Generate Tailored Resume";
+        btn.disabled = false; btn.textContent = "Generate Tailored Resume";
         if (st) st.textContent = res?.error ?? "Generation failed — try again";
         return;
       }
@@ -3645,9 +3645,9 @@ function renderCoverTab(container, job, state) {
   container.innerHTML = `
     <div class="nr-ac-hint">Generate a cover letter and copy it into the form, or edit it first.</div>
     <textarea class="nr-ac-cl-ta" id="nr-ac-cl-ta"
-      placeholder="Click ✦ Generate to create a cover letter tailored to this job…"></textarea>
+      placeholder="Click Generate to create a cover letter tailored to this job…"></textarea>
     <div class="nr-ac-row">
-      <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-cl-gen">✦ Generate</button>
+      <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-cl-gen">Generate</button>
       <button class="nr-ac-btn nr-ac-primary" id="nr-ac-cl-copy">Copy</button>
     </div>
     <div class="nr-ac-status" id="nr-ac-cl-st"></div>
@@ -3682,9 +3682,9 @@ function renderCoverTab(container, job, state) {
     btn.disabled = false;
     if (res?.ok && res.suggestion) {
       if (ta) { ta.value = res.suggestion; state.coverLetter = res.suggestion; }
-      btn.textContent = "✦ Regenerate";
+      btn.textContent = "Regenerate";
     } else {
-      btn.textContent = "✦ Generate";
+      btn.textContent = "Generate";
       if (st) st.textContent = res?.upgrade
         ? "Cover letter generation requires a Pro plan"
         : (res?.error ?? "Generation failed — try again");
@@ -3696,7 +3696,7 @@ function renderCoverTab(container, job, state) {
     if (!text.trim()) return;
     navigator.clipboard.writeText(text).then(() => {
       if (st) {
-        st.textContent = "✓ Copied to clipboard";
+        st.textContent = "Copied to clipboard";
         setTimeout(() => { if (st) st.textContent = ""; }, 2000);
       }
     }).catch(() => {
