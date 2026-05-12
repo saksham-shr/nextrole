@@ -867,9 +867,32 @@ const AC_APPLY_FORM_URL_PATTERNS = [
 ];
 
 // Detect: is this an apply FORM page (not a JD page that merely links to one)?
+// Order of evidence:
+//   1. Registry — most reliable. If the host matches a known ATS and the URL
+//      matches its apply pattern OR the DOM has the ATS form marker, it's
+//      an apply page.
+//   2. Generic URL hint (AC_APPLY_FORM_URL_PATTERNS) — covers ATS-agnostic
+//      paths like /apply, /applications/new.
+//   3. DOM fallback — file input + ≥2 identity fields.
 function isApplyFormPage() {
+  // Source 1: registry
+  try {
+    const det = window.NR_ATS?.detectATSFromHost?.();
+    if (det) {
+      const { entry } = det;
+      if (window.NR_ATS.isApplyPage(entry) || window.NR_ATS.hasApplyFormDOM(entry)) {
+        return true;
+      }
+      // Registry host matched but neither URL nor DOM suggests apply →
+      // we're probably on a JD page. Be definitive: NOT an apply page.
+      if (window.NR_ATS.isJDPage(entry)) return false;
+    }
+  } catch { /* fall through to legacy detection */ }
+
+  // Source 2: ATS-agnostic URL patterns
   if (AC_APPLY_FORM_URL_PATTERNS.some((p) => p.test(location.href))) return true;
-  // DOM-based fallback: a real apply form has file upload + identity fields.
+
+  // Source 3: DOM fallback
   const hasFileInput = !!document.querySelector('input[type="file"]:not([disabled])');
   const identityFieldCount = [
     'input[name*="first_name" i], input[id*="first_name" i], input[name*="firstname" i]',
