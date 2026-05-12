@@ -1393,10 +1393,6 @@ async function renderFillTab(container, jobId, job) {
         <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-rescan" style="flex:0 0 auto;padding:9px 12px;">Re-scan</button>
         <button class="nr-ac-btn nr-ac-primary" id="nr-ac-write" style="flex:1;">Apply to Form</button>
       </div>
-      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-generic-autopilot" style="margin-top:8px;background:linear-gradient(90deg,#475569 0%,#0f172a 100%);">
-        Auto-fill ALL steps (stops at Review)
-      </button>
-      <div id="nr-ac-generic-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f1f5f9;border:1px solid #cbd5e1;color:#1e293b;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
       <div class="nr-ac-status" id="nr-ac-fill-status"></div>
     `;
 
@@ -1488,73 +1484,6 @@ async function renderFillTab(container, jobId, job) {
           if (status) status.textContent = "Done (check fields manually)";
         }
       }, 4000);
-    });
-  }
-
-  // ── Generic autopilot: loops scan→write→clickNext until Review ────────────
-  const genericAutopilotBtn = container.querySelector("#nr-ac-generic-autopilot");
-  const genericAutopilotStatus = container.querySelector("#nr-ac-generic-autopilot-status");
-  if (genericAutopilotBtn && genericAutopilotStatus) {
-    genericAutopilotBtn.addEventListener("click", async () => {
-      genericAutopilotBtn.disabled = true;
-      genericAutopilotBtn.textContent = "Running…";
-      genericAutopilotStatus.style.display = "block";
-      genericAutopilotStatus.textContent = "Starting…";
-
-      // requestFill for the generic flow: re-scan the page, then write all
-      // direct + select values via nr:write protocol. Files (resume, cover
-      // letter) are NOT injected via the generic protocol — they ride along
-      // through field-level uploads if any file input is in the form.
-      const requestFill = async (/* resumeData, coverLetterData, tailorData */) => {
-        return new Promise((resolve) => {
-          const writeDoneHandler = (e) => {
-            document.removeEventListener("nr:write-done", writeDoneHandler);
-            const r = e.detail ?? { written: 0 };
-            resolve({ filled: r.written ?? 0, skipped: 0, errors: [] });
-          };
-          const scanResHandler = (e2) => {
-            document.removeEventListener("nr:scan-res", scanResHandler);
-            const newFields = e2.detail?.fields ?? [];
-            const values = {};
-            for (const f of newFields) {
-              if (f.profileValue) values[f.id] = f.profileValue;
-              else if (f.kind === "select") values[f.id] = "__select__";
-            }
-            document.addEventListener("nr:write-done", writeDoneHandler);
-            document.dispatchEvent(new CustomEvent("nr:write", { detail: { values } }));
-          };
-          document.addEventListener("nr:scan-res", scanResHandler);
-          document.dispatchEvent(new CustomEvent("nr:scan-req"));
-          setTimeout(() => {
-            document.removeEventListener("nr:scan-res", scanResHandler);
-            document.removeEventListener("nr:write-done", writeDoneHandler);
-            resolve({ filled: 0, skipped: 0, errors: ["Scan/write timeout"] });
-          }, 10000);
-        });
-      };
-
-      const result = await runGenericMultiStepAutopilot({
-        jobId, job,
-        statusEl: genericAutopilotStatus,
-        siteLabel: "Generic",
-        requestFill,
-        maxSteps: 12,
-        preFetchFiles: false,
-      });
-
-      const ok = result.allErrors.length === 0;
-      genericAutopilotStatus.innerHTML += `
-        <div style="font-size:11px;line-height:1.6;margin-top:6px;border-top:1px solid #cbd5e1;padding-top:6px;">
-          <strong>Total: ${result.totalFilled} filled · ${result.totalSkipped} skipped</strong>
-          ${result.allErrors.length > 0
-            ? `<br><strong style="color:#991b1b;">Issues:</strong><br>${result.allErrors.slice(0, 5).map((e) => `&nbsp;&nbsp;• ${esc(e)}`).join("<br>")}`
-            : ""}
-        </div>`;
-
-      genericAutopilotBtn.disabled = false;
-      genericAutopilotBtn.textContent = ok
-        ? "Auto-fill ALL steps (stops at Review)"
-        : "Run autopilot again";
     });
   }
 
@@ -1831,12 +1760,6 @@ async function renderSimpleHelper(opts) {
       <button id="nr-fill-btn" style="width:100%;padding:9px;background:${accent};color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.02em;">
         Fill ${multiStep ? "This Step" : "This Form"}
       </button>
-      ${multiStep ? `
-        <button class="nr-ac-btn" id="nr-autopilot-btn" style="width:100%;padding:9px;margin-top:6px;background:linear-gradient(90deg,${accent} 0%,${accent}cc 100%);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;letter-spacing:.02em;">
-          Auto-fill ALL steps (stops at Review)
-        </button>
-        <div id="nr-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f0f4ff;border:1px solid #c7d2fe;color:#3730a3;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
-      ` : ""}
       <div id="nr-fill-result" style="display:none;margin-top:8px;"></div>
     </div>`;
 
@@ -1908,47 +1831,6 @@ async function renderSimpleHelper(opts) {
     btn.disabled = false;
     btn.textContent = multiStep ? "Fill This Step Again" : "Fill Again";
   });
-
-  // ── Autopilot button (multi-step sites only) ────────────────────────────────
-  const autopilotBtn = container.querySelector("#nr-autopilot-btn");
-  const autopilotStatus = container.querySelector("#nr-autopilot-status");
-  if (autopilotBtn && autopilotStatus) {
-    autopilotBtn.addEventListener("click", async () => {
-      autopilotBtn.disabled = true;
-      autopilotBtn.textContent = "Running…";
-      btn.disabled = true;
-      autopilotStatus.style.display = "block";
-      autopilotStatus.style.color = "#3730a3";
-      autopilotStatus.textContent = "Starting…";
-
-      const stepLog = [];
-      const result = await runGenericMultiStepAutopilot({
-        jobId, job,
-        statusEl: autopilotStatus,
-        siteLabel: ats,
-        requestFill: (rd, cd, td) => {
-          stepLog.push(`Step ${stepLog.length + 1}`);
-          return requestFill(rd, cd, td);
-        },
-        preFetchFiles: !optionalResume,
-        requireResume: !optionalResume,
-      });
-
-      const ok = result.allErrors.length === 0;
-      const summary = `
-        <div style="font-size:11px;line-height:1.6;margin-top:6px;border-top:1px solid #c7d2fe;padding-top:6px;">
-          <strong>Total: ${result.totalFilled} filled · ${result.totalSkipped} skipped across ${stepLog.length} step${stepLog.length !== 1 ? "s" : ""}</strong>
-          ${result.allErrors.length > 0
-            ? `<br><strong style="color:#991b1b;">Issues:</strong><br>${result.allErrors.slice(0, 5).map((e) => `&nbsp;&nbsp;• ${esc(e)}`).join("<br>")}`
-            : ""}
-        </div>`;
-      autopilotStatus.innerHTML += summary;
-
-      autopilotBtn.disabled = false;
-      btn.disabled = false;
-      autopilotBtn.textContent = ok ? "Auto-fill ALL steps (stops at Review)" : "Run autopilot again";
-    });
-  }
 }
 
 function renderLeverHelper(container, jobId, job) {
@@ -3375,10 +3257,6 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     </div>
     ${stepContent}
     <div id="nr-ac-fill-result" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;"></div>
-    <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-acc-autopilot" style="margin-top:8px;background:linear-gradient(90deg,#a100ff 0%,#c84a1f 100%);">
-      Auto-fill ALL 8 steps (stops at Review)
-    </button>
-    <div id="nr-ac-acc-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fdf4ff;border:1px solid #f5d0fe;color:#86198f;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
     <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-rescan" style="margin-top:6px;">Re-scan (moved to next step)</button>
   `;
 
@@ -3456,47 +3334,6 @@ async function renderAccentureHelper(container, jobId, job, currentStep) {
     renderFillTab(tabBody, jobId, job);
   });
 
-  // ── Wire up: Autopilot — loop steps 1-8, click "Next" between each, stop at Review
-  const accAutopilotBtn = container.querySelector("#nr-ac-acc-autopilot");
-  const accAutopilotStatus = container.querySelector("#nr-ac-acc-autopilot-status");
-  if (accAutopilotBtn && accAutopilotStatus) {
-    accAutopilotBtn.addEventListener("click", async () => {
-      accAutopilotBtn.disabled = true;
-      accAutopilotBtn.textContent = "Running…";
-      accAutopilotStatus.style.display = "block";
-      accAutopilotStatus.textContent = "Starting…";
-
-      // Build the per-step requestFill that picks up the active step from the DOM
-      const requestFill = async (resumeData /*, coverLetterData, tailorData */) => {
-        const activeStep = _accentureActiveStep();
-        if (!activeStep) return { filled: 0, skipped: 0, errors: ["Couldn't detect active Accenture step"] };
-        return requestAccentureFill(activeStep, resumeData);
-      };
-
-      const result = await runGenericMultiStepAutopilot({
-        jobId, job,
-        statusEl: accAutopilotStatus,
-        siteLabel: "Accenture",
-        requestFill,
-        maxSteps: 10,
-        preFetchFiles: true,
-      });
-
-      const ok = result.allErrors.length === 0;
-      accAutopilotStatus.innerHTML += `
-        <div style="font-size:11px;line-height:1.6;margin-top:6px;border-top:1px solid #f5d0fe;padding-top:6px;">
-          <strong>Total: ${result.totalFilled} filled · ${result.totalSkipped} skipped</strong>
-          ${result.allErrors.length > 0
-            ? `<br><strong style="color:#991b1b;">Issues:</strong><br>${result.allErrors.slice(0, 5).map((e) => `&nbsp;&nbsp;• ${esc(e)}`).join("<br>")}`
-            : ""}
-        </div>`;
-
-      accAutopilotBtn.disabled = false;
-      accAutopilotBtn.textContent = ok
-        ? "Auto-fill ALL 8 steps (stops at Review)"
-        : "Run autopilot again";
-    });
-  }
 }
 
 // Detect which Accenture step is active by reading the mat-stepper header
