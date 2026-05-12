@@ -1389,6 +1389,18 @@ async function _wdAddSkills(skills) {
              ?? wrap.querySelector("input");
   if (!input) { result.skipped = skills.length; return result; }
 
+  // Use the native setter directly so we can also force an empty string
+  // (the _angularFillInput helper short-circuits on "").
+  const valueSetter = Object.getOwnPropertyDescriptor(
+    window.HTMLInputElement.prototype, "value",
+  )?.set;
+  function setInputValue(v) {
+    if (valueSetter) valueSetter.call(input, v);
+    else input.value = v;
+    input.dispatchEvent(new Event("input",  { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
   function alreadyAddedSet() {
     const pills = wrap.querySelectorAll('[data-automation-id="selectedItem"]');
     const set = new Set();
@@ -1399,6 +1411,38 @@ async function _wdAddSkills(skills) {
     return set;
   }
 
+  // Poll the open Workday listbox for up to ~1.5s for a matching option.
+  async function findOption(skillLower) {
+    for (let i = 0; i < 15; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      const opts = [
+        ...document.querySelectorAll('[data-automation-id="promptOption"]'),
+        ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
+      ].filter((o) => o.offsetParent !== null);
+      if (opts.length === 0) continue;
+      const exact   = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === skillLower);
+      if (exact) return exact;
+      const prefix  = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().startsWith(skillLower));
+      if (prefix) return prefix;
+      const partial = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().includes(skillLower));
+      if (partial) return partial;
+    }
+    return null;
+  }
+
+  // Workday's option list listens to mousedown — a plain `click()` doesn't
+  // always commit. Dispatch the full pointer sequence.
+  function pickOption(el) {
+    const rect = el.getBoundingClientRect();
+    const x = Math.floor(rect.left + rect.width / 2);
+    const y = Math.floor(rect.top + rect.height / 2);
+    const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 };
+    el.dispatchEvent(new MouseEvent("mouseover", opts));
+    el.dispatchEvent(new MouseEvent("mousedown", opts));
+    el.dispatchEvent(new MouseEvent("mouseup",   opts));
+    el.dispatchEvent(new MouseEvent("click",     opts));
+  }
+
   const have = alreadyAddedSet();
 
   for (const raw of skills.slice(0, 20)) {
@@ -1406,42 +1450,35 @@ async function _wdAddSkills(skills) {
     if (!skill) continue;
     if (have.has(skill.toLowerCase())) continue;
 
-    // Focus + type the skill
+    // Clear first (handles empty string properly), then focus + type.
+    setInputValue("");
+    await new Promise((r) => setTimeout(r, 80));
     input.focus();
-    _angularFillInput(input, skill);
-    // Workday debounces the typeahead — give the listbox a beat to render
-    await new Promise((r) => setTimeout(r, 380));
+    setInputValue(skill);
 
-    const opts = [
-      ...document.querySelectorAll('[data-automation-id="promptOption"]'),
-      ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
-    ];
-
-    const lower = skill.toLowerCase();
-    const exact   = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === lower);
-    const prefix  = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().startsWith(lower));
-    const partial = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().includes(lower));
-    const target  = exact ?? prefix ?? partial;
+    const target = await findOption(skill.toLowerCase());
 
     if (target) {
-      target.click();
-      await new Promise((r) => setTimeout(r, 200));
-      result.added++;
+      pickOption(target);
+      await new Promise((r) => setTimeout(r, 300));
+      // Confirm a pill was added; if not, count as skip and clear.
+      const after = alreadyAddedSet();
+      if (after.size > have.size && !have.has(skill.toLowerCase())) {
+        have.add(skill.toLowerCase());
+        result.added++;
+      } else {
+        result.skipped++;
+      }
     } else {
-      // No dictionary match — close the popup and move on. Some tenants do
-      // accept free text via Enter; tried that path historically and it caused
-      // false-positive "added" counts and stray invalid pills. Safer to skip.
+      // No dictionary match — escape to close the popup, don't try free-text
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       await new Promise((r) => setTimeout(r, 100));
       result.skipped++;
     }
-
-    // Clear the input for the next skill
-    _angularFillInput(input, "");
-    await new Promise((r) => setTimeout(r, 120));
   }
 
-  // Blur so the dropdown closes cleanly before the next section runs
+  // Clean up
+  setInputValue("");
   input.blur();
   return result;
 }
