@@ -1372,6 +1372,80 @@ async function _wdFillFkitDate(wrap, mmYyyy) {
   return hit;
 }
 
+// Add a list of skills to the Workday skills typeahead one by one.
+// The skills field renders zero options until the user types — so for each
+// profile skill we: focus the input → set its value → wait for the filtered
+// promptOption list → click the closest match (exact > prefix > substring).
+// Returns { added, skipped }.
+async function _wdAddSkills(skills) {
+  const result = { added: 0, skipped: 0 };
+  if (!Array.isArray(skills) || skills.length === 0) return result;
+
+  const wrap = document.querySelector('[data-automation-id="formField-skills"]');
+  if (!wrap) { result.skipped = skills.length; return result; }
+
+  const input = wrap.querySelector('input[data-uxi-widget-type="selectinput"]')
+             ?? wrap.querySelector('input[type="text"]')
+             ?? wrap.querySelector("input");
+  if (!input) { result.skipped = skills.length; return result; }
+
+  function alreadyAddedSet() {
+    const pills = wrap.querySelectorAll('[data-automation-id="selectedItem"]');
+    const set = new Set();
+    pills.forEach((p) => {
+      const t = (p.getAttribute("title") ?? p.textContent ?? "").trim().toLowerCase();
+      if (t) set.add(t);
+    });
+    return set;
+  }
+
+  const have = alreadyAddedSet();
+
+  for (const raw of skills.slice(0, 20)) {
+    const skill = String(raw ?? "").trim();
+    if (!skill) continue;
+    if (have.has(skill.toLowerCase())) continue;
+
+    // Focus + type the skill
+    input.focus();
+    _angularFillInput(input, skill);
+    // Workday debounces the typeahead — give the listbox a beat to render
+    await new Promise((r) => setTimeout(r, 380));
+
+    const opts = [
+      ...document.querySelectorAll('[data-automation-id="promptOption"]'),
+      ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
+    ];
+
+    const lower = skill.toLowerCase();
+    const exact   = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === lower);
+    const prefix  = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().startsWith(lower));
+    const partial = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().includes(lower));
+    const target  = exact ?? prefix ?? partial;
+
+    if (target) {
+      target.click();
+      await new Promise((r) => setTimeout(r, 200));
+      result.added++;
+    } else {
+      // No dictionary match — close the popup and move on. Some tenants do
+      // accept free text via Enter; tried that path historically and it caused
+      // false-positive "added" counts and stray invalid pills. Safer to skip.
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await new Promise((r) => setTimeout(r, 100));
+      result.skipped++;
+    }
+
+    // Clear the input for the next skill
+    _angularFillInput(input, "");
+    await new Promise((r) => setTimeout(r, 120));
+  }
+
+  // Blur so the dropdown closes cleanly before the next section runs
+  input.blur();
+  return result;
+}
+
 // Click a Workday-fkit combobox (multi-select) and pick the first option
 // matching pattern. Returns true if an option was clicked.
 async function _wdFkitCombobox(wrap, optionPattern) {
@@ -1730,19 +1804,16 @@ async function _fillWorkdaySection(section, profile, resumeBlob /*, coverLetterB
     // LinkedIn URL
     hit(_wdInput("linkedInAccount", profile.linkedin));
 
-    // Skills — fkit multi-select; add each profile skill that the listbox accepts
+    // Skills — typeahead: type each profile skill and click the matching option
     if (Array.isArray(profile.skills) && profile.skills.length > 0) {
-      const skillsWrap = document.querySelector('[data-automation-id="formField-skills"]');
-      let skillsAdded = 0;
-      for (const skill of profile.skills.slice(0, 20)) {
-        const safe = String(skill).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        if (await _wdFkitCombobox(skillsWrap, new RegExp(`^${safe}$`, "i"))) {
-          skillsAdded++;
-          await new Promise((r) => setTimeout(r, 150));
+      const skillsResult = await _wdAddSkills(profile.skills);
+      if (skillsResult.added > 0) result.filled += skillsResult.added;
+      if (skillsResult.skipped > 0) {
+        result.skipped += skillsResult.skipped;
+        if (skillsResult.added === 0) {
+          result.errors.push("Skills: no profile skill matched Workday's dictionary");
         }
       }
-      if (skillsAdded > 0) result.filled += skillsAdded;
-      else result.skipped++;
     }
 
     // Work experience entries
