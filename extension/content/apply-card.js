@@ -1687,44 +1687,484 @@ function renderTabbedCard(jobId, job, initialEvaluation, initialResume, { initia
 
 // ─── Fill Form tab ────────────────────────────────────────────────────────────
 
+// ─── Uniform Fill tab shell ──────────────────────────────────────────────────
+//
+// Every ATS-specific helper builds an `opts` spec and calls renderFillUniform.
+// The shell handles the standard layout (detector → rows → resume block →
+// tailor → eval picker → fill button → status), event wiring, and tier gates.
+// Per-ATS specifics live in the `requestFill` dispatcher and the `buildRows`
+// callback — the visual shell is identical across sites.
+//
+// opts: {
+//   container,                  // DOM node to render into
+//   jobId, job,                 // job context (job may be null in orphan mode)
+//   atsLabel,                   // "Workday" / "Greenhouse" / "Naukri" / "Generic"
+//   sectionLabel,               // "My Information" / "Single-page form" / etc.
+//   stepLabel?,                 // "Step 1 of 4" / null
+//   multiStep,                  // boolean — affects button label + status copy
+//   optionalResume,             // boolean — if true, fill can run without resume
+//   buildRows(profile)          // returns Array<{ label, value, source, status?, muted? }>
+//   requestFill(resumeData, coverLetterData, tailorData) → { filled, skipped, errors }
+//   freeformFields?,            // for the tailor toggle hint
+// }
+// Row builders used by per-ATS helpers — each returns an array shaped for NR.rowList.
+
+function _fullName(p) {
+  return [p.first_name ?? (p.full_name ?? "").split(" ")[0] ?? "",
+          p.last_name  ?? (p.full_name ?? "").split(" ").slice(1).join(" ") ?? ""];
+}
+
+function _row(label, value, source = "profile") {
+  if (value) return { label, value: String(value), source };
+  return { label, value: `Not in profile — will skip`, source: null, status: "skip", muted: true };
+}
+
+function buildIdentityRows(p) {
+  const [first, last] = _fullName(p);
+  return [
+    _row("First Name", first),
+    _row("Last Name",  last),
+    _row("Email",      p.email),
+    _row("Phone",      p.phone),
+    _row("Country",    p.country),
+    _row("City",       p.city ?? p.location),
+    _row("LinkedIn",   p.linkedin),
+    _row("GitHub",     p.github),
+    _row("Portfolio",  p.website),
+  ].filter((r, i, arr) => {
+    // Always include first 4 (name/email/phone); collapse later muted rows
+    return i < 4 || !r.muted || arr.filter((x) => !x.muted).length < 4;
+  });
+}
+
+function buildWorkdayRows(p, section) {
+  const id = buildIdentityRows(p);
+
+  if (section === "My Information") {
+    return [
+      ...id,
+      _row("Source", "Job Board / Naukri", "auto-selected"),
+      _row("Phone Type", "Mobile", "auto-selected"),
+    ];
+  }
+
+  if (section === "My Experience") {
+    const workCount  = Array.isArray(p.work_experience) ? p.work_experience.length : 0;
+    const eduCount   = Array.isArray(p.education)       ? p.education.length       : 0;
+    const skillCount = Array.isArray(p.skills)          ? p.skills.length          : 0;
+    return [
+      _row("Resume",       "Will upload (see Resume block below)", "auto"),
+      _row("LinkedIn",     p.linkedin),
+      _row("Skills",       skillCount ? `${skillCount} from profile` : null),
+      _row("Work history", workCount  ? `${workCount} entr${workCount === 1 ? "y" : "ies"} from profile` : null),
+      _row("Education",    eduCount   ? `${eduCount} entr${eduCount === 1 ? "y" : "ies"} from profile`   : null),
+    ];
+  }
+
+  return id;
+}
+
+async function renderFillUniform(opts) {
+  const { container, jobId, job, atsLabel, sectionLabel, stepLabel, multiStep, optionalResume, buildRows, requestFill } = opts;
+
+  container.innerHTML = `<div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Loading profile…</div>`;
+
+  const [profileRes, evalCtx] = await Promise.all([
+    swMsg({ type: "GET_PROFILE" }),
+    loadEvalContext(),
+  ]);
+
+  if (!profileRes || profileRes.ok === false || !profileRes.profile) {
+    const errMsg = profileRes?.error ?? "Could not load profile";
+    const isAuth = /unauthor|not\s*connected|401/i.test(errMsg);
+    container.innerHTML = `
+      <div style="padding:14px;font-size:13px;color:var(--nr-fg);">
+        <div style="font-weight:600;color:var(--nr-skip-fg);margin-bottom:6px;">${esc(errMsg)}</div>
+        ${isAuth
+          ? `<div>Please <a href="#" id="nr-fu-signin" style="color:var(--nr-accent);text-decoration:underline;">sign in to NextRole</a> and try again.</div>`
+          : `<div style="color:var(--nr-muted);">Check that the NextRole webapp is running and reachable, then reload this page.</div>`}
+      </div>`;
+    container.querySelector("#nr-fu-signin")?.addEventListener("click", (ev) => {
+      ev.preventDefault();
+      chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/login` });
+    });
+    return;
+  }
+
+  const p    = profileRes.profile;
+  const rows = (() => { try { return buildRows(p) ?? []; } catch (e) { console.warn("[NextRole] buildRows failed", e); return []; } })();
+
+  const fillBtnLabel = multiStep ? "Fill This Section" : "Fill This Form";
+
+  // ── HTML scaffold ─────────────────────────────────────────────────────────
+  container.innerHTML = `
+    ${NR.detector({ atsLabel, sectionLabel, stepLabel, rescanId: "nr-fu-rescan" })}
+
+    ${NR.section({
+      label: rows.length ? `Will auto-fill — ${rows.length} row${rows.length === 1 ? "" : "s"}` : "Auto-fill targets",
+      inner: rows.length
+        ? NR.rowList(rows)
+        : `<div class="nr-ac-empty">No profile data to fill yet. Open the Profile page to add your details.</div>`,
+    })}
+
+    <div class="nr-ac-card" id="nr-fu-resume-card">
+      <div class="nr-ac-card-header">
+        <span class="nr-ac-section-label">Resume</span>
+        <span id="nr-fu-resume-cov"></span>
+      </div>
+      <div id="nr-fu-resume-status" class="nr-ac-status-line">
+        <span class="nr-ac-status-dot"></span>
+        <span>Checking…</span>
+      </div>
+      <div id="nr-fu-saved-row" style="display:none;margin-top:10px;display:flex;gap:6px;">
+        <select class="nr-ac-dd nr-sm" id="nr-fu-saved-select" style="flex:1.5;">
+          <option value="">— pick a previously generated resume —</option>
+        </select>
+        <button type="button" class="nr-ac-btn nr-ac-outline nr-sm" id="nr-fu-saved-use">Use</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        ${NR.btn({ variant: "dark", size: "sm", full: true, id: "nr-fu-gen-resume", icon: NR.icon.spark, label: "Generate tailored resume" })}
+        ${NR.btn({ variant: "ghost", size: "sm", id: "nr-fu-open-profile", label: "Profile", icon: NR.icon.external })}
+      </div>
+    </div>
+
+    <div id="nr-fu-tailor-host"></div>
+
+    <div id="nr-fu-eval-host"></div>
+
+    ${NR.btn({ variant: "primary", size: "lg", full: true, id: "nr-fu-fill-btn", label: fillBtnLabel })}
+
+    <div id="nr-fu-result" style="display:none;"></div>
+
+    ${multiStep ? `<div class="nr-mono" style="text-align:center;font-size:9.5px;margin-top:4px;">
+      You click Fill — then save &amp; continue on the site
+    </div>` : ""}
+  `;
+
+  // ── Tailor block ──────────────────────────────────────────────────────────
+  const tailorHost = container.querySelector("#nr-fu-tailor-host");
+  const tier        = evalCtx.tier ?? "free";
+  const tailorState = evalCtx.state;
+  const tailorUsed  = evalCtx.tailorUsesToday ?? 0;
+
+  if (tier === "free") {
+    tailorHost.innerHTML = NR.card(
+      `<div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:18px;height:18px;border-radius:5px;border:1px dashed var(--nr-line-soft);background:var(--nr-surface);display:inline-flex;align-items:center;justify-content:center;color:var(--nr-muted-2);">${NR.icon.lock}</div>
+        <div style="flex:1;">
+          <div style="font-size:12.5px;font-weight:500;display:inline-flex;align-items:center;gap:6px;">
+            Tailor freeform answers with AI ${NR.pill({ tone: "accent", size: "sm", label: "PRO" })}
+          </div>
+          <div style="font-size:11px;color:var(--nr-muted);margin-top:2px;">
+            Upgrade to Starter or Pro to rewrite essay-style answers from your profile.
+          </div>
+        </div>
+        ${NR.btn({ variant: "ghost", size: "sm", id: "nr-fu-upgrade", label: "Upgrade" })}
+      </div>`,
+      { pad: 11, style: "background:var(--nr-surface-soft);" }
+    );
+    container.querySelector("#nr-fu-upgrade")?.addEventListener("click", () => {
+      chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/billing` });
+    });
+  } else {
+    const sub = tier === "starter"
+      ? (tailorUsed > 0 ? "Daily tailor used — resets at midnight UTC." : "1 session per day on Starter — resets at midnight.")
+      : "Uses 8 credits per session.";
+    tailorHost.innerHTML = NR.card(
+      NR.check({ id: "nr-fu-tailor", checked: !!tailorState?.tailor_enabled, label: "Tailor freeform answers with AI", sub }),
+      { pad: 11 }
+    );
+    container.querySelector("#nr-fu-tailor")?.addEventListener("change", async (ev) => {
+      await saveTailorState({ tailor_enabled: ev.target.checked });
+      // Sync visible check icon
+      const box = container.querySelector("#nr-fu-tailor")?.nextElementSibling;
+      if (box) box.innerHTML = ev.target.checked ? NR.icon.check : "";
+    });
+  }
+
+  // ── Eval picker (only show when no eval linked for this job) ──────────────
+  const evalHost = container.querySelector("#nr-fu-eval-host");
+  const autoMatch = evalCtx.autoMatch ?? null;
+  const recent    = (evalCtx.recent ?? []).filter((r) => r.evaluation_id);
+  if (!evalCtx.state?.evaluation_id && recent.length > 0) {
+    const matchBanner = autoMatch
+      ? NR.banner({
+          tone: "apply",
+          compact: true,
+          body: `Auto-matched: <b>★ ${(autoMatch.score ?? 0).toFixed(1)}</b> for <b>${esc(autoMatch.job_title ?? "")}</b>.`,
+          actionHtml: NR.btn({ variant: "outline", size: "sm", id: "nr-fu-eval-use-match", label: "Use" }),
+        })
+      : "";
+    const opts = recent.slice(0, 8).map((r) => ({
+      value: r.evaluation_id,
+      label: `${r.job_title} — ${r.company}${r.score ? ` (★ ${r.score.toFixed(1)})` : ""}`,
+    }));
+    evalHost.innerHTML = NR.card(`
+      <div class="nr-ac-card-header">
+        <span class="nr-ac-section-label">Evaluation</span>
+        ${NR.pill({ tone: "outline", size: "sm", label: "Optional" })}
+      </div>
+      ${matchBanner}
+      <div style="display:flex;gap:6px;margin-top:${matchBanner ? "10px" : "0"};">
+        ${NR.ddSelect({ id: "nr-fu-eval-picker", placeholder: "Load a previous evaluation", options: opts })}
+        ${NR.btn({ variant: "outline", size: "sm", id: "nr-fu-eval-load", label: "Load" })}
+      </div>
+    `);
+    container.querySelector("#nr-fu-eval-use-match")?.addEventListener("click", async () => {
+      await saveTailorState({ evaluation_id: autoMatch.evaluation_id });
+      const status = container.querySelector("#nr-fu-resume-status");
+      if (status) status.innerHTML = `<span class="nr-ac-status-dot"></span><span>Linked evaluation ★ ${(autoMatch.score ?? 0).toFixed(1)}.</span>`;
+    });
+    container.querySelector("#nr-fu-eval-load")?.addEventListener("click", async () => {
+      const v = container.querySelector("#nr-fu-eval-picker")?.value;
+      if (!v) return;
+      await saveTailorState({ evaluation_id: v });
+    });
+  }
+
+  // ── Resume block: status detection + handlers ────────────────────────────
+  const resumeStatusEl = container.querySelector("#nr-fu-resume-status");
+  const resumeCovEl    = container.querySelector("#nr-fu-resume-cov");
+  const savedRow       = container.querySelector("#nr-fu-saved-row");
+  const savedSelect    = container.querySelector("#nr-fu-saved-select");
+  const useSavedBtn    = container.querySelector("#nr-fu-saved-use");
+  const genResumeBtn   = container.querySelector("#nr-fu-gen-resume");
+  const openProfileBtn = container.querySelector("#nr-fu-open-profile");
+
+  function setResumeStatus(html, tone = "info") {
+    if (!resumeStatusEl) return;
+    resumeStatusEl.className = `nr-ac-status-line ${tone === "info" ? "" : tone}`;
+    resumeStatusEl.innerHTML = `<span class="nr-ac-status-dot"></span><span>${html}</span>`;
+  }
+  function fmtResumeLabel(r) {
+    const t = r.job_title || r.title || "Untitled";
+    const c = r.company ? ` — ${r.company}` : "";
+    const cov = typeof r.coverage === "number" ? ` (${r.coverage}%)` : "";
+    return `${t}${c}${cov}`;
+  }
+
+  (async () => {
+    const arts = await fetchArtifacts(jobId ?? null);
+    const savedList = arts?.recent_resumes ?? [];
+
+    if (savedSelect && savedList.length > 0) {
+      savedList.filter((r) => r.job_id).forEach((r) => {
+        const opt = document.createElement("option");
+        opt.value = r.job_id;
+        opt.textContent = fmtResumeLabel(r);
+        savedSelect.appendChild(opt);
+      });
+      if (savedRow) savedRow.style.display = "flex";
+    }
+
+    if (_resumeJobOverride) {
+      const match = savedList.find((r) => r.job_id === _resumeJobOverride);
+      const label = match ? fmtResumeLabel(match) : "previously saved resume";
+      setResumeStatus(`Will upload your selected resume: <b>${esc(label)}</b>.`, "ready");
+      if (savedSelect) savedSelect.value = _resumeJobOverride;
+      return;
+    }
+    if (jobId && arts?.resume) {
+      setResumeStatus(`Tailored resume ready — will be uploaded.`, "ready");
+      if (genResumeBtn) genResumeBtn.lastChild.textContent = "Re-generate";
+      if (resumeCovEl && typeof arts.resume.coverage === "number") {
+        resumeCovEl.innerHTML = NR.pill({ tone: "apply", size: "sm", label: `Coverage ${arts.resume.coverage}%` });
+      }
+      return;
+    }
+    const profRes = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
+    if (profRes?.ok && profRes.data) {
+      setResumeStatus(
+        `Will use your default resume: <b>${esc(profRes.filename ?? "resume")}</b>. Generate a tailored version or pick a saved one for stronger match.`,
+        "info",
+      );
+      return;
+    }
+    setResumeStatus(
+      "No resume available. Generate a tailored one, pick a saved resume, or upload one to your profile.",
+      "warn",
+    );
+  })();
+
+  genResumeBtn?.addEventListener("click", async () => {
+    if (!jobId) {
+      setResumeStatus("Save this job to your pipeline first (use the toolbar popup).", "warn");
+      return;
+    }
+    genResumeBtn.disabled = true;
+    const originalLabel = genResumeBtn.lastChild.textContent;
+    genResumeBtn.lastChild.textContent = "Generating…";
+    setResumeStatus("Tailoring your resume to this job — usually 20-40 seconds.", "info");
+    const res = await swMsg({ type: "TAILOR_RESUME", payload: { job_id: jobId } });
+    if (!res?.ok) {
+      setResumeStatus(`Generation failed: ${esc(res?.error ?? "try again")}`, "error");
+      genResumeBtn.disabled = false;
+      genResumeBtn.lastChild.textContent = originalLabel;
+      return;
+    }
+    setResumeStatus("Tailored resume generated — will be uploaded on Fill.", "ready");
+    genResumeBtn.disabled = false;
+    genResumeBtn.lastChild.textContent = "Re-generate";
+  });
+
+  useSavedBtn?.addEventListener("click", () => {
+    const pickedJobId = savedSelect?.value;
+    if (!pickedJobId) {
+      setResumeStatus("Pick a resume from the list first.", "warn");
+      return;
+    }
+    _resumeJobOverride = pickedJobId;
+    const opt = savedSelect.options[savedSelect.selectedIndex];
+    const label = opt ? opt.textContent : "saved resume";
+    setResumeStatus(`Will upload your selected resume: <b>${esc(label)}</b>.`, "ready");
+  });
+
+  openProfileBtn?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile` });
+  });
+
+  // ── Re-scan ───────────────────────────────────────────────────────────────
+  container.querySelector("#nr-fu-rescan")?.addEventListener("click", () => {
+    renderFillTab(container, jobId, job);
+  });
+
+  // ── Fill button ───────────────────────────────────────────────────────────
+  const fillBtn  = container.querySelector("#nr-fu-fill-btn");
+  const resultEl = container.querySelector("#nr-fu-result");
+
+  fillBtn?.addEventListener("click", async () => {
+    fillBtn.disabled = true;
+    fillBtn.textContent = "Filling…";
+    resultEl.style.display = "none";
+
+    let resumeData = null;
+    let coverLetterData = null;
+    let tailorData = null;
+
+    const tailor = await loadTailorState();
+    if (tailor.tailor_enabled) {
+      fillBtn.textContent = "Tailoring with AI…";
+      const tres = await runTailorIfEnabled({ jobId, job });
+      if (tres?.__tailorError) {
+        resultEl.style.display = "block";
+        resultEl.innerHTML = NR.banner({
+          tone: "watch",
+          compact: true,
+          body: esc(tres.message ?? "Tailor failed — continuing without it"),
+        });
+      } else {
+        tailorData = tres;
+      }
+    }
+
+    [resumeData, coverLetterData] = await Promise.all([
+      fetchResumeBlob(jobId),
+      fetchCoverLetterBlob(),
+    ]);
+
+    if (!resumeData && !optionalResume) {
+      resultEl.style.display = "block";
+      resultEl.innerHTML = NR.banner({
+        tone: "skip",
+        title: "No resume available",
+        body: `Generate a tailored resume above, pick a saved one, or <a href="#" id="nr-fu-upload-link" style="color:inherit;text-decoration:underline;">upload one to your profile</a>.`,
+      });
+      container.querySelector("#nr-fu-upload-link")?.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile#section-resume` });
+      });
+      fillBtn.disabled = false;
+      fillBtn.textContent = fillBtnLabel;
+      return;
+    }
+
+    fillBtn.textContent = "Filling…";
+    let res;
+    try { res = await requestFill(resumeData, coverLetterData, tailorData); }
+    catch (e) { res = { filled: 0, skipped: 0, errors: [e?.message ?? "Fill failed"] }; }
+
+    const hasErrors = res.errors?.length > 0;
+    const tone  = res.filled > 0 && !hasErrors ? "apply" : res.filled > 0 ? "watch" : "skip";
+    const body  = res.filled > 0
+      ? `Filled <b>${res.filled}</b> field${res.filled !== 1 ? "s" : ""} · <b>${res.skipped}</b> skipped.${multiStep ? " Click Save &amp; Continue on the page, then Re-scan." : ""}`
+      : `Nothing filled — ${esc(res.errors?.[0] ?? "fields not found on page")}`;
+
+    resultEl.style.display = "block";
+    resultEl.innerHTML = NR.banner({ tone, body });
+
+    fillBtn.disabled = false;
+    fillBtn.textContent = res.filled > 0 ? (multiStep ? "Fill This Section Again" : "Fill Again") : fillBtnLabel;
+  });
+}
+
 async function renderFillTab(container, jobId, job) {
   _fieldVals = {};
 
   // ── Greenhouse fast path ───────────────────────────────────────────────────
-  // Greenhouse is a single-page form — no steps, detect by hostname or form id.
   const isGreenhouse =
     /greenhouse\.io/.test(location.hostname) ||
     !!document.querySelector("#application-form");
   if (isGreenhouse) {
-    renderGreenhouseHelper(container, jobId, job);
-    return;
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: "Greenhouse",
+      sectionLabel: "Single-page application",
+      stepLabel: null,
+      multiStep: false,
+      optionalResume: false,
+      buildRows: (p) => buildIdentityRows(p),
+      requestFill: (rd, cd, td) => requestGreenhouseFill(rd, cd, td),
+    });
   }
 
   // ── Lever fast path ────────────────────────────────────────────────────────
-  // jobs.lever.co/apply/<company>/<posting-id> — single-page form
   const isLever =
     /jobs\.lever\.co|lever\.co\/apply/.test(location.href) ||
     !!document.querySelector('input[name="resume"], .application-question');
   if (isLever) {
-    renderLeverHelper(container, jobId, job);
-    return;
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: "Lever",
+      sectionLabel: "Application form",
+      stepLabel: null,
+      multiStep: false,
+      optionalResume: false,
+      buildRows: (p) => buildIdentityRows(p),
+      requestFill: (rd, cd, td) => requestLeverFill(rd, cd, td),
+    });
   }
 
   // ── Ashby fast path ────────────────────────────────────────────────────────
-  // jobs.ashbyhq.com/<company>/<posting-id>/application — single-page React form
   const isAshby =
     /jobs\.ashbyhq\.com/.test(location.href) ||
     !!document.querySelector('input[id^="_systemfield_"], .ashby-application-form-question');
   if (isAshby) {
-    renderAshbyHelper(container, jobId, job);
-    return;
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: "Ashby",
+      sectionLabel: "Application form",
+      stepLabel: null,
+      multiStep: false,
+      optionalResume: false,
+      buildRows: (p) => buildIdentityRows(p),
+      requestFill: (rd, cd, td) => requestAshbyFill(rd, cd, td),
+    });
   }
 
   // ── FAANG fast paths (each gets a branded helper, all share one filler) ────
   const faangCompany = detectFaangCompany();
   if (faangCompany) {
-    renderFaangHelper(container, jobId, job, faangCompany);
-    return;
+    const label = FAANG_REGISTRY?.[faangCompany]?.label ?? faangCompany;
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: label,
+      sectionLabel: "Application form",
+      stepLabel: null,
+      multiStep: true,
+      optionalResume: false,
+      buildRows: (p) => buildIdentityRows(p),
+      requestFill: (rd, cd, td) => requestFaangFill(faangCompany, rd, cd, td),
+    });
   }
 
   // ── Survey forms + Easy-Apply overlays (Google/MS Forms, LinkedIn, Indeed) ─
@@ -1739,8 +2179,36 @@ async function renderFillTab(container, jobId, job) {
     /myworkdayjobs\.com|wd\d+\.myworkdayjobs\.com|workday\.com/.test(location.hostname) ||
     /myworkdayjobs\.com/.test(location.href);
   if (isWorkday) {
-    renderWorkdayHelper(container, jobId, job, detectWorkdaySection());
-    return;
+    const section = detectWorkdaySection();
+    const isApplySection = section === "My Information" || section === "My Experience";
+    if (!isApplySection) {
+      container.innerHTML = `
+        <div class="nr-ac-empty" style="padding:14px;line-height:1.55;text-align:left;">
+          <div style="font-weight:600;margin-bottom:4px;">Section "${esc(section ?? "unknown")}" — fill manually</div>
+          <div style="font-size:11.5px;color:var(--nr-muted);">
+            NextRole auto-fills <b>My Information</b> and <b>My Experience</b>.
+            For Voluntary Disclosures, Application Questions, and Review please
+            complete the fields yourself, then click <b>Re-scan</b> after moving
+            to the next supported section.
+          </div>
+        </div>
+        ${NR.btn({ variant: "outline", size: "sm", full: true, id: "nr-ac-wd-rescan-other", label: "Re-scan" })}
+      `;
+      container.querySelector("#nr-ac-wd-rescan-other")?.addEventListener("click", () => {
+        renderFillTab(container, jobId, job);
+      });
+      return;
+    }
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: "Workday",
+      sectionLabel: section,
+      stepLabel: section === "My Information" ? "Identity" : "Experience",
+      multiStep: true,
+      optionalResume: section === "My Information",
+      buildRows: (p) => buildWorkdayRows(p, section),
+      requestFill: (rd, cd, td) => requestWorkdayFill(section, rd, cd, td),
+    });
   }
   // ───────────────────────────────────────────────────────────────────────────
 
@@ -1759,8 +2227,17 @@ async function renderFillTab(container, jobId, job) {
       document.querySelector(".mat-step-label-active .mat-step-text-label") ??
       document.querySelector("mat-step-header.cdk-program-focused .mat-step-text-label");
     const currentStep = stepEl?.textContent?.trim() ?? "unknown";
-    renderAccentureHelper(container, jobId, job, currentStep);
-    return;
+    const stepNum = _accentureActiveStep();
+    return renderFillUniform({
+      container, jobId, job,
+      atsLabel: "Accenture",
+      sectionLabel: currentStep,
+      stepLabel: stepNum ? `Step ${stepNum} of 8` : "Application form",
+      multiStep: true,
+      optionalResume: stepNum !== 1,
+      buildRows: (p) => buildIdentityRows(p),
+      requestFill: (rd) => requestAccentureFill(stepNum ?? 1, rd),
+    });
   }
   // ───────────────────────────────────────────────────────────────────────────
 
