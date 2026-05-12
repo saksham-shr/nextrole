@@ -2123,6 +2123,54 @@ async function renderFillUniform(opts) {
 async function renderFillTab(container, jobId, job) {
   _fieldVals = {};
 
+  // ── Registry-driven fast path ─────────────────────────────────────────────
+  // If the host matches a known ATS in the registry, dispatch directly to
+  // the right filler. Saves a scan round-trip and keeps detection in one place.
+  const reg = window.NR_ATS?.detectATSFromHost?.();
+  if (reg) {
+    const { entry } = reg;
+
+    if (entry.family === "successfactors") {
+      return renderFillUniform({
+        container, jobId, job,
+        atsLabel: "SAP SuccessFactors",
+        sectionLabel: "Application form",
+        stepLabel: null,
+        multiStep: false,
+        optionalResume: false,
+        buildRows: (p) => buildIdentityRows(p),
+        requestFill: (rd, cd, td) => requestSFFill(rd, cd, td),
+      });
+    }
+    if (entry.family === "oracle") {
+      return renderFillUniform({
+        container, jobId, job,
+        atsLabel: "Oracle HCM",
+        sectionLabel: "Application form",
+        stepLabel: null,
+        multiStep: false,
+        optionalResume: false,
+        buildRows: (p) => buildIdentityRows(p),
+        requestFill: (rd, cd, td) => requestOracleFill(rd, cd, td),
+      });
+    }
+    if (entry.family === "infosys") {
+      return renderFillUniform({
+        container, jobId, job,
+        atsLabel: "Infosys",
+        sectionLabel: "Application form",
+        stepLabel: null,
+        multiStep: false,
+        optionalResume: false,
+        buildRows: (p) => buildIdentityRows(p),
+        requestFill: (rd) => requestInfosysFill(rd),
+      });
+    }
+    // workday / greenhouse / lever / ashby / amazon / meta / etc. — fall
+    // through to the existing host-based dispatch below which has the
+    // section/step detection per-ATS.
+  }
+
   // ── Greenhouse fast path ───────────────────────────────────────────────────
   const isGreenhouse =
     /greenhouse\.io/.test(location.hostname) ||
@@ -2775,6 +2823,35 @@ function requestAshbyFill(resumeData, coverLetterData, tailorData) {
     }, TIMEOUT_MS);
   });
 }
+
+// Generic dispatcher used for fillers whose name follows the
+// nr:<key>-fill / nr:<key>-fill-done event convention.
+function _makeFillDispatcher(eventKey, timeoutMs = 20000) {
+  return (resumeData = null, coverLetterData = null, tailorData = null) =>
+    new Promise((resolve) => {
+      let done = false;
+      const handler = (e) => {
+        if (done) return;
+        done = true;
+        document.removeEventListener(`nr:${eventKey}-fill-done`, handler);
+        resolve(e.detail ?? { filled: 0, skipped: 0, errors: [] });
+      };
+      document.addEventListener(`nr:${eventKey}-fill-done`, handler);
+      document.dispatchEvent(new CustomEvent(`nr:${eventKey}-fill`, {
+        detail: { resumeData, coverLetterData, tailorData },
+      }));
+      setTimeout(() => {
+        if (done) return;
+        done = true;
+        document.removeEventListener(`nr:${eventKey}-fill-done`, handler);
+        resolve({ filled: 0, skipped: 0, errors: ["Timed out"] });
+      }, timeoutMs);
+    });
+}
+
+const requestOracleFill   = _makeFillDispatcher("oracle");
+const requestInfosysFill  = _makeFillDispatcher("infosys");
+const requestSFFill       = _makeFillDispatcher("sf");
 
 // ─── Simple single-page helper UI shared by Lever + Ashby ───────────────────
 

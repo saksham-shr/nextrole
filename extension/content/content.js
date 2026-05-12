@@ -955,6 +955,35 @@ function fromHeuristic() {
 // ─── Main extraction ──────────────────────────────────────────────────────────
 
 function extractJob() {
+  // ── Registry-aware fast path ──────────────────────────────────────────────
+  // If the host matches a known ATS in the registry, try its dedicated
+  // extractor first and stop on success. This avoids scanning 25 extractors
+  // for every page (one regex check vs many).
+  const REG_MAP = {
+    workday:    fromWorkday,
+    greenhouse: fromGreenhouse,
+    lever:      fromLever,
+    ashby:      fromAshby,
+    indeed:     fromIndeed,
+    linkedin:   fromLinkedIn,
+    naukri:     fromNaukri,
+    oracle:     typeof fromOracleCloud === "function" ? fromOracleCloud : null,
+    amazon:     typeof fromAmazon === "function" ? fromAmazon : null,
+    meta:       typeof fromMeta === "function" ? fromMeta : null,
+    infosys:    typeof fromInfosys === "function" ? fromInfosys : null,
+    successfactors: typeof fromSAPSuccessFactors === "function" ? fromSAPSuccessFactors : null,
+  };
+  try {
+    const det = window.NR_ATS?.detectATSFromHost?.();
+    if (det) {
+      const fast = REG_MAP[det.entry.family];
+      if (fast) {
+        const r = fast();
+        if (r) return r;
+      }
+    }
+  } catch { /* fall through */ }
+
   const result =
     fromJsonLd() ??
     fromLinkedIn() ??

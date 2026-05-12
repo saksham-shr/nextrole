@@ -2950,6 +2950,147 @@ document.addEventListener("nr:oracle-fill", async (e) => {
   document.dispatchEvent(new CustomEvent("nr:oracle-fill-done", { detail: results }));
 });
 
+// ─── Infosys filler (Angular Material) ──────────────────────────────────────
+//
+// Verified selectors from career.infosys.com inspect bundle:
+//   - mat-form-field wrappers around every input
+//   - phone:   #phone
+//   - country code:  input[name="country_code"]
+//   - resume:  input[type="file"][accept*=".pdf"]
+// First/Last name not in the bundle's visible form fields — Infosys uses
+// signup → email-driven flow then asks for resume upload + a few questions.
+// Best-effort: match common labels via getFieldLabel + mat-form-field.
+
+async function _fillInfosysForm(profile, resumeBlob) {
+  const result = { filled: 0, skipped: 0, errors: [] };
+  const hit = (ok) => { ok ? result.filled++ : result.skipped++; return ok; };
+
+  // Iterate every mat-form-field and try to fill by label match
+  const wrappers = document.querySelectorAll("mat-form-field, .mat-form-field");
+  for (const w of wrappers) {
+    const labelEl = w.querySelector("mat-label, .mat-form-field-label, label");
+    const label   = (labelEl?.textContent ?? "").toLowerCase().trim();
+    const input   = w.querySelector("input, textarea");
+    if (!input || !label) continue;
+
+    let value = null;
+    if      (/first.*name|given/.test(label))                 value = profile.first_name ?? (profile.full_name ?? "").split(" ")[0];
+    else if (/last.*name|surname|family/.test(label))         value = profile.last_name  ?? (profile.full_name ?? "").split(" ").slice(1).join(" ");
+    else if (/email/.test(label))                             value = profile.email;
+    else if (/phone|mobile/.test(label) && !/code/.test(label)) value = profile.phone;
+    else if (/city|location/.test(label))                     value = profile.city ?? profile.location;
+    else if (/country/.test(label) && !/code/.test(label))    value = profile.country;
+    else if (/zip|pin|postal/.test(label))                    value = profile.zip_postal;
+    else if (/address/.test(label))                           value = profile.street_address;
+    else if (/linkedin/.test(label))                          value = profile.linkedin;
+
+    if (value) hit(_angularFillInput(input, String(value)));
+  }
+
+  // Resume upload (mat-style file input)
+  if (resumeBlob) {
+    const fileInput =
+      document.querySelector('input[type="file"][accept*=".pdf"]') ??
+      document.querySelector('input[type="file"]');
+    if (fileInput) hit(_injectFile(fileInput, resumeBlob, resumeBlob.filename ?? "nextrole_resume.pdf"));
+    else result.skipped++;
+  }
+
+  return result;
+}
+
+document.addEventListener("nr:infosys-fill", async (e) => {
+  const { resumeData, tailorData } = e.detail ?? {};
+  const resumeBlob = _blobFromData(resumeData);
+
+  const profileRes = await new Promise((r) =>
+    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, r),
+  );
+  const profile = profileRes?.profile ?? {};
+
+  const results = await _fillInfosysForm(profile, resumeBlob);
+
+  if (tailorData) {
+    const tailored = _injectTailorAnswers(tailorData);
+    results.filled += tailored;
+  }
+
+  document.dispatchEvent(new CustomEvent("nr:infosys-fill-done", { detail: results }));
+});
+
+// ─── SuccessFactors filler (SAP SF + EY) ────────────────────────────────────
+//
+// Verified from D:\Inspect Bundle\sap sf and ey: every text input uses
+// data-testid="sfTextField" with semantic name=. Country is a hidden input
+// (selected via a visible custom dropdown above it). LinkedIn appears as
+// a labelled custom widget rather than an input named "linkedin".
+
+async function _fillSuccessFactorsForm(profile, resumeBlob, coverLetterBlob) {
+  const result = { filled: 0, skipped: 0, errors: [] };
+  const hit = (ok) => { ok ? result.filled++ : result.skipped++; return ok; };
+
+  const fillByName = (name, value) => {
+    if (!value) return false;
+    const el = document.querySelector(`input[data-testid="sfTextField"][name="${name}"]`);
+    return el ? _angularFillInput(el, String(value)) : false;
+  };
+
+  const [first, last] = [
+    profile.first_name ?? (profile.full_name ?? "").split(" ")[0],
+    profile.last_name  ?? (profile.full_name ?? "").split(" ").slice(1).join(" "),
+  ];
+  hit(fillByName("firstName", first));
+  hit(fillByName("lastName",  last));
+  hit(fillByName("email",     profile.email));
+  hit(fillByName("cellPhone", profile.phone) || fillByName("phone", profile.phone));
+  hit(fillByName("city",      profile.city ?? profile.location));
+  hit(fillByName("addressLine1", profile.street_address));
+  hit(fillByName("zip",       profile.zip_postal));
+
+  // Resume upload — find file inputs and pick the one near "resume" context
+  if (resumeBlob) {
+    const files = [...document.querySelectorAll('input[type="file"]')];
+    const fileInp = files.find((f) => {
+      const ctx = `${f.name} ${f.id} ${f.getAttribute("aria-label") ?? ""}`.toLowerCase();
+      return /resume|cv/.test(ctx);
+    }) ?? files[0];
+    if (fileInp) hit(_injectFile(fileInp, resumeBlob, resumeBlob.filename ?? "nextrole_resume.pdf"));
+    else result.skipped++;
+  }
+
+  // Cover letter
+  if (coverLetterBlob) {
+    const files = [...document.querySelectorAll('input[type="file"]')];
+    const fileInp = files.find((f) => {
+      const ctx = `${f.name} ${f.id} ${f.getAttribute("aria-label") ?? ""}`.toLowerCase();
+      return /cover|letter/.test(ctx);
+    });
+    if (fileInp) hit(_injectFile(fileInp, coverLetterBlob, coverLetterBlob.filename ?? "cover_letter.pdf"));
+  }
+
+  return result;
+}
+
+document.addEventListener("nr:sf-fill", async (e) => {
+  const { resumeData, coverLetterData, tailorData } = e.detail ?? {};
+  const resumeBlob      = _blobFromData(resumeData);
+  const coverLetterBlob = _blobFromData(coverLetterData);
+
+  const profileRes = await new Promise((r) =>
+    chrome.runtime.sendMessage({ type: "GET_PROFILE" }, r),
+  );
+  const profile = profileRes?.profile ?? {};
+
+  const results = await _fillSuccessFactorsForm(profile, resumeBlob, coverLetterBlob);
+
+  if (tailorData) {
+    const tailored = _injectTailorAnswers(tailorData);
+    results.filled += tailored;
+  }
+
+  document.dispatchEvent(new CustomEvent("nr:sf-fill-done", { detail: results }));
+});
+
 // ─── FAANG generic filler ────────────────────────────────────────────────────
 //
 // Amazon, Meta, Google, Apple, Microsoft each ship a different custom form.
@@ -3118,27 +3259,28 @@ async function _fillFaangGeneric(profile, resumeBlob, coverLetterBlob, overrides
 
 const FAANG_OVERRIDES = {
   amazon: {
-    // amazon.jobs corporate apply: plain inputs with semantic name=
+    // amazon.jobs corporate apply — verified from bundle: ids use applicant_* prefix
     selectors: {
-      firstName: 'input[name="firstName"], input[name="first_name"], input#firstName',
-      lastName:  'input[name="lastName"],  input[name="last_name"],  input#lastName',
-      email:     'input[type="email"], input[name="email"], input#email',
-      phone:     'input[type="tel"],   input[name="phone"], input[name="phoneNumber"]',
+      firstName: '#applicant_first_name, input[name="firstName"], input[name="first_name"]',
+      lastName:  '#applicant_last_name,  input[name="lastName"],  input[name="last_name"]',
+      email:     '#applicant_email,      input[type="email"], input[name="email"]',
+      phone:     '#applicant_primary_phone_number, input[type="tel"], input[name="phone"]',
       address:   'input[name="address"], input[name="addressLine1"]',
       city:      'input[name="city"]',
       zip:       'input[name="postalCode"], input[name="zip"]',
+      country:   '.country-dropdown input, input[name*="country" i]',
     },
   },
 
   meta: {
-    // Meta Careers uses data-testid extensively in their React app
+    // Meta Careers — heavily obfuscated CSS, rely on aria-label + role
     selectors: {
-      firstName: '[data-testid="application_first_name"] input, input[name="firstName"]',
-      lastName:  '[data-testid="application_last_name"] input,  input[name="lastName"]',
-      email:     '[data-testid="application_email"] input,      input[type="email"]',
-      phone:     '[data-testid="application_phone"] input,      input[type="tel"]',
-      linkedin:  '[data-testid="application_linkedin"] input,   input[name*="linkedin" i]',
-      github:    '[data-testid="application_github"] input,     input[name*="github" i]',
+      firstName: 'input[aria-label*="First" i], [data-testid="application_first_name"] input, input[name="firstName"]',
+      lastName:  'input[aria-label*="Last" i],  [data-testid="application_last_name"] input,  input[name="lastName"]',
+      email:     'input[type="email"], input[aria-label*="email" i], [data-testid="application_email"] input',
+      phone:     'input[type="tel"],   input[aria-label*="phone" i], [data-testid="application_phone"] input',
+      linkedin:  'input[aria-label*="LinkedIn" i], input[name*="linkedin" i], [data-testid="application_linkedin"] input',
+      github:    'input[aria-label*="GitHub" i],   input[name*="github" i],   [data-testid="application_github"] input',
     },
   },
 
