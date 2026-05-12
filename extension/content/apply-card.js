@@ -940,13 +940,26 @@ function renderConfirmScreen(currentJobId, currentJob, recentJobs, evaluation, r
   const inner = _card?.querySelector("#nr-ac-inner");
   if (!inner) return;
 
-  const pickerOpts = recentJobs.map((j) =>
-    `<option value="${esc(j.id)}" ${j.id === currentJobId ? "selected" : ""}>
+  // Is the page-detected job already in pipeline? Use it as the default if so;
+  // otherwise default to the synthetic "save as new entry" option so we never
+  // silently pre-select an unrelated stale pipeline job.
+  const inPipeline = currentJobId && recentJobs.some((j) => j.id === currentJobId);
+  const hasDetectedJob = !!currentJob;
+
+  // Synthetic option value for "save the page's job as a brand-new entry"
+  const NEW_ENTRY = "__NR_NEW_ENTRY__";
+
+  const newEntryOpt = hasDetectedJob ? `
+    <option value="${NEW_ENTRY}" ${!inPipeline ? "selected" : ""}>
+      + Save "${esc((currentJob.title ?? "this page").slice(0, 40))}" as new entry
+    </option>` : "";
+
+  const pipelineOpts = recentJobs.map((j) =>
+    `<option value="${esc(j.id)}" ${inPipeline && j.id === currentJobId ? "selected" : ""}>
       ${esc(j.title)} — ${esc(j.company)}
-    </option>`
+    </option>`,
   ).join("");
 
-  // Show a banner when the user landed here via a Naukri redirect
   const naukriBanner = ctxHint?.fromNaukri ? `
     <div class="nr-ac-naukri-banner" style="margin-bottom:12px;">
       <div class="nr-ac-naukri-banner-icon"></div>
@@ -974,39 +987,66 @@ function renderConfirmScreen(currentJobId, currentJob, recentJobs, evaluation, r
         </div>
       ` : ""}
 
-      ${recentJobs.length > 0 ? `
-        <div class="nr-ac-label">Choose from your pipeline</div>
-        <select class="nr-ac-select" id="nr-ac-picker">${pickerOpts}</select>
-        <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-confirm-btn">Continue →</button>
-      ` : `
-        <div class="nr-ac-empty">
-          No jobs in your pipeline yet.<br>
-          <span style="font-size:11.5px;">Save a job from a listing page first, then return here.</span>
-        </div>
-      `}
+      <div class="nr-ac-label">Choose from your pipeline</div>
+      <select class="nr-ac-select" id="nr-ac-picker">
+        ${newEntryOpt}
+        ${pipelineOpts}
+      </select>
+      <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-confirm-btn">Continue →</button>
+      ${hasDetectedJob ? `
+        <button class="nr-ac-btn nr-ac-ghost" id="nr-ac-skip-confirm" style="margin-top:6px;text-align:center;width:100%;">
+          Skip — just fill this form
+        </button>` : ""}
     </div>
   `;
 
   inner.querySelector("#nr-ac-confirm-btn")?.addEventListener("click", async () => {
-    const picker      = inner.querySelector("#nr-ac-picker");
-    const selectedId  = picker?.value ?? currentJobId;
-
-    const btn = inner.querySelector("#nr-ac-confirm-btn");
+    const picker     = inner.querySelector("#nr-ac-picker");
+    const selectedId = picker?.value ?? null;
+    const btn        = inner.querySelector("#nr-ac-confirm-btn");
     if (btn) { btn.disabled = true; btn.textContent = "Loading…"; }
 
-    // If user picked a pipeline job, load its full data; otherwise fall back to
-    // the ctxHint job (came from Naukri page, not yet in DB) with no eval/resume.
-    if (selectedId) {
+    // Branch 1: user wants the page's job saved as a new pipeline entry.
+    if (selectedId === NEW_ENTRY && currentJob) {
+      const res = await swMsg({
+        type: "SUBMIT_JOB",
+        job: {
+          title:       currentJob.title ?? "",
+          company:     currentJob.company ?? "",
+          url:         currentJob.url ?? location.href,
+          description: currentJob.description ?? "",
+          source:      ctxHint?.source ?? "extension",
+        },
+      });
+      if (res?.ok && res.job_id) {
+        renderTabbedCard(res.job_id, currentJob, null, null);
+      } else {
+        // Save failed — fall back to anonymous fill so user isn't blocked.
+        if (btn) { btn.textContent = "Could not save — opening anyway"; }
+        renderTabbedCard(null, currentJob, null, null);
+      }
+      return;
+    }
+
+    // Branch 2: user picked an existing pipeline job.
+    if (selectedId && selectedId !== NEW_ENTRY) {
       let job_ = currentJob, eval_ = evaluation, resume_ = resume;
       if (selectedId !== currentJobId) {
         const fresh = await fetchArtifacts(selectedId);
         if (fresh) { job_ = fresh.job; eval_ = fresh.evaluation; resume_ = fresh.resume; }
       }
       renderTabbedCard(selectedId, job_, eval_, resume_);
-    } else if (currentJob) {
-      // No pipeline jobId — open card with ctx job data only (fill tab works, eval/resume need save)
-      renderTabbedCard(null, currentJob, null, null);
+      return;
     }
+
+    // Branch 3: nothing meaningful selected — open card in orphan mode.
+    if (currentJob) renderTabbedCard(null, currentJob, null, null);
+  });
+
+  // Skip confirm — open the fill tab immediately with the page-detected job
+  // but no pipeline link. Eval/resume tabs won't have data, but autofill works.
+  inner.querySelector("#nr-ac-skip-confirm")?.addEventListener("click", () => {
+    renderTabbedCard(null, currentJob, null, null);
   });
 }
 
