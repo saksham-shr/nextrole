@@ -8,9 +8,13 @@ const STATES = ["login", "loading", "job", "submitting", "success", "no-job", "e
 
 function show(stateName) {
   for (const s of STATES) {
-    const el = document.getElementById(`state-${s}`);
+    const el  = document.getElementById(`state-${s}`);
+    const acts = document.getElementById(`state-${s}-actions`);
     if (el) el.classList.toggle("hidden", s !== stateName);
+    if (acts) acts.classList.toggle("hidden", s !== stateName);
   }
+  const footer = document.getElementById("popup-footer");
+  if (footer) footer.style.display = stateName === "loading" || stateName === "submitting" ? "none" : "";
 }
 
 // ─── Session ──────────────────────────────────────────────────────────────────
@@ -43,6 +47,9 @@ const jdPreview      = $("jd-preview");
 const confDot        = $("confidence-dot");
 const confText       = $("confidence-text");
 const successName    = $("success-job-name");
+const successTitle   = $("success-title");
+const successMark    = $("success-company-mark");
+const successStatus  = $("success-status");
 const errorMsg       = $("error-message");
 const submittingText = $("submitting-text");
 const btnMarkApplied = $("btn-mark-applied");
@@ -81,10 +88,14 @@ const SOURCE_LABELS = {
 
 function showJob(job) {
   confDot.className = `dot dot-${job.confidence === "high" ? "high" : job.confidence === "medium" ? "med" : "low"}`;
-  confText.textContent = `Detected via ${SOURCE_LABELS[job.source] ?? job.source}`;
+  confText.textContent = `DETECTED VIA ${(SOURCE_LABELS[job.source] ?? job.source ?? "").toUpperCase()}`;
 
   displayTitle.textContent   = job.title   || "—";
   displayCompany.textContent = job.company || "—";
+
+  // Company mark: first letter of company, fallback to N
+  const mark = document.getElementById("company-mark");
+  if (mark) mark.textContent = (job.company?.[0] ?? "N").toUpperCase();
 
   try {
     const u = new URL(job.url);
@@ -99,6 +110,10 @@ function showJob(job) {
   } else {
     jdPreview.style.display = "none";
   }
+
+  // Ribbon — populated by showAlreadySaved/markAsApplied flows (clear by default)
+  const ribbon = document.getElementById("job-ribbon");
+  if (ribbon) { ribbon.innerHTML = ""; ribbon.classList.add("hidden"); }
 }
 
 // ─── Inline error helpers ─────────────────────────────────────────────────────
@@ -273,14 +288,21 @@ async function saveJob(label) {
 
 // ─── Action handlers ──────────────────────────────────────────────────────────
 
+function populateSuccessCard(message) {
+  if (successTitle) successTitle.textContent = currentJob?.title ?? "";
+  if (successName)  successName.textContent  = currentJob?.company ?? "";
+  if (successMark)  successMark.textContent  = (currentJob?.company?.[0] ?? "N").toUpperCase();
+  if (successStatus && message) successStatus.textContent = message;
+}
+
 async function handleEvaluate() {
-  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     const jobId = await saveJob("Saving & opening evaluation…");
     if (jobId) {
       chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate` });
     }
-    successName.textContent = `${currentJob.title} at ${currentJob.company}`;
+    populateSuccessCard("Saved and opening evaluation in NextRole…");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -291,7 +313,7 @@ async function handlePipeline() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     await saveJob("Saving for later…");
-    successName.textContent = `${currentJob.title} at ${currentJob.company}`;
+    populateSuccessCard("Saved to your pipeline.");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -336,7 +358,7 @@ async function handleSaveAndApply() {
       }
     } catch { /* tabs API may not be available; intent flag is enough */ }
 
-    successName.textContent = `${currentJob.title} at ${currentJob.company}`;
+    populateSuccessCard("Saved. Click Apply on this page — we'll auto-open the fill card.");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -344,13 +366,13 @@ async function handleSaveAndApply() {
 }
 
 async function handleResume() {
-  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     const jobId = await saveJob("Saving & opening resume builder…");
     if (jobId) {
       chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/resume?job=${jobId}` });
     }
-    successName.textContent = `${currentJob.title} at ${currentJob.company}`;
+    populateSuccessCard("Saved and opening resume builder in NextRole…");
     show("success");
   } catch (err) {
     showJobError(err.message);
