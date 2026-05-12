@@ -1384,22 +1384,20 @@ async function _wdAddSkills(skills) {
   const wrap = document.querySelector('[data-automation-id="formField-skills"]');
   if (!wrap) { result.skipped = skills.length; return result; }
 
+  // The skills field is a multi-select with a search input. We need to OPEN
+  // the multi-select first (click the outer container) so Workday mounts the
+  // listbox, then type into the (now active) input.
+  const container = wrap.querySelector('[data-automation-id="multiSelectContainer"]')
+                 ?? wrap.querySelector('[data-automation-id="multiselectInputContainer"]')
+                 ?? wrap;
   const input = wrap.querySelector('input[data-uxi-widget-type="selectinput"]')
              ?? wrap.querySelector('input[type="text"]')
              ?? wrap.querySelector("input");
   if (!input) { result.skipped = skills.length; return result; }
 
-  // Use the native setter directly so we can also force an empty string
-  // (the _angularFillInput helper short-circuits on "").
   const valueSetter = Object.getOwnPropertyDescriptor(
     window.HTMLInputElement.prototype, "value",
   )?.set;
-  function setInputValue(v) {
-    if (valueSetter) valueSetter.call(input, v);
-    else input.value = v;
-    input.dispatchEvent(new Event("input",  { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }
 
   function alreadyAddedSet() {
     const pills = wrap.querySelectorAll('[data-automation-id="selectedItem"]');
@@ -1411,14 +1409,38 @@ async function _wdAddSkills(skills) {
     return set;
   }
 
-  // Poll the open Workday listbox for up to ~1.5s for a matching option.
+  // Type a string character-by-character with full keyboard event chain so
+  // Workday's UXI typeahead actually fires its filter / open logic.
+  async function typeInto(value) {
+    // Empty first
+    if (valueSetter) valueSetter.call(input, "");
+    else input.value = "";
+    input.dispatchEvent(new InputEvent("input", { bubbles: true, cancelable: true, inputType: "deleteContentBackward" }));
+    await new Promise((r) => setTimeout(r, 40));
+
+    for (let i = 0; i < value.length; i++) {
+      const ch = value[i];
+      const partial = value.slice(0, i + 1);
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: ch, bubbles: true, cancelable: true }));
+      if (valueSetter) valueSetter.call(input, partial);
+      else input.value = partial;
+      input.dispatchEvent(new InputEvent("input", {
+        bubbles: true, cancelable: true,
+        inputType: "insertText",
+        data: ch,
+      }));
+      input.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true, cancelable: true }));
+      await new Promise((r) => setTimeout(r, 28));
+    }
+  }
+
   async function findOption(skillLower) {
-    for (let i = 0; i < 15; i++) {
+    for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 100));
       const opts = [
         ...document.querySelectorAll('[data-automation-id="promptOption"]'),
         ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
-      ].filter((o) => o.offsetParent !== null);
+      ];
       if (opts.length === 0) continue;
       const exact   = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === skillLower);
       if (exact) return exact;
@@ -1430,56 +1452,80 @@ async function _wdAddSkills(skills) {
     return null;
   }
 
-  // Workday's option list listens to mousedown — a plain `click()` doesn't
-  // always commit. Dispatch the full pointer sequence.
-  function pickOption(el) {
+  // Try multiple commit strategies on the highlighted option.
+  async function pickOption(el) {
     const rect = el.getBoundingClientRect();
     const x = Math.floor(rect.left + rect.width / 2);
     const y = Math.floor(rect.top + rect.height / 2);
     const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 };
+
+    el.dispatchEvent(new PointerEvent("pointerover", opts));
     el.dispatchEvent(new MouseEvent("mouseover", opts));
+    el.dispatchEvent(new PointerEvent("pointerdown", opts));
     el.dispatchEvent(new MouseEvent("mousedown", opts));
+    el.dispatchEvent(new PointerEvent("pointerup", opts));
     el.dispatchEvent(new MouseEvent("mouseup",   opts));
     el.dispatchEvent(new MouseEvent("click",     opts));
   }
 
+  // First, focus + open the dropdown. Some Workday tenants need the
+  // container clicked once so the listbox is mounted.
+  try { container.click(); } catch { /* nop */ }
+  await new Promise((r) => setTimeout(r, 200));
+  input.focus();
+
   const have = alreadyAddedSet();
+  const log = (...args) => console.log("[NextRole][skills]", ...args);
+  log("starting; profile skills:", skills.length, "already on form:", have.size);
 
   for (const raw of skills.slice(0, 20)) {
     const skill = String(raw ?? "").trim();
     if (!skill) continue;
-    if (have.has(skill.toLowerCase())) continue;
+    if (have.has(skill.toLowerCase())) { log("skip (already pilled):", skill); continue; }
 
-    // Clear first (handles empty string properly), then focus + type.
-    setInputValue("");
-    await new Promise((r) => setTimeout(r, 80));
     input.focus();
-    setInputValue(skill);
+    await typeInto(skill);
+    log("typed:", skill, "→ polling for matching option…");
 
     const target = await findOption(skill.toLowerCase());
 
-    if (target) {
-      pickOption(target);
-      await new Promise((r) => setTimeout(r, 300));
-      // Confirm a pill was added; if not, count as skip and clear.
-      const after = alreadyAddedSet();
-      if (after.size > have.size && !have.has(skill.toLowerCase())) {
-        have.add(skill.toLowerCase());
-        result.added++;
-      } else {
-        result.skipped++;
-      }
-    } else {
-      // No dictionary match — escape to close the popup, don't try free-text
+    if (!target) {
+      log("no option matched for:", skill);
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
       await new Promise((r) => setTimeout(r, 100));
       result.skipped++;
+      continue;
+    }
+
+    log("option found:", target.textContent?.trim(), "— clicking");
+    await pickOption(target);
+    await new Promise((r) => setTimeout(r, 350));
+
+    // Confirm pill landed. If pointer events didn't commit, try Enter as fallback.
+    let after = alreadyAddedSet();
+    if (after.size <= have.size) {
+      log("pointer click didn't commit, trying Enter fallback");
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+      input.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", bubbles: true }));
+      await new Promise((r) => setTimeout(r, 350));
+      after = alreadyAddedSet();
+    }
+
+    if (after.size > have.size && !have.has(skill.toLowerCase())) {
+      have.add(skill.toLowerCase());
+      result.added++;
+      log("added:", skill);
+    } else {
+      result.skipped++;
+      log("commit failed for:", skill);
     }
   }
 
   // Clean up
-  setInputValue("");
+  if (valueSetter) valueSetter.call(input, "");
+  input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "deleteContentBackward" }));
   input.blur();
+  log("done; added", result.added, "skipped", result.skipped);
   return result;
 }
 
