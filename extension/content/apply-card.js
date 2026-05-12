@@ -393,9 +393,60 @@ const AC_ATS_PATTERNS = [
   /linkedin\.com\/jobs/, /apply\.indeed\.com/, /indeed\.com\/.*apply/,
 ];
 
-function looksLikeFormPage() {
-  if (AC_ATS_PATTERNS.some((p) => p.test(location.href))) return true;
-  return /apply|application/i.test(location.href) && !!document.querySelector("form input, form textarea");
+// JD pages (Greenhouse /jobs/<id>, Lever /co/<id>, etc.) must NOT auto-open the
+// floating card — the toolbar popup is the right place for "Save for later" /
+// "Save & Apply". The floating card is for the actual application form.
+// True apply pages always carry a clear URL signal — listed here per ATS.
+const AC_APPLY_FORM_URL_PATTERNS = [
+  /\/apply(\/|$|\?|#)/i,                  // Lever, generic
+  /\/applications?\/new/i,                 // Greenhouse classic
+  /#application[_-]?form/i,                // Greenhouse hash anchor
+  /\/applicationform/i,
+  /\/applyManually/i,                      // Workday
+  /\/application(\/|$|\?|#)/i,             // Ashby
+  /apply\.indeed\.com/i,
+  /smartapply\.indeed\.com/i,
+  /linkedin\.com\/jobs\/(view|easy-apply)/i,
+  /metacareers\.com\/.*\/(applyManually|jobs)\/.*\/apply/i,
+  /careers\.google\.com\/.*\/apply/i,
+  /jobs\.apple\.com\/.*\/apply/i,
+  /careers\.microsoft\.com\/.*\/apply/i,
+  /amazon\.jobs\/.*\/apply/i,
+  /successfactors\.com\/.*\/apply/i,
+  /icims\.com\/.*\/apply/i,
+  /candidate\.accenture\.com/i,
+  /forms\.office\.com|forms\.microsoft\.com|docs\.google\.com\/forms/i,
+];
+
+// Detect: is this an apply FORM page (not a JD page that merely links to one)?
+function isApplyFormPage() {
+  if (AC_APPLY_FORM_URL_PATTERNS.some((p) => p.test(location.href))) return true;
+  // DOM-based fallback: a real apply form has file upload + identity fields.
+  const hasFileInput = !!document.querySelector('input[type="file"]:not([disabled])');
+  const identityFieldCount = [
+    'input[name*="first_name" i], input[id*="first_name" i], input[name*="firstname" i]',
+    'input[name*="last_name" i], input[id*="last_name" i], input[name*="lastname" i]',
+    'input[name="email" i], input[id*="email" i], input[type="email"]',
+    'input[name*="phone" i], input[id*="phone" i], input[type="tel"]',
+  ].filter((sel) => document.querySelector(sel)).length;
+  return hasFileInput && identityFieldCount >= 2;
+}
+
+// Backward-compat alias (still referenced by checkAutoTrigger below)
+function looksLikeFormPage() { return isApplyFormPage(); }
+
+// Apply-intent: set by the popup's "Save & Apply" button — tells the
+// content script to auto-open the floating card the next time we land on
+// a real apply form.
+function getApplyIntent() {
+  return new Promise((resolve) => {
+    chrome.storage.session.get("nr_apply_intent", (d) => resolve(d?.nr_apply_intent ?? null));
+  });
+}
+function clearApplyIntent() {
+  return new Promise((resolve) => {
+    chrome.storage.session.remove("nr_apply_intent", () => resolve());
+  });
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -746,14 +797,26 @@ function requestFieldScan() {
 
 async function checkAutoTrigger() {
   if (_dismissed || _card) return;
-  if (!looksLikeFormPage()) return;
-  const ctx = await getCrossSiteCtx();
-  if (!ctx) return;
-  // Only auto-open if context is fresh (< 90 min)
-  if ((Date.now() - (ctx.savedAt ?? 0)) > 90 * 60 * 1000) return;
-  // Pass the FULL session context (jobTitle / company / jobDescription / fromNaukri)
-  // so the confirm screen can show the source job even if it isn't saved in the DB yet.
-  openCardFromCtx(ctx);
+  if (!isApplyFormPage()) return;
+
+  // Prefer the explicit apply-intent flag set by the popup's "Save & Apply"
+  // button. If absent, fall back to the legacy cross-site ctx that the Apply
+  // click interceptor captures on JD pages.
+  const intent = await getApplyIntent();
+  const ctx    = await getCrossSiteCtx();
+  const fresh  = (data) => data && (Date.now() - (data.savedAt ?? 0)) <= 90 * 60 * 1000;
+
+  if (fresh(intent)) {
+    // Clear so we don't auto-open a second time on accidental reload
+    clearApplyIntent();
+    openCardFromCtx(intent);
+    return;
+  }
+  if (fresh(ctx)) {
+    openCardFromCtx(ctx);
+    return;
+  }
+  // Neither — user can still open the card manually via the toolbar icon.
 }
 
 // Auto-trigger entry point — uses session ctx as the hint job when no DB record exists

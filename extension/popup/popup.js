@@ -119,7 +119,7 @@ function friendlyError(msg) {
 }
 
 function showJobError(msg) {
-  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => {
     if (b) b.disabled = false;
   });
 
@@ -231,7 +231,7 @@ async function init() {
     currentJob = job;
     showJob(job);
     show("job");
-    [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => {
+    [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => {
       if (b) b.disabled = false;
     });
   } else {
@@ -288,9 +288,33 @@ async function handleEvaluate() {
 }
 
 async function handlePipeline() {
-  [$("btn-evaluate"), $("btn-pipeline"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    await saveJob("Adding to pipeline…");
+    await saveJob("Saving for later…");
+    successName.textContent = `${currentJob.title} at ${currentJob.company}`;
+    show("success");
+  } catch (err) {
+    showJobError(err.message);
+  }
+}
+
+// Save & Apply: save the JD to pipeline AND set an apply-intent flag in session
+// storage. The next time the user lands on a real apply form page, the
+// floating apply card auto-opens with this job as the context.
+async function handleSaveAndApply() {
+  [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
+  try {
+    const jobId = await saveJob("Saving & preparing apply flow…");
+    chrome.storage.session.set({
+      nr_apply_intent: {
+        jobId:          jobId ?? null,
+        jobTitle:       currentJob?.title       ?? "",
+        company:        currentJob?.company     ?? "",
+        jobDescription: currentJob?.description ?? "",
+        sourceUrl:      currentJob?.url ?? "",
+        savedAt:        Date.now(),
+      },
+    });
     successName.textContent = `${currentJob.title} at ${currentJob.company}`;
     show("success");
   } catch (err) {
@@ -344,6 +368,7 @@ $("btn-go-options-err").addEventListener("click", () => chrome.runtime.openOptio
 
 $("btn-evaluate").addEventListener("click", handleEvaluate);
 $("btn-pipeline").addEventListener("click", handlePipeline);
+$("btn-save-apply").addEventListener("click", handleSaveAndApply);
 $("btn-resume").addEventListener("click",   handleResume);
 
 $("btn-mark-applied").addEventListener("click", handleMarkApplied);
