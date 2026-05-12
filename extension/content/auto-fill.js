@@ -1435,13 +1435,45 @@ async function _wdAddSkills(skills) {
   }
 
   async function findOption(skillLower) {
+    let dumped = false;
     for (let i = 0; i < 20; i++) {
       await new Promise((r) => setTimeout(r, 100));
+
+      // Wider net — every plausible Workday listbox marker
       const opts = [
         ...document.querySelectorAll('[data-automation-id="promptOption"]'),
-        ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
+        ...document.querySelectorAll('[data-automation-id="menuItem"]'),
+        ...document.querySelectorAll('[role="option"]'),
+        ...document.querySelectorAll('[data-uxi-widget-type="promptOption"]'),
+        ...document.querySelectorAll('li[data-automation-id]'),
       ];
-      if (opts.length === 0) continue;
+
+      if (opts.length === 0) {
+        // First iteration with nothing visible → dump what IS in the DOM so we
+        // can find the right selector. Only dump once per skill to keep noise down.
+        if (!dumped && i >= 8) {
+          dumped = true;
+          const popups = document.querySelectorAll(
+            '[data-automation-id*="prompt"], [data-automation-id*="popup"], ' +
+            '[data-automation-id*="menu"], [data-automation-id*="list"], ' +
+            '[role="listbox"], [class*="popper"], [data-uxi-widget-type*="prompt"]',
+          );
+          console.log("[NextRole][skills] DIAGNOSTIC — no options after 800ms");
+          console.log("  Total popup-ish elements:", popups.length);
+          popups.forEach((p, j) => {
+            if (j > 6) return;
+            console.log(`  [${j}]`, p.tagName,
+              "automation-id=" + (p.getAttribute("data-automation-id") ?? "—"),
+              "role=" + (p.getAttribute("role") ?? "—"),
+              "class=" + (p.className ?? "").slice(0, 60),
+              "children=" + p.children.length,
+              "text=" + (p.textContent ?? "").trim().slice(0, 60),
+            );
+          });
+        }
+        continue;
+      }
+
       const exact   = opts.find((o) => (o.textContent ?? "").trim().toLowerCase() === skillLower);
       if (exact) return exact;
       const prefix  = opts.find((o) => (o.textContent ?? "").trim().toLowerCase().startsWith(skillLower));
@@ -1468,11 +1500,20 @@ async function _wdAddSkills(skills) {
     el.dispatchEvent(new MouseEvent("click",     opts));
   }
 
-  // First, focus + open the dropdown. Some Workday tenants need the
-  // container clicked once so the listbox is mounted.
-  try { container.click(); } catch { /* nop */ }
-  await new Promise((r) => setTimeout(r, 200));
+  // First, click the input itself to truly open the listbox. Workday's UXI
+  // multiselect typeahead opens on input click, not just programmatic focus.
+  try {
+    const r = input.getBoundingClientRect();
+    const x = Math.floor(r.left + r.width / 2);
+    const y = Math.floor(r.top + r.height / 2);
+    const evtInit = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 };
+    input.dispatchEvent(new MouseEvent("mousedown", evtInit));
+    input.dispatchEvent(new MouseEvent("mouseup", evtInit));
+    input.dispatchEvent(new MouseEvent("click", evtInit));
+  } catch { /* nop */ }
+  await new Promise((r) => setTimeout(r, 250));
   input.focus();
+  await new Promise((r) => setTimeout(r, 100));
 
   const have = alreadyAddedSet();
   const log = (...args) => console.log("[NextRole][skills]", ...args);
