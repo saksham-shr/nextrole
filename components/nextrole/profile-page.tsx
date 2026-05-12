@@ -1370,7 +1370,7 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
   }
 
   const hasCvText  = !!profile.base_cv?.trim();
-  const importCardVisible = completion.percent < 60;
+  const importCardVisible = completion < 60;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
