@@ -45,6 +45,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "url and action required" }, { status: 400 });
   }
 
+  if (action !== "not_a_job" && action !== "confirmed") {
+    return NextResponse.json({ error: "invalid action" }, { status: 400 });
+  }
+
   const admin = createAdminClient();
 
   // Upsert: if same URL+action already reported by same user today, just update
