@@ -31,16 +31,74 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const jobId = req.nextUrl.searchParams.get("jobId") ?? null;
 
-  // Always return the 8 most recent pipeline jobs for the job picker
-  const { data: recentJobs } = await admin
+  // Pull up to 15 recent jobs, join their latest evaluation, then trim to 8.
+  // Returning eval_score + eval_decision lets the apply-card filter the
+  // "load saved evaluation" picker to jobs that actually have an eval.
+  const { data: jobsRaw } = await admin
     .from("jobs")
     .select("id, title, company, status, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
-    .limit(8);
+    .limit(15);
+
+  const jobIds = (jobsRaw ?? []).map((j) => j.id as string);
+  let latestEvalByJob = new Map<string, { score: number | null; decision: string | null }>();
+  if (jobIds.length > 0) {
+    const { data: evalRows } = await admin
+      .from("evaluations")
+      .select("job_id, score, decision, created_at")
+      .eq("user_id", userId)
+      .in("job_id", jobIds)
+      .order("created_at", { ascending: false });
+    for (const e of (evalRows ?? []) as Array<{ job_id: string; score: number; decision: string }>) {
+      if (!latestEvalByJob.has(e.job_id)) {
+        latestEvalByJob.set(e.job_id, { score: e.score, decision: e.decision });
+      }
+    }
+  }
+
+  const recentJobs = (jobsRaw ?? []).slice(0, 8).map((j) => ({
+    id:         j.id,
+    title:      j.title,
+    company:    j.company,
+    status:     j.status,
+    created_at: j.created_at,
+    eval_score:    latestEvalByJob.get(j.id as string)?.score    ?? null,
+    eval_decision: latestEvalByJob.get(j.id as string)?.decision ?? null,
+  }));
+
+  // Recent tailored resumes (latest 10) — for the resume picker dropdown.
+  type ResumeListRow = {
+    id: string;
+    job_id: string | null;
+    title: string | null;
+    coverage: number | null;
+    created_at: string;
+    jobs: { title: string | null; company: string | null } | null;
+  };
+  const { data: recentResumesRaw } = await admin
+    .from("resumes")
+    .select("id, job_id, title, coverage, created_at, jobs!left(title, company)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(10) as unknown as { data: ResumeListRow[] | null };
+
+  const recentResumes = (recentResumesRaw ?? []).map((r) => ({
+    id:         r.id,
+    job_id:     r.job_id,
+    title:      r.title ?? "",
+    job_title:  r.jobs?.title   ?? "",
+    company:    r.jobs?.company ?? "",
+    coverage:   r.coverage,
+    created_at: r.created_at,
+  }));
 
   if (!jobId) {
-    return NextResponse.json({ ok: true, recent_jobs: recentJobs ?? [] });
+    return NextResponse.json({
+      ok: true,
+      recent_jobs:    recentJobs,
+      recent_resumes: recentResumes,
+    });
   }
 
   type EvalRow = {
@@ -100,10 +158,11 @@ export async function GET(req: NextRequest) {
   } : null;
 
   return NextResponse.json({
-    ok:          true,
-    recent_jobs: recentJobs    ?? [],
-    job:         job           ?? null,
-    evaluation:  normalizedEval,
-    resume:      (resumes as ResumeRow[] | null)?.[0] ?? null,
+    ok:             true,
+    recent_jobs:    recentJobs,
+    recent_resumes: recentResumes,
+    job:            job ?? null,
+    evaluation:     normalizedEval,
+    resume:         (resumes as ResumeRow[] | null)?.[0] ?? null,
   });
 }

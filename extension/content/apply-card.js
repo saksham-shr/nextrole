@@ -403,6 +403,9 @@ function looksLikeFormPage() {
 let _card      = null;   // current card DOM node
 let _dismissed = false;  // user closed card on this page load
 let _fieldVals = {};     // fieldId → value shown/edited in card UI
+// When the user picks a saved resume from another job, store its source job id
+// here so fetchResumeBlob fetches that one before the current page's tailored.
+let _resumeJobOverride = null;
 
 // ─── Card lifecycle ───────────────────────────────────────────────────────────
 
@@ -2683,6 +2686,12 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       <div class="nr-ac-step-section">
         <div class="nr-ac-step-section-title">Resume for this application</div>
         <div id="nr-ac-wd-resume-status" style="font-size:12.5px;color:#6b6358;line-height:1.5;margin-bottom:8px;">Checking…</div>
+        <div id="nr-ac-wd-saved-resumes-row" style="display:none;margin-bottom:8px;">
+          <select class="nr-ac-select" id="nr-ac-wd-saved-resumes" style="margin-bottom:6px;">
+            <option value="">— pick a previously generated resume —</option>
+          </select>
+          <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-use-saved">Use this resume</button>
+        </div>
         <div style="display:flex;gap:6px;">
           <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-wd-gen-resume" style="flex:1;">Generate tailored resume</button>
           <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-wd-open-profile" style="flex:0 0 auto;padding:9px 12px;">Profile</button>
@@ -2748,34 +2757,83 @@ async function renderWorkdayHelper(container, jobId, job, section) {
     resumeStatusEl.innerHTML = html;
   }
 
+  // Saved-resumes picker (populated from fetchArtifacts.recent_resumes)
+  const savedRow      = container.querySelector("#nr-ac-wd-saved-resumes-row");
+  const savedSelect   = container.querySelector("#nr-ac-wd-saved-resumes");
+  const useSavedBtn   = container.querySelector("#nr-ac-wd-use-saved");
+
+  function fmtResumeLabel(r) {
+    const t = r.job_title || r.title || "Untitled";
+    const c = r.company ? ` — ${r.company}` : "";
+    const cov = typeof r.coverage === "number" ? ` (${r.coverage}%)` : "";
+    return `${t}${c}${cov}`;
+  }
+
   // Detect existing resume state on render: tailored for this job > profile default > none.
   if (resumeStatusEl) {
     (async () => {
-      // 1. Tailored resume tied to this job?
-      if (jobId) {
-        const arts = await fetchArtifacts(jobId);
-        if (arts?.resume) {
-          setResumeStatus("Tailored resume ready — will be uploaded.", "ok");
-          if (genResumeBtn) genResumeBtn.textContent = "Regenerate";
-          return;
-        }
+      // Always fetch artifacts so we can populate the saved-resumes dropdown
+      // even when this job already has a tailored resume.
+      const arts = jobId ? await fetchArtifacts(jobId) : await fetchArtifacts(null);
+      const savedList = arts?.recent_resumes ?? [];
+
+      if (savedSelect && savedList.length > 0) {
+        savedSelect.insertAdjacentHTML(
+          "beforeend",
+          savedList
+            .filter((r) => r.job_id) // need job_id to refetch
+            .map((r) => `<option value="${esc(r.job_id)}">${esc(fmtResumeLabel(r))}</option>`)
+            .join(""),
+        );
+        if (savedRow) savedRow.style.display = "";
       }
-      // 2. Profile default resume uploaded?
+
+      // 0. Already picked an override this session
+      if (_resumeJobOverride) {
+        const match = savedList.find((r) => r.job_id === _resumeJobOverride);
+        const label = match ? fmtResumeLabel(match) : "previously saved resume";
+        setResumeStatus(`Will upload your selected resume: <strong>${esc(label)}</strong>.`, "ok");
+        if (savedSelect) savedSelect.value = _resumeJobOverride;
+        return;
+      }
+
+      // 1. Tailored resume tied to this job
+      if (arts?.resume) {
+        setResumeStatus("Tailored resume ready — will be uploaded.", "ok");
+        if (genResumeBtn) genResumeBtn.textContent = "Regenerate";
+        return;
+      }
+
+      // 2. Profile default resume uploaded
       const profRes = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
       if (profRes?.ok && profRes.data) {
         setResumeStatus(
-          `Will use your default resume: <strong>${esc(profRes.filename ?? "resume")}</strong>. Generate a tailored version for stronger match.`,
+          `Will use your default resume: <strong>${esc(profRes.filename ?? "resume")}</strong>. Generate a tailored version or pick a saved one for stronger match.`,
           "neutral",
         );
         return;
       }
-      // 3. Nothing — user must generate or upload.
+
+      // 3. Nothing — user must generate, pick a saved one, or upload to profile.
       setResumeStatus(
-        "No resume available. Generate a tailored one for this job, or upload one to your profile.",
+        "No resume available. Generate a tailored one, pick a saved resume, or upload one to your profile.",
         "warn",
       );
     })();
   }
+
+  // Use-saved-resume button
+  useSavedBtn?.addEventListener("click", () => {
+    const pickedJobId = savedSelect?.value;
+    if (!pickedJobId) {
+      setResumeStatus("Pick a resume from the list first.", "warn");
+      return;
+    }
+    _resumeJobOverride = pickedJobId;
+    const opt = savedSelect.options[savedSelect.selectedIndex];
+    const label = opt ? opt.textContent : "saved resume";
+    setResumeStatus(`Will upload your selected resume: <strong>${esc(label)}</strong>.`, "ok");
+  });
 
   // Generate tailored resume → fetched on next Fill click via fetchResumeBlob(jobId)
   genResumeBtn?.addEventListener("click", async () => {
@@ -2893,6 +2951,19 @@ async function renderWorkdayHelper(container, jobId, job, section) {
 // Tries the tailored resume for this job first; if absent, falls back to the
 // user's uploaded default resume from the Profile page.
 async function fetchResumeBlob(jobId) {
+  // 0. User picked a saved resume from another job — try that first.
+  if (_resumeJobOverride && _resumeJobOverride !== jobId) {
+    try {
+      const res = await swMsg({ type: "GET_RESUME_FILE", jobId: _resumeJobOverride });
+      if (res?.ok && res.data) {
+        return {
+          data:     res.data,
+          type:     res.type ?? "application/msword",
+          filename: res.filename ?? "nextrole_resume.doc",
+        };
+      }
+    } catch { /* fall through to default lookup */ }
+  }
   // 1. Job-specific tailored resume (AI-generated HTML → .doc)
   if (jobId) {
     try {
@@ -3476,10 +3547,17 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
       state._recentJobs = artifacts?.recent_jobs ?? [];
     }
 
-    // Build pipeline picker options (jobs in pipeline the user can load an eval for)
+    // Build picker options — only jobs that actually have an evaluation.
+    // Sort newest evaluation first; show the score so users can recognise them.
     const recentJobs = state._recentJobs ?? [];
-    const pickerOpts = recentJobs
-      .map((j) => `<option value="${esc(j.id)}">${esc(j.title)} — ${esc(j.company)}</option>`)
+    const evaluatedJobs = recentJobs.filter((j) =>
+      j.eval_score !== null && j.eval_score !== undefined,
+    );
+    const pickerOpts = evaluatedJobs
+      .map((j) => {
+        const score = typeof j.eval_score === "number" ? j.eval_score.toFixed(1) : j.eval_score;
+        return `<option value="${esc(j.id)}">${esc(j.title)} — ${esc(j.company)} (★ ${esc(score)})</option>`;
+      })
       .join("");
 
     container.innerHTML = `
@@ -3495,10 +3573,10 @@ async function renderEvalTab(container, jobId, job, state, onEvalUpdated) {
         </button>
         <div class="nr-ac-status" id="nr-ac-eval-st"></div>
 
-        ${recentJobs.length > 0 ? `
-        <div class="nr-ac-eval-divider"><span>or load from pipeline</span></div>
+        ${evaluatedJobs.length > 0 ? `
+        <div class="nr-ac-eval-divider"><span>or load a previous evaluation</span></div>
         <select class="nr-ac-select" id="nr-ac-eval-picker" style="margin-bottom:8px;">
-          <option value="">— choose a saved job —</option>
+          <option value="">— choose an evaluated job —</option>
           ${pickerOpts}
         </select>
         <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-eval-load">
