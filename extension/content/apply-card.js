@@ -1531,20 +1531,13 @@ async function renderGreenhouseHelper(container, jobId, job) {
     ["Last Name",         lastName    || "—"],
     ["Email",             p.email     || "—"],
     ["Phone",             p.phone     || "—"],
-    ["Country",           "India"],
-    ["Resume",            jobId ? "Will fetch generated resume" : "—  No job linked"],
+    ["Country",           p.country ?? "—"],
     ["LinkedIn",          p.linkedin  || "—"],
     ["How did you hear",  "Job Board / Naukri"],
-    ["Country (Q)",       "India"],
     ["Work eligible",     "Yes"],
-    ["Work status",       "Citizen / Permanent Resident"],
-    ["Non-compete",       "No"],
     ["Pronouns",          p.gender ? `Derived from profile (${p.gender})` : "Prefer not to say"],
     ["Portfolio link",    p.website   || "—"],
-    ["BrightHire consent","Yes, I consent"],
     ["Privacy / GDPR",    "I Acknowledge / I Accept"],
-    ["Demographic consent","Yes"],
-    ["GDPR checkbox",     "Will check"],
   ];
 
   const manualRows = [
@@ -1585,6 +1578,21 @@ async function renderGreenhouseHelper(container, jobId, job) {
           ${manualHtml}
         </div>
 
+        <div style="background:#f9f7f4;border:1px solid #e8e4de;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:600;color:#6b6560;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Resume for this application</div>
+          <div id="nr-gh-resume-status" style="font-size:12.5px;color:#6b6358;line-height:1.5;margin-bottom:8px;">Checking…</div>
+          <div id="nr-gh-saved-resumes-row" style="display:none;margin-bottom:8px;">
+            <select class="nr-ac-select" id="nr-gh-saved-resumes" style="margin-bottom:6px;">
+              <option value="">— pick a previously generated resume —</option>
+            </select>
+            <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-gh-use-saved">Use this resume</button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="nr-ac-btn nr-ac-secondary" id="nr-gh-gen-resume" style="flex:1;">Generate tailored resume</button>
+            <button class="nr-ac-btn nr-ac-secondary" id="nr-gh-open-profile" style="flex:0 0 auto;padding:9px 12px;">Profile</button>
+          </div>
+        </div>
+
         ${buildEvalPickerHtml({
           tier:           evalCtx.tier,
           autoMatch:      evalCtx.autoMatch,
@@ -1598,6 +1606,116 @@ async function renderGreenhouseHelper(container, jobId, job) {
         </button>
         <div id="nr-gh-result" style="display:none;margin-top:8px;"></div>
       </div>`;
+
+    // ── Resume block (mirrors Workday) ──────────────────────────────────────
+    const resumeStatusEl = container.querySelector("#nr-gh-resume-status");
+    const genResumeBtn   = container.querySelector("#nr-gh-gen-resume");
+    const openProfileBtn = container.querySelector("#nr-gh-open-profile");
+    const savedRow       = container.querySelector("#nr-gh-saved-resumes-row");
+    const savedSelect    = container.querySelector("#nr-gh-saved-resumes");
+    const useSavedBtn    = container.querySelector("#nr-gh-use-saved");
+
+    function setResumeStatus(html, kind = "neutral") {
+      if (!resumeStatusEl) return;
+      const colors = {
+        ok:      "color:#166534;",
+        warn:    "color:#92400e;",
+        neutral: "color:#6b6358;",
+        err:     "color:#991b1b;",
+      };
+      resumeStatusEl.style.cssText = `font-size:12.5px;line-height:1.5;margin-bottom:8px;${colors[kind] ?? colors.neutral}`;
+      resumeStatusEl.innerHTML = html;
+    }
+
+    function fmtResumeLabel(r) {
+      const t = r.job_title || r.title || "Untitled";
+      const c = r.company ? ` — ${r.company}` : "";
+      const cov = typeof r.coverage === "number" ? ` (${r.coverage}%)` : "";
+      return `${t}${c}${cov}`;
+    }
+
+    // Detect resume state on render
+    (async () => {
+      const arts = await fetchArtifacts(jobId ?? null);
+      const savedList = arts?.recent_resumes ?? [];
+
+      if (savedSelect && savedList.length > 0) {
+        savedSelect.insertAdjacentHTML(
+          "beforeend",
+          savedList
+            .filter((r) => r.job_id)
+            .map((r) => `<option value="${esc(r.job_id)}">${esc(fmtResumeLabel(r))}</option>`)
+            .join(""),
+        );
+        if (savedRow) savedRow.style.display = "";
+      }
+
+      if (_resumeJobOverride) {
+        const match = savedList.find((r) => r.job_id === _resumeJobOverride);
+        const label = match ? fmtResumeLabel(match) : "previously saved resume";
+        setResumeStatus(`Will upload your selected resume: <strong>${esc(label)}</strong>.`, "ok");
+        if (savedSelect) savedSelect.value = _resumeJobOverride;
+        return;
+      }
+      if (jobId && arts?.resume) {
+        setResumeStatus("Tailored resume ready — will be uploaded.", "ok");
+        if (genResumeBtn) genResumeBtn.textContent = "Regenerate";
+        return;
+      }
+      const profRes = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
+      if (profRes?.ok && profRes.data) {
+        setResumeStatus(
+          `Will use your default resume: <strong>${esc(profRes.filename ?? "resume")}</strong>. Generate a tailored version or pick a saved one for stronger match.`,
+          "neutral",
+        );
+        return;
+      }
+      setResumeStatus(
+        "No resume available. Generate a tailored one, pick a saved resume, or upload one to your profile.",
+        "warn",
+      );
+    })();
+
+    genResumeBtn?.addEventListener("click", async () => {
+      if (!jobId) {
+        setResumeStatus("Save this job to your pipeline first (use the toolbar popup).", "warn");
+        return;
+      }
+      genResumeBtn.disabled = true;
+      const originalLabel = genResumeBtn.textContent;
+      genResumeBtn.textContent = "Generating…";
+      setResumeStatus("Tailoring your resume to this job — usually 20-40 seconds.", "neutral");
+
+      const res = await swMsg({ type: "TAILOR_RESUME", payload: { job_id: jobId } });
+      if (!res?.ok) {
+        setResumeStatus(`Generation failed: ${esc(res?.error ?? "try again")}`, "err");
+        genResumeBtn.disabled = false;
+        genResumeBtn.textContent = originalLabel;
+        return;
+      }
+      setResumeStatus("Tailored resume generated — will be uploaded on Fill.", "ok");
+      genResumeBtn.disabled = false;
+      genResumeBtn.textContent = "Regenerate";
+    });
+
+    useSavedBtn?.addEventListener("click", () => {
+      const pickedJobId = savedSelect?.value;
+      if (!pickedJobId) {
+        setResumeStatus("Pick a resume from the list first.", "warn");
+        return;
+      }
+      _resumeJobOverride = pickedJobId;
+      const opt = savedSelect.options[savedSelect.selectedIndex];
+      const label = opt ? opt.textContent : "saved resume";
+      setResumeStatus(`Will upload your selected resume: <strong>${esc(label)}</strong>.`, "ok");
+    });
+
+    openProfileBtn?.addEventListener("click", () => {
+      chrome.runtime.sendMessage({
+        type: "OPEN_TAB",
+        url: `${NEXTROLE_URL}/dashboard/profile`,
+      });
+    });
 
     const btn = container.querySelector("#nr-gh-fill-btn");
     const resultEl = container.querySelector("#nr-gh-result");
