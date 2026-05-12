@@ -1296,65 +1296,183 @@ async function _wdSaveModal() {
   return true;
 }
 
+// ─── Workday section helpers (wrapper-based, DOM verified Nvidia/Walmart) ───
+//
+// Workday wraps every form field in a div whose data-automation-id is
+// "formField-<fieldName>" and whose data-fkit-id is "<entity-N>--<fieldName>".
+// Entries (work experience, education) are added inline on the page — there is
+// no modal — by clicking the section's "Add" button. Each new entry is given
+// a unique entity index (workExperience-7, education-42, etc.), and all of its
+// fields share that prefix in their data-fkit-id.
+
+// Find the formField wrapper inside a section, optionally filtered to a
+// specific entry index (latest if not specified).
+function _wdGetFieldByFkit(scope, entityPrefix, entityIdx, fieldName) {
+  const sel = entityIdx === null
+    ? `[data-fkit-id$="--${fieldName}"][data-fkit-id^="${entityPrefix}-"]`
+    : `[data-fkit-id="${entityPrefix}-${entityIdx}--${fieldName}"]`;
+  return scope.querySelector(sel);
+}
+
+// Find the "Add" button for a named section (e.g. "Work-Experience-section").
+// Walks forward from the section header until it finds the next add-button.
+function _wdFindAddButton(sectionHeaderId) {
+  const header = document.getElementById(sectionHeaderId);
+  if (!header) return null;
+  // Walk up to find the enclosing group, then look for add-button inside it.
+  let scope = header.parentElement;
+  while (scope && scope !== document.body) {
+    const btn = scope.querySelector('[data-automation-id="add-button"]');
+    if (btn) return btn;
+    scope = scope.parentElement;
+  }
+  return null;
+}
+
+// After clicking Add, find the index of the newest entry created. Returns the
+// numeric portion of the last data-fkit-id matching "<prefix>-N--<sentinelField>".
+// For workExperience, sentinelField is "jobTitle"; for education, "schoolName".
+function _wdLatestEntityIndex(scope, entityPrefix, sentinelField) {
+  const all = scope.querySelectorAll(
+    `[data-fkit-id$="--${sentinelField}"][data-fkit-id^="${entityPrefix}-"]`,
+  );
+  let maxIdx = -1;
+  for (const el of all) {
+    const m = el.getAttribute("data-fkit-id")?.match(
+      new RegExp(`^${entityPrefix}-(\\d+)--`),
+    );
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (n > maxIdx) maxIdx = n;
+    }
+  }
+  return maxIdx >= 0 ? maxIdx : null;
+}
+
+// Fill a month + year date pair inside a date-section wrapper.
+async function _wdFillFkitDate(wrap, mmYyyy) {
+  if (!wrap || !mmYyyy) return false;
+  let month = "", year = "";
+  const mmYyyyMatch = mmYyyy.match(/^(\d{1,2})\/(\d{4})$/);
+  const yyyyMatch   = mmYyyy.match(/^(\d{4})$/);
+  const monYyyy     = mmYyyy.match(/([A-Za-z]{3,9})\s+(\d{4})/);
+  if (mmYyyyMatch)        { month = mmYyyyMatch[1].padStart(2, "0"); year = mmYyyyMatch[2]; }
+  else if (yyyyMatch)     { year = yyyyMatch[1]; }
+  else if (monYyyy) {
+    const M = { jan:"01",feb:"02",mar:"03",apr:"04",may:"05",jun:"06",
+                jul:"07",aug:"08",sep:"09",oct:"10",nov:"11",dec:"12" };
+    month = M[monYyyy[1].toLowerCase().slice(0,3)] ?? "";
+    year  = monYyyy[2];
+  }
+  const mIn = wrap.querySelector('[data-automation-id="dateSectionMonth-input"]');
+  const yIn = wrap.querySelector('[data-automation-id="dateSectionYear-input"]');
+  let hit = false;
+  if (mIn && month) { _angularFillInput(mIn, month); hit = true; }
+  if (yIn && year)  { _angularFillInput(yIn,  year);  hit = true; }
+  return hit;
+}
+
+// Click a Workday-fkit combobox (multi-select) and pick the first option
+// matching pattern. Returns true if an option was clicked.
+async function _wdFkitCombobox(wrap, optionPattern) {
+  if (!wrap) return false;
+  const trigger = wrap.querySelector(
+    '[data-automation-id="multiselectInputContainer"], ' +
+    'input[data-uxi-widget-type="selectinput"]',
+  );
+  if (!trigger) return false;
+  trigger.click();
+  await new Promise((r) => setTimeout(r, 400));
+  const opts = [
+    ...document.querySelectorAll('[data-automation-id="promptOption"]'),
+    ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
+  ];
+  const target = opts.find((o) => optionPattern.test(o.textContent?.trim() ?? ""));
+  if (!target) {
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    await new Promise((r) => setTimeout(r, 150));
+    return false;
+  }
+  target.click();
+  await new Promise((r) => setTimeout(r, 200));
+  return true;
+}
+
 async function _fillWorkdayExperienceEntries(entries) {
   const result = { filled: 0, skipped: 0, errors: [] };
   if (!entries?.length) return result;
 
   for (const entry of entries) {
-    const opened = await _wdOpenAddModal("workExperienceSection");
-    if (!opened) {
-      result.errors.push("Could not open Work Experience Add modal");
-      result.skipped += entries.length;
+    // Click "Add" to create a new inline form block
+    const addBtn = _wdFindAddButton("Work-Experience-section");
+    if (!addBtn) {
+      result.errors.push("Work Experience Add button not found");
+      result.skipped += entries.length - result.filled;
       break;
     }
+    addBtn.click();
+    await new Promise((r) => setTimeout(r, 500));
 
-    const dialog = document.querySelector('[role="dialog"], [data-automation-id="wd-Dialog"]');
-    if (!dialog) { result.skipped++; continue; }
+    // Find the newest entry index by scanning all workExperience-N--jobTitle wrappers
+    const idx = _wdLatestEntityIndex(document, "workExperience", "jobTitle");
+    if (idx === null) {
+      result.errors.push("Newly added work experience entry not found in DOM");
+      result.skipped++;
+      continue;
+    }
 
-    // Job Title
-    const titleInp = dialog.querySelector(
-      'input[data-automation-id="jobTitle"], input[name="title"], ' +
-      'input[aria-label*="title" i], input[placeholder*="title" i]',
-    );
-    if (titleInp && entry.role) _angularFillInput(titleInp, entry.role);
+    let filledFields = 0;
+    const field = (name) => _wdGetFieldByFkit(document, "workExperience", idx, name);
+
+    // Job title
+    const titleInp = field("jobTitle")?.querySelector("input");
+    if (titleInp && entry.role) {
+      _angularFillInput(titleInp, entry.role);
+      filledFields++;
+    }
 
     // Company
-    const compInp = dialog.querySelector(
-      'input[data-automation-id="company"], input[name="company"], ' +
-      'input[aria-label*="company" i], input[placeholder*="company" i]',
-    );
-    if (compInp && entry.company) _angularFillInput(compInp, entry.company);
+    const compInp = field("companyName")?.querySelector("input");
+    if (compInp && entry.company) {
+      _angularFillInput(compInp, entry.company);
+      filledFields++;
+    }
 
-    // Dates
-    const startSection = dialog.querySelector(
-      '[data-automation-id="dateSectionStartDate"], [data-automation-id="startDate"]',
-    ) ?? dialog;
-    await _wdFillDate(startSection, entry.start);
+    // Location
+    const locInp = field("location")?.querySelector("input");
+    if (locInp && entry.location) {
+      _angularFillInput(locInp, entry.location);
+      filledFields++;
+    }
 
+    // Currently work here checkbox
     if (entry.current) {
-      const currentChk = dialog.querySelector(
-        '[data-automation-id="currentlyWorkHere"] input, ' +
-        'input[name="currentlyWorkHere"], input[type="checkbox"][aria-label*="current" i]',
-      );
-      if (currentChk && !currentChk.checked) currentChk.click();
-    } else if (entry.end) {
-      const endSection = dialog.querySelector(
-        '[data-automation-id="dateSectionEndDate"], [data-automation-id="endDate"]',
-      ) ?? dialog;
-      await _wdFillDate(endSection, entry.end);
+      const chk = field("currentlyWorkHere")?.querySelector('input[type="checkbox"]');
+      if (chk && !chk.checked) chk.click();
     }
 
-    // Description
-    if (entry.description) {
-      const descEl = dialog.querySelector(
-        'textarea[data-automation-id="description"], textarea[name="description"], textarea',
-      );
-      if (descEl) _angularFillInput(descEl, entry.description);
+    // Start date (month + year)
+    if (entry.start) {
+      const startWrap = field("startDate");
+      if (await _wdFillFkitDate(startWrap, entry.start)) filledFields++;
     }
 
-    const saved = await _wdSaveModal();
-    saved ? result.filled++ : result.skipped++;
-    await new Promise((r) => setTimeout(r, 400));
+    // End date (only if not currently working there)
+    if (!entry.current && entry.end && entry.end.toLowerCase() !== "present") {
+      const endWrap = field("endDate");
+      if (await _wdFillFkitDate(endWrap, entry.end)) filledFields++;
+    }
+
+    // Role description
+    const descEl = field("roleDescription")?.querySelector("textarea");
+    if (descEl && entry.description) {
+      _angularFillInput(descEl, entry.description);
+      filledFields++;
+    }
+
+    if (filledFields > 0) result.filled += filledFields;
+    else result.skipped++;
+    await new Promise((r) => setTimeout(r, 250));
   }
   return result;
 }
@@ -1363,60 +1481,76 @@ async function _fillWorkdayEducationEntries(entries) {
   const result = { filled: 0, skipped: 0, errors: [] };
   if (!entries?.length) return result;
 
+  function yearFrom(value) {
+    if (!value) return "";
+    const m = String(value).match(/(\d{4})/);
+    return m ? m[1] : "";
+  }
+
   for (const entry of entries) {
-    const opened = await _wdOpenAddModal("educationSection");
-    if (!opened) {
-      result.errors.push("Could not open Education Add modal");
-      result.skipped += entries.length;
+    const addBtn = _wdFindAddButton("Education-section");
+    if (!addBtn) {
+      result.errors.push("Education Add button not found");
+      result.skipped += entries.length - result.filled;
       break;
     }
+    addBtn.click();
+    await new Promise((r) => setTimeout(r, 500));
 
-    const dialog = document.querySelector('[role="dialog"], [data-automation-id="wd-Dialog"]');
-    if (!dialog) { result.skipped++; continue; }
-
-    // School / Institution
-    const schoolInp = dialog.querySelector(
-      'input[data-automation-id="school"], input[name="school"], ' +
-      'input[aria-label*="school" i], input[aria-label*="institution" i], ' +
-      'input[placeholder*="school" i], input[placeholder*="institution" i]',
-    );
-    if (schoolInp && entry.institution) _angularFillInput(schoolInp, entry.institution);
-
-    // Degree — try dropdown first, then text input
-    const degreeSel = dialog.querySelector(
-      'button[data-automation-id="degree"], button[name="degree"], ' +
-      '[data-automation-id="degreeDropdown"] button',
-    );
-    if (degreeSel && entry.degree) {
-      await _wdDropdown(null, new RegExp(entry.degree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), degreeSel);
-    } else {
-      const degreeInp = dialog.querySelector(
-        'input[data-automation-id="degree"], input[name="degree"], ' +
-        'input[aria-label*="degree" i]',
-      );
-      if (degreeInp && entry.degree) _angularFillInput(degreeInp, entry.degree);
+    const idx = _wdLatestEntityIndex(document, "education", "schoolName");
+    if (idx === null) {
+      result.errors.push("Newly added education entry not found in DOM");
+      result.skipped++;
+      continue;
     }
 
-    // Field of study
+    let filledFields = 0;
+    const field = (name) => _wdGetFieldByFkit(document, "education", idx, name);
+
+    // School name
+    const schoolInp = field("schoolName")?.querySelector("input");
+    if (schoolInp && entry.institution) {
+      _angularFillInput(schoolInp, entry.institution);
+      filledFields++;
+    }
+
+    // Degree (dropdown)
+    if (entry.degree) {
+      const degreeBtn = field("degree")?.querySelector("button");
+      if (degreeBtn) {
+        const pat = new RegExp(entry.degree.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+        if (await _wdDropdown(null, pat, degreeBtn)) filledFields++;
+      }
+    }
+
+    // Field of study (fkit multi-select combobox)
     if (entry.field) {
-      const fieldInp = dialog.querySelector(
-        'input[data-automation-id="fieldOfStudy"], input[name="fieldOfStudy"], ' +
-        'input[aria-label*="field" i], input[placeholder*="field" i]',
-      );
-      if (fieldInp) _angularFillInput(fieldInp, entry.field);
+      const fieldWrap = field("fieldOfStudy");
+      const fieldPat = new RegExp(entry.field.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      if (await _wdFkitCombobox(fieldWrap, fieldPat)) filledFields++;
     }
 
-    // Dates
-    const startSection = dialog.querySelector('[data-automation-id="startDate"]') ?? dialog;
-    await _wdFillDate(startSection, entry.start);
-    if (entry.end && entry.end !== "Present") {
-      const endSection = dialog.querySelector('[data-automation-id="endDate"]') ?? dialog;
-      await _wdFillDate(endSection, entry.end);
+    // First / last year attended (year-only inputs)
+    const firstYearInp = field("firstYearAttended")?.querySelector("input");
+    if (firstYearInp) {
+      const y = yearFrom(entry.start);
+      if (y) { _angularFillInput(firstYearInp, y); filledFields++; }
+    }
+    const lastYearInp = field("lastYearAttended")?.querySelector("input");
+    if (lastYearInp) {
+      const y = yearFrom(entry.end);
+      if (y) { _angularFillInput(lastYearInp, y); filledFields++; }
     }
 
-    const saved = await _wdSaveModal();
-    saved ? result.filled++ : result.skipped++;
-    await new Promise((r) => setTimeout(r, 400));
+    // Grade average (optional)
+    if (entry.grade) {
+      const gradeInp = field("gradeAverage")?.querySelector("input");
+      if (gradeInp) { _angularFillInput(gradeInp, entry.grade); filledFields++; }
+    }
+
+    if (filledFields > 0) result.filled += filledFields;
+    else result.skipped++;
+    await new Promise((r) => setTimeout(r, 250));
   }
   return result;
 }
@@ -1471,17 +1605,42 @@ async function _fillWorkdayCertEntries(entries) {
 //   • Options always appear as [data-automation-id="promptOption"] in a portal overlay
 
 function _wdInput(fieldNames, value) {
-  // Workday inputs use name= attribute, not data-automation-id
+  // Wrapper-based: [data-automation-id="formField-<name>"] input
   if (!value) return false;
   const names = Array.isArray(fieldNames) ? fieldNames : [fieldNames];
   for (const n of names) {
-    const el = document.querySelector(
-      `input[name="${n}"], textarea[name="${n}"], ` +
-      `input[data-automation-id="${n}"], textarea[data-automation-id="${n}"]`,
-    );
+    const wrap = document.querySelector(`[data-automation-id="formField-${n}"]`);
+    const el = wrap?.querySelector("input, textarea") ??
+               document.querySelector(`input[name="${n}"], textarea[name="${n}"]`);
     if (el && _angularFillInput(el, value)) return true;
   }
   return false;
+}
+
+// Click a button-dropdown inside a formField wrapper.
+async function _wdFieldDropdown(fieldName, optionPattern) {
+  const wrap = document.querySelector(`[data-automation-id="formField-${fieldName}"]`);
+  const btn = wrap?.querySelector("button[aria-haspopup]") ??
+              document.querySelector(`button[name="${fieldName}"]`);
+  if (!btn) return false;
+  return _wdDropdown(null, optionPattern, btn);
+}
+
+// Click a fkit multi-select inside a formField wrapper.
+async function _wdFieldMultiSelect(fieldName, optionPattern) {
+  const wrap = document.querySelector(`[data-automation-id="formField-${fieldName}"]`);
+  return _wdFkitCombobox(wrap, optionPattern);
+}
+
+// Click a Yes/No radio inside a formField wrapper.
+function _wdFieldRadio(fieldName, value) {
+  const wrap = document.querySelector(`[data-automation-id="formField-${fieldName}"]`);
+  if (!wrap) return false;
+  const want = value === true || value === "true" || /^yes$/i.test(String(value)) ? "true" : "false";
+  const radio = wrap.querySelector(`input[type="radio"][value="${want}"]`);
+  if (!radio) return false;
+  if (!radio.checked) radio.click();
+  return true;
 }
 
 async function _wdDropdown(triggerSel, optionPattern, triggerEl) {
@@ -1505,133 +1664,89 @@ async function _wdDropdown(triggerSel, optionPattern, triggerEl) {
   return true;
 }
 
-async function _fillWorkdaySection(section, profile, resumeBlob, coverLetterBlob) {
+async function _fillWorkdaySection(section, profile, resumeBlob /*, coverLetterBlob*/) {
   const result = { filled: 0, skipped: 0, errors: [] };
   function hit(ok) { ok ? result.filled++ : result.skipped++; return ok; }
 
   // ── My Information ────────────────────────────────────────────────────────
-  // Confirmed selectors from DOM inspect (Workday fkit, React-based):
-  //   input[name="legalName--firstName"], input[name="legalName--lastName"]
-  //   input[name="city"], input[name="phoneNumber"]
-  //   button[name="country"], button[name="phoneType"], button[name="countryPhoneCode"]
-  //   button[name="countryRegion"]  (State)
-  //   "source" field = fkit combobox: div[dir="ltr"][tabindex] inside formField-source
+  // Verified selectors from Walmart + Nvidia DOM inspect — tenant-uniform.
   if (section === "My Information") {
     const firstName = profile.first_name ?? (profile.full_name ?? "").split(" ")[0] ?? "";
     const lastName  = profile.last_name  ?? (profile.full_name ?? "").split(" ").slice(1).join(" ") ?? "";
 
-    // Legal name inputs
+    // Legal name
     hit(_wdInput("legalName--firstName", firstName));
     hit(_wdInput("legalName--lastName",  lastName));
-    // Local name fields (optional, best-effort — not counted toward filled)
+    // Local name fields appear on country=India etc.; fill best-effort
     _wdInput("legalName--firstNameLocal", firstName);
     _wdInput("legalName--lastNameLocal",  lastName);
 
-    // Contact
+    // Address
+    hit(_wdInput("addressLine1", profile.street_address));
+    hit(_wdInput("city",         profile.city ?? profile.location));
+    hit(_wdInput("postalCode",   profile.zip_postal));
+    if (profile.state_province) {
+      hit(await _wdFieldDropdown(
+        "countryRegion",
+        new RegExp(profile.state_province.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
+      ));
+    }
+
+    // Country
+    hit(await _wdFieldDropdown("country", _countryPattern(profile.country)));
+
+    // Phone
+    hit(await _wdFieldDropdown("phoneType", /mobile|cell/i));
+    hit(await _wdFieldMultiSelect("countryPhoneCode", _phoneCodePattern(profile.country)));
     hit(_wdInput("phoneNumber", profile.phone));
 
-    // Address — now driven entirely by profile fields (migration 20260511000001)
-    hit(_wdInput(["city", "addressLine_city"],     profile.city ?? profile.location));
-    hit(_wdInput(["addressLine1", "addressSection_addressLine1"], profile.street_address));
-    hit(_wdInput(["postalCode",   "zip", "addressSection_postalCode"], profile.zip_postal));
+    // Previously worked here (default No)
+    hit(_wdFieldRadio("candidateIsPreviousWorker", false));
 
-    // State / region — usually a dropdown (button[name="countryRegion"])
-    if (profile.state_province) {
-      hit(await _wdDropdown('button[name="countryRegion"]',
-        new RegExp(profile.state_province.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i")));
-    } else {
-      result.skipped++;
-    }
-
-    // Country dropdown — uses profile.country (migrated default = 'India')
-    hit(await _wdDropdown('button[name="country"]', _countryPattern(profile.country)));
-
-    // Phone device type → Mobile (best default for personal applications)
-    hit(await _wdDropdown('button[name="phoneType"]', /mobile|cell/i));
-
-    // Country phone code → maps from profile.country
-    hit(await _wdDropdown('button[name="countryPhoneCode"]', _phoneCodePattern(profile.country)));
-
-    // "How Did You Hear About Us?" — fkit combobox (div[dir][tabindex]) inside formField-source
-    const sourceCombo = document.querySelector(
-      '[data-automation-id="formField-source"] [dir="ltr"][tabindex], ' +
-      '[data-automation-id="formField-source"] button',
-    );
-    if (sourceCombo) {
-      sourceCombo.click();
-      await new Promise((r) => setTimeout(r, 400));
-      const opts = [
-        ...document.querySelectorAll('[data-automation-id="promptOption"]'),
-        ...document.querySelectorAll('[role="option"]:not([aria-hidden="true"])'),
-      ];
-      const srcOpt =
-        opts.find((o) => /naukri/i.test(o.textContent ?? "")) ??
-        opts.find((o) => /job\s*board|online|portal|internet/i.test(o.textContent ?? ""));
-      if (srcOpt) {
-        srcOpt.click();
-        await new Promise((r) => setTimeout(r, 200));
-        result.filled++;
-      } else {
-        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-        result.skipped++;
-      }
-    } else {
-      result.skipped++;
-    }
+    // "How Did You Hear About Us?" — multi-select combobox
+    hit(await _wdFieldMultiSelect(
+      "source",
+      /naukri|linkedin|job\s*board|online|portal|internet|website|referr/i,
+    ));
 
     return result;
   }
 
   // ── My Experience ─────────────────────────────────────────────────────────
   if (section === "My Experience") {
-    // Resume file upload (present on commercial Workday; absent on some gov instances)
+    // Resume upload
     if (resumeBlob) {
       const fileInput = document.querySelector(
-        '[data-automation-id="resumeSection"] input[type=file], ' +
-        'input[data-automation-id="file-upload-input"], ' +
-        'input[type=file][accept*=".pdf"], input[type=file][accept*=".doc"], input[type=file]',
+        '[data-automation-id="attachments-FileUpload"] input[type=file], ' +
+        'input[data-automation-id="file-upload-input-ref"], ' +
+        'input[type=file]',
       );
-      if (_injectFile(fileInput, resumeBlob, resumeBlob.filename ?? "nextrole_resume.doc")) result.filled++;
+      if (_injectFile(fileInput, resumeBlob, resumeBlob.filename ?? "nextrole_resume.pdf")) result.filled++;
       else result.skipped++;
     } else {
       result.skipped++;
     }
 
-    // Cover letter file upload (Workday: separate file input, often labeled "Cover Letter")
-    if (coverLetterBlob) {
-      // Try multiple selectors — Workday cover-letter inputs vary by instance.
-      // Prefer an input whose nearest label/automation-id contains "cover".
-      const coverInputs = [...document.querySelectorAll('input[type="file"]')];
-      const coverInput = coverInputs.find((inp) => {
-        const ctx = (
-          inp.getAttribute("data-automation-id") ?? "" +
-          inp.getAttribute("aria-label") ?? "" +
-          (inp.closest("[data-automation-id]")?.getAttribute("data-automation-id") ?? "")
-        ).toLowerCase();
-        return /cover|letter/.test(ctx);
-      });
-      if (coverInput) {
-        if (_injectFile(coverInput, coverLetterBlob, coverLetterBlob.filename ?? "cover_letter.pdf")) {
-          result.filled++;
-        } else { result.skipped++; }
+    // LinkedIn URL
+    hit(_wdInput("linkedInAccount", profile.linkedin));
+
+    // Skills — fkit multi-select; add each profile skill that the listbox accepts
+    if (Array.isArray(profile.skills) && profile.skills.length > 0) {
+      const skillsWrap = document.querySelector('[data-automation-id="formField-skills"]');
+      let skillsAdded = 0;
+      for (const skill of profile.skills.slice(0, 20)) {
+        const safe = String(skill).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (await _wdFkitCombobox(skillsWrap, new RegExp(`^${safe}$`, "i"))) {
+          skillsAdded++;
+          await new Promise((r) => setTimeout(r, 150));
+        }
       }
-      // Silently skip if no cover-letter input exists on this page
+      if (skillsAdded > 0) result.filled += skillsAdded;
+      else result.skipped++;
     }
 
-    // Social / portfolio URLs
-    hit(_wdInput(["linkedInHomePage", "linkedInUrl", "linkedinUrl"], profile.linkedin));
-    hit(_wdInput(["gitHubHomePage",   "githubUrl",   "gitHubUrl"],  profile.github));
-    hit(_wdInput(["portfolioUrl",     "websiteUrl",  "personalUrl"], profile.website));
-
-    // Work Experience, Education, Certifications — single source of truth is
-    // the structured arrays the user filled on /dashboard/profile. We do NOT
-    // fall back to CV parsing: if the profile is empty, surface a clear error
-    // so the user knows to populate the Profile page rather than getting
-    // unpredictable AI-extracted data injected into their application.
-    const workExp        = profile.work_experience ?? [];
-    const education      = profile.education       ?? [];
-    const certifications = profile.certifications  ?? [];
-
+    // Work experience entries
+    const workExp = profile.work_experience ?? [];
     if (workExp.length) {
       const expResult = await _fillWorkdayExperienceEntries(workExp);
       result.filled  += expResult.filled;
@@ -1641,6 +1756,8 @@ async function _fillWorkdaySection(section, profile, resumeBlob, coverLetterBlob
       result.errors.push("No work experience in profile — add via /dashboard/profile");
     }
 
+    // Education entries
+    const education = profile.education ?? [];
     if (education.length) {
       const eduResult = await _fillWorkdayEducationEntries(education);
       result.filled  += eduResult.filled;
@@ -1650,110 +1767,12 @@ async function _fillWorkdaySection(section, profile, resumeBlob, coverLetterBlob
       result.errors.push("No education in profile — add via /dashboard/profile");
     }
 
-    if (certifications.length) {
-      const certResult = await _fillWorkdayCertEntries(certifications);
-      result.filled  += certResult.filled;
-      result.skipped += certResult.skipped;
-      result.errors.push(...certResult.errors);
-    }
-
     return result;
   }
 
-  // ── Self Identify (EEO) ───────────────────────────────────────────────────
-  // All four dropdowns are now driven by the user's explicit Demographics
-  // settings on the Profile page. If a field is blank in the profile we fall
-  // back to a "Prefer not to say" / safe-default option.
-  if (section === "Self Identify") {
-    // Gender
-    const genderPat = _genderPattern(profile?.gender) ?? /prefer.*not|decline|do\s*not\s*wish/i;
-    hit(await _wdDropdown(
-      'button[name="gender"], [data-automation-id="genderIdentityDropdown"] button', genderPat,
-    ));
-
-    // Race / ethnicity
-    const racePat = _racePattern(profile?.race_ethnicity) ?? /prefer.*not|decline|do\s*not\s*wish|not.*disclose/i;
-    hit(await _wdDropdown(
-      'button[name="ethnicity"], button[name="race"], [data-automation-id="ethnicityDropdown"] button',
-      racePat,
-    ));
-
-    // Veteran status
-    hit(await _wdDropdown(
-      'button[name="veteran"], button[name="militaryStatus"], [data-automation-id="veteranStatusDropdown"] button',
-      _veteranPattern(profile?.veteran_status),
-    ));
-
-    // Disability status
-    hit(await _wdDropdown(
-      'button[name="disability"], [data-automation-id="disabilityStatus"] button',
-      _disabilityPattern(profile?.disability_status),
-    ));
-
-    // Nationality (Walmart-style Voluntary Disclosures includes nationality)
-    if (profile?.nationality) {
-      hit(await _wdDropdown(
-        'button[name="nationality"], button[name="country"], [data-automation-id="nationalityDropdown"] button',
-        _countryPattern(profile.nationality),
-      ));
-    }
-    return result;
-  }
-
-  // ── Application Questions (Walmart & other tenants use this section name) ─
-  // Generic best-effort handler: scan visible fields, match by label, and fill
-  // from the user's profile. Yes/No radios get a sensible default (No for
-  // sponsorship-required style, Yes for "authorized to work").
-  if (/^application\s*questions/i.test(section)) {
-    const labels = [...document.querySelectorAll("label")];
-    for (const lbl of labels) {
-      const text = (lbl.textContent ?? "").trim();
-      if (!text) continue;
-      const lower = text.toLowerCase();
-
-      // Find the associated input/select/textarea via for= or nearby DOM
-      let target = null;
-      const forId = lbl.getAttribute("for");
-      if (forId) target = document.getElementById(forId);
-      if (!target) {
-        const container = lbl.closest('[data-automation-id], div');
-        target = container?.querySelector("input, select, textarea, button[aria-haspopup]");
-      }
-      if (!target) continue;
-
-      try {
-        // Authorized to work
-        if (/authoriz|legally\s*allow|right\s*to\s*work/i.test(lower)) {
-          await _wdRadioYesNo(target, true) || _angularFillInput(target, "Yes") && result.filled++;
-          continue;
-        }
-        // Sponsorship required
-        if (/sponsor/i.test(lower)) {
-          await _wdRadioYesNo(target, false) || _angularFillInput(target, "No") && result.filled++;
-          continue;
-        }
-        // Notice period
-        if (/notice\s*period/i.test(lower) && profile?.notice_period) {
-          _angularFillInput(target, profile.notice_period) && result.filled++;
-          continue;
-        }
-        // Current salary / expected salary
-        if (/current\s*(ctc|salary|compensation)/i.test(lower) && profile?.current_salary) {
-          _angularFillInput(target, String(profile.current_salary)) && result.filled++;
-          continue;
-        }
-        if (/expected\s*(ctc|salary|compensation)/i.test(lower) && profile?.expected_salary) {
-          _angularFillInput(target, String(profile.expected_salary)) && result.filled++;
-          continue;
-        }
-      } catch { /* keep going */ }
-    }
-    return result;
-  }
-
-  // ── Other sections ────────────────────────────────────────────────────────
+  // ── Other sections — out of scope for v1 ──────────────────────────────────
   result.skipped++;
-  result.errors.push(`Section "${section}" — no auto-fill defined`);
+  result.errors.push(`Section "${section}" is not auto-filled (only My Information and My Experience are supported).`);
   return result;
 }
 

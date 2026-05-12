@@ -2624,10 +2624,12 @@ async function renderWorkdayHelper(container, jobId, job, section) {
 
   function note(cls, msg) { return `<div class="${cls}">${msg}</div>`; }
 
+  // Scope = My Information + My Experience only. Everything else is read-only
+  // in the panel — user fills manually. Drops the autopilot loop entirely.
   const needsResume = section === "My Experience";
-  const canFill     = section !== "Review" && section !== "Application Questions";
+  const canFill     = section === "My Information" || section === "My Experience";
 
-  const fillLabel = needsResume ? "⬆ Auto-Upload Resume + Fill" : "⚡ Fill This Step";
+  const fillLabel = needsResume ? "⬆ Upload Resume + Fill" : "⚡ Fill This Step";
   const fillBtnHtml = canFill
     ? `<button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-wd-fill" style="margin-top:6px;">${fillLabel}</button>`
     : "";
@@ -2686,52 +2688,18 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       ${fillBtnHtml}
       <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-resume-open" style="margin-top:4px;">↗ Download Resume from NextRole</button>
     `;
-  } else if (section === "Application Questions") {
-    sectionContent = `
-      ${note("nr-ac-manual-note", "📋 Application questions are company-specific and vary per role")}
-      <div class="nr-ac-step-section">
-        <div class="nr-ac-step-section-title">Guidance</div>
-        <div class="nr-ac-field-list">
-          ${qaRow("Work auth", "Yes / Citizen", "Are you authorized to work?")}
-          ${qaRow("Sponsorship", "No", "Do you need sponsorship?")}
-          ${qaRow("Relocate", "Yes / Flexible", "Willing to relocate?")}
-        </div>
-      </div>
-      ${note("nr-ac-hint", "💡 Use copy buttons above for quick answers. Most other questions need manual answers.")}
-    `;
-  } else if (section === "Self Identify") {
-    sectionContent = `
-      ${note("nr-ac-readonly-note", "✓ All EEO fields auto-set to Prefer Not to Answer (or from profile)")}
-      <div class="nr-ac-step-section">
-        <div class="nr-ac-step-section-title">Will be auto-filled</div>
-        <div class="nr-ac-field-list">
-          ${qaRow("Gender",    p.gender ?? "Prefer not to say", "auto-selected")}
-          ${qaRow("Ethnicity", "Prefer not to disclose",        "auto-selected")}
-          ${qaRow("Veteran",   "Not a protected veteran",       "auto-selected")}
-          ${qaRow("Disability","No, I don't have a disability", "auto-selected")}
-        </div>
-      </div>
-      ${fillBtnHtml}
-    `;
-  } else if (section === "Review") {
-    sectionContent = `
-      ${note("nr-ac-readonly-note", "✅ Review all your details before submitting")}
-      <div class="nr-ac-step-section">
-        <div class="nr-ac-step-section-title">Checklist</div>
-        <div class="nr-ac-field-list">
-          ${qaRow("Name & contact", "Verify", "Check all details are correct")}
-          ${qaRow("Resume",         "Verify", "Correct resume uploaded")}
-          ${qaRow("Questions",      "Verify", "All questions answered")}
-          ${qaRow("EEO fields",     "Verify", "Self-identify filled")}
-        </div>
-      </div>
-      ${note("nr-ac-manual-note", "⚠ Submit button is NOT auto-clicked — review first, then submit yourself.")}
-    `;
   } else {
+    // Self Identify, Voluntary Disclosures, Application Questions, Review, etc.
+    // are out of scope — user fills these manually.
     sectionContent = `
-      <div class="nr-ac-empty">
-        Workday form detected — section unknown.<br>
-        <span style="font-size:11.5px;">Navigate to the application section, then click <strong>Re-scan</strong>.</span>
+      <div class="nr-ac-empty" style="padding:14px;line-height:1.55;">
+        <div style="font-weight:600;margin-bottom:4px;">Section "${esc(section ?? "unknown")}" — fill manually</div>
+        <div style="font-size:11.5px;color:#6b7280;">
+          NextRole auto-fills <strong>My Information</strong> and <strong>My Experience</strong>.
+          For other sections (Voluntary Disclosures, Application Questions, Review)
+          please complete the fields yourself, then click <strong>Re-scan</strong> after
+          moving to the next supported section.
+        </div>
       </div>
     `;
   }
@@ -2757,10 +2725,6 @@ async function renderWorkdayHelper(container, jobId, job, section) {
       tailorUsesToday: evalCtx.tailorUsesToday,
     })}
     <div id="nr-ac-wd-fill-result" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;"></div>
-    <button class="nr-ac-btn nr-ac-primary nr-ac-full" id="nr-ac-wd-autopilot" style="margin-top:8px;background:linear-gradient(90deg,#0057b8 0%,#3b82f6 100%);">
-      🚀 Auto-fill ALL sections (stops at Review)
-    </button>
-    <div id="nr-ac-wd-autopilot-status" style="display:none;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#f0f4ff;border:1px solid #c7d2fe;color:#3730a3;line-height:1.5;max-height:240px;overflow-y:auto;"></div>
     <button class="nr-ac-btn nr-ac-secondary nr-ac-full" id="nr-ac-wd-rescan" style="margin-top:6px;">↻ Re-scan (moved to next section)</button>
   `;
   wireEvalPicker(container, evalCtx.state);
@@ -2850,46 +2814,6 @@ async function renderWorkdayHelper(container, jobId, job, section) {
     const tabBody = container.closest(".nr-ac-tab-body") ?? container;
     renderFillTab(tabBody, jobId, job);
   });
-
-  // ── Autopilot: fill every section, click Save and Continue between, stop at Review
-  const autopilotBtn = container.querySelector("#nr-ac-wd-autopilot");
-  const autopilotStatus = container.querySelector("#nr-ac-wd-autopilot-status");
-  if (autopilotBtn && autopilotStatus) {
-    autopilotBtn.addEventListener("click", async () => {
-      autopilotBtn.disabled = true;
-      autopilotBtn.textContent = "🚀 Running…";
-      autopilotStatus.style.display = "block";
-      autopilotStatus.textContent = "Starting…";
-
-      const stepLog = [];
-      const result = await runWorkdayAutopilot({
-        jobId, job,
-        statusEl: autopilotStatus,
-        onStepResult: (step, sec, r) => {
-          stepLog.push(`${step}. ${sec} → ${r.filled} filled, ${r.skipped} skipped`);
-        },
-      });
-
-      // Final summary
-      const ok = result.allErrors.length === 0;
-      const summaryHtml = `
-        <div style="font-size:11px;line-height:1.6;margin-top:6px;">
-          <strong>Run summary</strong><br>
-          ${stepLog.map((l) => `&nbsp;&nbsp;• ${esc(l)}`).join("<br>")}
-          ${result.allErrors.length > 0
-            ? `<br><strong style="color:#991b1b;">Issues:</strong><br>${result.allErrors.slice(0, 5).map((e) => `&nbsp;&nbsp;• ${esc(e)}`).join("<br>")}`
-            : ""}
-        </div>`;
-
-      const existing = autopilotStatus.innerHTML;
-      autopilotStatus.innerHTML = existing + summaryHtml;
-
-      autopilotBtn.disabled = false;
-      autopilotBtn.textContent = ok
-        ? "🚀 Auto-fill ALL sections (stops at Review)"
-        : "🔁 Run again";
-    });
-  }
 }
 
 // ─── Accenture fill dispatcher ────────────────────────────────────────────────
