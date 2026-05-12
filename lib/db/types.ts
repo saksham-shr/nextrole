@@ -909,6 +909,35 @@ export type Database = {
         };
         Relationships: [];
       };
+      extension_feedback: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          url: string;
+          page_title: string | null;
+          action: "not_a_job" | "confirmed";
+          source: string | null;
+          confidence: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string | null;
+          url: string;
+          page_title?: string | null;
+          action: "not_a_job" | "confirmed";
+          source?: string | null;
+          confidence?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          page_title?: string | null;
+          action?: "not_a_job" | "confirmed";
+          source?: string | null;
+          confidence?: string | null;
+        };
+        Relationships: [];
+      };
       extension_tokens: {
         Row: {
           id: string;
