@@ -300,21 +300,42 @@ async function handlePipeline() {
 
 // Save & Apply: save the JD to pipeline AND set an apply-intent flag in session
 // storage. The next time the user lands on a real apply form page, the
-// floating apply card auto-opens with this job as the context.
+// floating apply card auto-opens with this job as the context. If the current
+// tab is ALREADY an apply form (Greenhouse-style single-page), open the card
+// immediately so the user doesn't have to navigate or reload.
 async function handleSaveAndApply() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
     const jobId = await saveJob("Saving & preparing apply flow…");
-    chrome.storage.session.set({
-      nr_apply_intent: {
-        jobId:          jobId ?? null,
-        jobTitle:       currentJob?.title       ?? "",
-        company:        currentJob?.company     ?? "",
-        jobDescription: currentJob?.description ?? "",
-        sourceUrl:      currentJob?.url ?? "",
-        savedAt:        Date.now(),
-      },
-    });
+
+    const intent = {
+      jobId:          jobId ?? null,
+      jobTitle:       currentJob?.title       ?? "",
+      company:        currentJob?.company     ?? "",
+      jobDescription: currentJob?.description ?? "",
+      sourceUrl:      currentJob?.url ?? "",
+      savedAt:        Date.now(),
+    };
+
+    await new Promise((r) => chrome.storage.session.set({ nr_apply_intent: intent }, r));
+
+    // If the current tab has the apply form on the same page, tell the content
+    // script to open the floating card right now.
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (tab?.id) {
+        chrome.tabs.sendMessage(tab.id, {
+          type: "OPEN_APPLY_CARD",
+          payload: {
+            jobId,
+            jobTitle:       intent.jobTitle,
+            company:        intent.company,
+            jobDescription: intent.jobDescription,
+          },
+        }, () => { /* ignore lastError — tab may not have content script */ });
+      }
+    } catch { /* tabs API may not be available; intent flag is enough */ }
+
     successName.textContent = `${currentJob.title} at ${currentJob.company}`;
     show("success");
   } catch (err) {

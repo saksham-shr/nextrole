@@ -2188,6 +2188,22 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.type === "GET_JOB") {
     sendResponse({ job: extractJob() });
   }
+  // Popup → content: open the floating apply card right now (Save & Apply flow).
+  // Used when the current tab is already an apply-form page so the user doesn't
+  // need to reload or navigate elsewhere to trigger the card.
+  if (msg.type === "OPEN_APPLY_CARD") {
+    const p = msg.payload ?? {};
+    document.dispatchEvent(new CustomEvent("nr:open-apply-card", {
+      detail: {
+        jobId:          p.jobId          ?? null,
+        jobTitle:       p.jobTitle       ?? "",
+        company:        p.company        ?? "",
+        jobDescription: p.jobDescription ?? "",
+        mode:           "fill",
+      },
+    }));
+    sendResponse({ ok: true });
+  }
   return true;
 });
 
