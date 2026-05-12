@@ -861,19 +861,50 @@ async function loadConfirmScreen(jobId, ctxHint = null) {
 
   inner.innerHTML = `
     <div class="nr-ac-body">
-      <div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Loading your pipeline…</div>
+      <div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Loading…</div>
     </div>`;
 
   const artifacts = await fetchArtifacts(jobId);
 
   if (artifacts) {
     const { recent_jobs = [], job = null, evaluation = null, resume = null } = artifacts;
-    // If the DB returned no job (jobId was null) but the cross-site context has job data
-    // (e.g. user came from Naukri without saving first), use that as the "detected" job.
-    const resolvedJob = job ?? (ctxHint?.jobTitle
-      ? { title: ctxHint.jobTitle, company: ctxHint.company ?? "", description: ctxHint.jobDescription ?? "" }
-      : null);
-    renderConfirmScreen(jobId, resolvedJob, recent_jobs, evaluation, resume, ctxHint);
+
+    // Skip the confirm picker — the toolbar popup already exposes "Add to
+    // Pipeline" for unsaved jobs. Open the tabbed card directly with the best
+    // job context we have.
+
+    // 1. Explicit jobId → use the DB row.
+    if (jobId && job) {
+      renderTabbedCard(jobId, job, evaluation, resume);
+      return;
+    }
+
+    // 2. No jobId but the current page URL matches a recent pipeline job →
+    // link to that pipeline entry automatically.
+    const pageUrl = (location.href || "").split("?")[0].replace(/\/$/, "");
+    const urlMatch = (recent_jobs ?? []).find((j) => {
+      const u = (j.url || "").split("?")[0].replace(/\/$/, "");
+      return u && (u === pageUrl || pageUrl.startsWith(u) || u.startsWith(pageUrl));
+    });
+    if (urlMatch) {
+      const fresh = await fetchArtifacts(urlMatch.id);
+      renderTabbedCard(urlMatch.id, fresh?.job ?? urlMatch, fresh?.evaluation ?? null, fresh?.resume ?? null);
+      return;
+    }
+
+    // 3. Cross-site ctx supplied a detected job → open in orphan mode using it.
+    if (ctxHint?.jobTitle) {
+      renderTabbedCard(null, {
+        title:       ctxHint.jobTitle,
+        company:     ctxHint.company ?? "",
+        description: ctxHint.jobDescription ?? "",
+        url:         location.href,
+      }, null, null);
+      return;
+    }
+
+    // 4. Nothing — open in fully anonymous mode so user can still autofill.
+    renderTabbedCard(null, null, null, null);
     return;
   }
 
