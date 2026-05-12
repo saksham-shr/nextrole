@@ -1732,6 +1732,143 @@ function renderTabbedCard(jobId, job, initialEvaluation, initialResume, { initia
 //   requestFill(resumeData, coverLetterData, tailorData) → { filled, skipped, errors }
 //   freeformFields?,            // for the tailor toggle hint
 // }
+// ─── Resume block helpers (shared by uniform shell + legacy scan-fill) ───────
+//
+// HTML and wiring for the "Resume for this application" card that auto-detects
+// what resume to upload (tailored for this job → saved one → profile default →
+// nothing) and lets the user generate or pick a saved one.
+
+function buildResumeBlockHtml(opts = {}) {
+  const id = opts.idPrefix ?? "nr-rb";
+  return `
+    <div class="nr-ac-card" id="${id}-card">
+      <div class="nr-ac-card-header">
+        <span class="nr-ac-section-label">Resume for this application</span>
+        <span id="${id}-cov"></span>
+      </div>
+      <div id="${id}-status" class="nr-ac-status-line">
+        <span class="nr-ac-status-dot"></span>
+        <span>Checking…</span>
+      </div>
+      <div id="${id}-saved-row" style="display:none;margin-top:10px;gap:6px;">
+        <select class="nr-ac-dd nr-sm" id="${id}-saved-select" style="flex:1.5;">
+          <option value="">— pick a previously generated resume —</option>
+        </select>
+        <button type="button" class="nr-ac-btn nr-ac-outline nr-sm" id="${id}-saved-use">Use</button>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:10px;">
+        ${NR.btn({ variant: "dark", size: "sm", full: true, id: `${id}-gen`, icon: NR.icon.spark, label: "Generate tailored resume" })}
+        ${NR.btn({ variant: "ghost", size: "sm", id: `${id}-open-profile`, label: "Profile", icon: NR.icon.external })}
+      </div>
+    </div>
+  `;
+}
+
+async function wireResumeBlock(container, jobId, opts = {}) {
+  const id = opts.idPrefix ?? "nr-rb";
+  const $  = (sub) => container.querySelector(`#${id}-${sub}`);
+
+  const resumeStatusEl = $("status");
+  const resumeCovEl    = $("cov");
+  const savedRow       = $("saved-row");
+  const savedSelect    = $("saved-select");
+  const useSavedBtn    = $("saved-use");
+  const genResumeBtn   = $("gen");
+  const openProfileBtn = $("open-profile");
+
+  function setResumeStatus(html, tone = "info") {
+    if (!resumeStatusEl) return;
+    resumeStatusEl.className = `nr-ac-status-line ${tone === "info" ? "" : tone}`;
+    resumeStatusEl.innerHTML = `<span class="nr-ac-status-dot"></span><span>${html}</span>`;
+  }
+  function fmtResumeLabel(r) {
+    const t = r.job_title || r.title || "Untitled";
+    const c = r.company ? ` — ${r.company}` : "";
+    const cov = typeof r.coverage === "number" ? ` (${r.coverage}%)` : "";
+    return `${t}${c}${cov}`;
+  }
+
+  const arts = await fetchArtifacts(jobId ?? null);
+  const savedList = arts?.recent_resumes ?? [];
+
+  if (savedSelect && savedList.length > 0) {
+    savedList.filter((r) => r.job_id).forEach((r) => {
+      const opt = document.createElement("option");
+      opt.value = r.job_id;
+      opt.textContent = fmtResumeLabel(r);
+      savedSelect.appendChild(opt);
+    });
+    if (savedRow) savedRow.style.display = "flex";
+  }
+
+  if (_resumeJobOverride) {
+    const match = savedList.find((r) => r.job_id === _resumeJobOverride);
+    const label = match ? fmtResumeLabel(match) : "previously saved resume";
+    setResumeStatus(`Will upload your selected resume: <b>${esc(label)}</b>.`, "ready");
+    if (savedSelect) savedSelect.value = _resumeJobOverride;
+  } else if (jobId && arts?.resume) {
+    setResumeStatus(`Tailored resume ready — will be uploaded.`, "ready");
+    if (genResumeBtn) {
+      const txt = genResumeBtn.querySelector("span");
+      if (txt) txt.textContent = "Re-generate";
+    }
+    if (resumeCovEl && typeof arts.resume.coverage === "number") {
+      resumeCovEl.innerHTML = NR.pill({ tone: "apply", size: "sm", label: `Coverage ${arts.resume.coverage}%` });
+    }
+  } else {
+    const profRes = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
+    if (profRes?.ok && profRes.data) {
+      setResumeStatus(
+        `Will use your default resume: <b>${esc(profRes.filename ?? "resume")}</b>. Generate a tailored version or pick a saved one for stronger match.`,
+        "info",
+      );
+    } else {
+      setResumeStatus(
+        "No resume available. Generate a tailored one, pick a saved resume, or upload one to your profile.",
+        "warn",
+      );
+    }
+  }
+
+  genResumeBtn?.addEventListener("click", async () => {
+    if (!jobId) {
+      setResumeStatus("Save this job to your pipeline first (use the toolbar popup).", "warn");
+      return;
+    }
+    genResumeBtn.disabled = true;
+    const labelEl = genResumeBtn.querySelector("span");
+    const originalLabel = labelEl?.textContent;
+    if (labelEl) labelEl.textContent = "Generating…";
+    setResumeStatus("Tailoring your resume to this job — usually 20-40 seconds.", "info");
+    const res = await swMsg({ type: "TAILOR_RESUME", payload: { job_id: jobId } });
+    if (!res?.ok) {
+      setResumeStatus(`Generation failed: ${esc(res?.error ?? "try again")}`, "error");
+      genResumeBtn.disabled = false;
+      if (labelEl) labelEl.textContent = originalLabel ?? "Generate tailored resume";
+      return;
+    }
+    setResumeStatus("Tailored resume generated — will be uploaded on Fill.", "ready");
+    genResumeBtn.disabled = false;
+    if (labelEl) labelEl.textContent = "Re-generate";
+  });
+
+  useSavedBtn?.addEventListener("click", () => {
+    const pickedJobId = savedSelect?.value;
+    if (!pickedJobId) {
+      setResumeStatus("Pick a resume from the list first.", "warn");
+      return;
+    }
+    _resumeJobOverride = pickedJobId;
+    const opt = savedSelect.options[savedSelect.selectedIndex];
+    const label = opt ? opt.textContent : "saved resume";
+    setResumeStatus(`Will upload your selected resume: <b>${esc(label)}</b>.`, "ready");
+  });
+
+  openProfileBtn?.addEventListener("click", () => {
+    chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/profile` });
+  });
+}
+
 // Row builders used by per-ATS helpers — each returns an array shaped for NR.rowList.
 
 function _fullName(p) {
@@ -2398,12 +2535,16 @@ async function renderFillTab(container, jobId, job) {
         · Edit before applying
       </div>
       <div class="nr-ac-field-list">${directHtml}${selectHtml}${aiHtml}</div>
+      ${buildResumeBlockHtml({ idPrefix: "nr-gf-rb" })}
       <div class="nr-ac-row">
-        <button class="nr-ac-btn nr-ac-secondary" id="nr-ac-rescan" style="flex:0 0 auto;padding:9px 12px;">Re-scan</button>
+        <button class="nr-ac-btn nr-ac-outline" id="nr-ac-rescan" style="flex:0 0 auto;padding:9px 12px;">Re-scan</button>
         <button class="nr-ac-btn nr-ac-primary" id="nr-ac-write" style="flex:1;">Apply to Form</button>
       </div>
       <div class="nr-ac-status" id="nr-ac-fill-status"></div>
     `;
+
+    // Mount the resume block (auto-detects state, wires Generate / picker / Profile)
+    wireResumeBlock(container, jobId, { idPrefix: "nr-gf-rb" });
 
     // Sync edits back to _fieldVals
     container.querySelectorAll(".nr-ac-finput").forEach((inp) => {
@@ -2453,7 +2594,7 @@ async function renderFillTab(container, jobId, job) {
     });
 
     // Apply to Form
-    container.querySelector("#nr-ac-write")?.addEventListener("click", () => {
+    container.querySelector("#nr-ac-write")?.addEventListener("click", async () => {
       // Collect edited values
       container.querySelectorAll(".nr-ac-finput").forEach((inp) => {
         _fieldVals[inp.dataset.fid] = inp.value;
@@ -2472,14 +2613,32 @@ async function renderFillTab(container, jobId, job) {
       const status   = container.querySelector("#nr-ac-fill-status");
       if (writeBtn) { writeBtn.disabled = true; writeBtn.textContent = "Filling…"; }
 
+      // 1. Fetch resume + cover letter blobs in parallel with the write
+      if (writeBtn) writeBtn.textContent = "Fetching resume…";
+      const [resumeData, coverLetterData] = await Promise.all([
+        fetchResumeBlob(jobId),
+        fetchCoverLetterBlob(),
+      ]);
+
+      // 2. Kick off the file upload (fire-and-forget — auto-fill.js handles it
+      //    by finding a file input on the page)
+      if (resumeData) {
+        document.dispatchEvent(new CustomEvent("nr:upload-resume", {
+          detail: { resumeData, coverLetterData },
+        }));
+      }
+
+      // 3. Write the text fields
+      if (writeBtn) writeBtn.textContent = "Filling fields…";
       let done = false;
       const doneHandler = (e) => {
         if (done) return;
         done = true;
         document.removeEventListener("nr:write-done", doneHandler);
         const written = e.detail?.written ?? 0;
-        if (status) status.textContent = `${written} field${written !== 1 ? "s" : ""} filled`;
-        if (writeBtn) { writeBtn.disabled = false; writeBtn.textContent = "Apply to Form"; }
+        const resumeMsg = resumeData ? " · resume uploaded" : "";
+        if (status) status.textContent = `${written} field${written !== 1 ? "s" : ""} filled${resumeMsg}`;
+        if (writeBtn) { writeBtn.disabled = false; writeBtn.textContent = "Apply Again"; }
       };
       document.addEventListener("nr:write-done", doneHandler);
       document.dispatchEvent(new CustomEvent("nr:write", { detail: { values } }));

@@ -2370,6 +2370,64 @@ function _blobFromData(data) {
   return blob;
 }
 
+// ─── Generic resume/cover-letter upload handler ───────────────────────────────
+// Used by the legacy scan-fill flow + any future generic fillers.
+// Finds the most likely file input on the page (resume preferred over cover
+// letter) and injects the blob via the native DataTransfer trick.
+
+function _findFileInput(kind /* "resume" | "cover" */) {
+  const all = [...document.querySelectorAll('input[type="file"]:not([disabled])')];
+  if (all.length === 0) return null;
+
+  const wantRegex = kind === "cover"
+    ? /cover|letter/i
+    : /resume|cv|cover|letter/i;
+  const avoidRegex = kind === "resume" ? /cover|letter/i : null;
+
+  // Score each input by how strongly its context matches.
+  function scoreInput(el) {
+    const ctx = [
+      el.id, el.name, el.accept,
+      el.getAttribute("aria-label") ?? "",
+      el.getAttribute("aria-labelledby") ?? "",
+      el.closest("[id]")?.id ?? "",
+      el.closest("label")?.textContent ?? "",
+      el.closest("[role='group']")?.getAttribute("aria-labelledby") ?? "",
+      el.previousElementSibling?.textContent ?? "",
+      el.parentElement?.textContent ?? "",
+    ].join(" ").toLowerCase().slice(0, 200);
+
+    if (kind === "resume" && avoidRegex.test(ctx) && !/resume|cv/.test(ctx)) return -1;
+    if (/resume|cv\b/i.test(ctx)) return 10;
+    if (kind === "cover" && /cover|letter/i.test(ctx)) return 10;
+    if (/upload/.test(ctx)) return 3;
+    if ((el.accept || "").includes(".pdf")) return 5;
+    return 1;
+  }
+  const ranked = all
+    .map((el) => ({ el, score: scoreInput(el) }))
+    .filter((x) => x.score >= 0)
+    .sort((a, b) => b.score - a.score);
+  return ranked[0]?.el ?? all[0];
+}
+
+document.addEventListener("nr:upload-resume", (e) => {
+  const { resumeData, coverLetterData } = e.detail ?? {};
+  const resumeBlob = _blobFromData(resumeData);
+  const coverBlob  = _blobFromData(coverLetterData);
+
+  let uploaded = 0;
+  if (resumeBlob) {
+    const resumeInput = _findFileInput("resume");
+    if (resumeInput && _injectFile(resumeInput, resumeBlob, resumeBlob.filename ?? "resume.pdf")) uploaded++;
+  }
+  if (coverBlob) {
+    const coverInput = _findFileInput("cover");
+    if (coverInput && _injectFile(coverInput, coverBlob, coverBlob.filename ?? "cover_letter.pdf")) uploaded++;
+  }
+  document.dispatchEvent(new CustomEvent("nr:upload-resume-done", { detail: { uploaded } }));
+});
+
 // ─── Tailor injection helpers ────────────────────────────────────────────────
 //
 // `tailorData` from the apply-card.js carries:
