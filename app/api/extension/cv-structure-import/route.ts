@@ -29,6 +29,10 @@ Return ONLY valid JSON — no markdown, no prose, no code fences.
 
 Use this exact structure:
 {
+  "contact": {
+    "full_name": "...", "phone": "...", "linkedin_url": "...", "github_url": "...",
+    "portfolio_url": "...", "city": "...", "country": "..."
+  },
   "work_experience": [
     { "role": "...", "company": "...", "start": "MM/YYYY or YYYY", "end": "MM/YYYY or YYYY or Present",
       "current": true|false, "location": "...", "description": "one-sentence summary",
@@ -44,7 +48,8 @@ Use this exact structure:
   "projects": [
     { "title": "...", "description": "...", "tech": ["..."], "url": "..." }
   ],
-  "skills": ["..."]
+  "skills": ["..."],
+  "languages": ["..."]
 }
 
 Rules:
@@ -93,6 +98,18 @@ export async function POST() {
     const certifications  = (Array.isArray(parsed.certifications)  ? parsed.certifications  : []) as CertificationEntry[];
     const projects        = (Array.isArray(parsed.projects)        ? parsed.projects        : []) as ProjectEntry[];
     const skills          = (Array.isArray(parsed.skills) ? parsed.skills.filter((s: unknown) => typeof s === "string") : []) as string[];
+    const languages       = (Array.isArray(parsed.languages) ? parsed.languages.filter((l: unknown) => typeof l === "string") : []) as string[];
+    const contact         = (parsed.contact && typeof parsed.contact === "object" ? parsed.contact : {}) as Record<string, string | undefined>;
+
+    // Load current profile so we only overwrite contact fields that are blank
+    const { data: current } = await supabase
+      .from("profiles")
+      .select("full_name, phone, linkedin_url, github_url, portfolio_url, city, country, languages")
+      .eq("id", user.id)
+      .single();
+    const c = (current ?? {}) as Record<string, unknown>;
+    const fillIfEmpty = (existing: unknown, parsedVal: string | undefined) =>
+      (existing && String(existing).trim()) ? (existing as string) : (parsedVal?.trim() || null);
 
     const patch: ProfileUpdate = {
       work_experience,
@@ -100,6 +117,19 @@ export async function POST() {
       certifications,
       projects,
       skills,
+      // languages column is text[] in DB — merge: keep existing, add new
+      languages: (() => {
+        const existing = (c.languages as string[] | null) ?? [];
+        const merged = [...new Set([...existing, ...languages])];
+        return merged.length ? merged : existing;
+      })(),
+      full_name:     fillIfEmpty(c.full_name,     contact.full_name)     ?? undefined,
+      phone:         fillIfEmpty(c.phone,         contact.phone),
+      linkedin_url:  fillIfEmpty(c.linkedin_url,  contact.linkedin_url),
+      github_url:    fillIfEmpty(c.github_url,    contact.github_url),
+      portfolio_url: fillIfEmpty(c.portfolio_url, contact.portfolio_url),
+      city:          fillIfEmpty(c.city,          contact.city),
+      country:       fillIfEmpty(c.country,       contact.country),
       updated_at: new Date().toISOString(),
     };
 
@@ -112,6 +142,14 @@ export async function POST() {
 
     return NextResponse.json({
       work_experience, education, certifications, projects, skills,
+      languages: patch.languages ?? languages,
+      full_name:     patch.full_name,
+      phone:         patch.phone,
+      linkedin_url:  patch.linkedin_url,
+      github_url:    patch.github_url,
+      portfolio_url: patch.portfolio_url,
+      city:          patch.city,
+      country:       patch.country,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

@@ -131,6 +131,9 @@ export type ProfileRow = {
   race_ethnicity: string | null;
   veteran_status: string | null;
   disability_status: string | null;
+  dob: string | null;
+  work_authorization: string | null;
+  expected_salary: number | null;
   work_experience: WorkExperienceEntry[] | null;
   education: EducationEntry[] | null;
   certifications: CertificationEntry[] | null;
@@ -402,6 +405,9 @@ export type Database = {
           race_ethnicity?: string | null;
           veteran_status?: string | null;
           disability_status?: string | null;
+          dob?: string | null;
+          work_authorization?: string | null;
+          expected_salary?: number | null;
           work_experience?: WorkExperienceEntry[] | null;
           education?: EducationEntry[] | null;
           certifications?: CertificationEntry[] | null;
@@ -458,6 +464,9 @@ export type Database = {
           race_ethnicity?: string | null;
           veteran_status?: string | null;
           disability_status?: string | null;
+          dob?: string | null;
+          work_authorization?: string | null;
+          expected_salary?: number | null;
           work_experience?: WorkExperienceEntry[] | null;
           education?: EducationEntry[] | null;
           certifications?: CertificationEntry[] | null;
@@ -1013,6 +1022,7 @@ export type Database = {
           evaluations: number;
           resumes: number;
           autofills: number;
+          autofill_credits_used: number;
           tailor_sessions: number;
           created_at: string;
           updated_at: string;
@@ -1023,6 +1033,7 @@ export type Database = {
           evaluations?: number;
           resumes?: number;
           autofills?: number;
+          autofill_credits_used?: number;
           tailor_sessions?: number;
           created_at?: string;
           updated_at?: string;
@@ -1031,6 +1042,7 @@ export type Database = {
           evaluations: number;
           resumes: number;
           autofills: number;
+          autofill_credits_used: number;
           tailor_sessions: number;
           updated_at: string;
         }>;

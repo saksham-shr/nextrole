@@ -65,7 +65,8 @@ export async function GET(req: NextRequest) {
       "country", "city", "state_province", "zip_postal", "street_address",
       "notice_period", "willing_to_relocate", "sponsorship_needed", "nationality",
       "gender", "pronouns", "race_ethnicity", "veteran_status", "disability_status",
-      "work_experience", "education", "certifications", "skills",
+      "work_experience", "education", "certifications", "projects", "skills",
+      "dob", "work_authorization", "expected_salary",
     ].join(", "))
     .eq("id", userId)
     .single();
@@ -163,7 +164,10 @@ export async function GET(req: NextRequest) {
     work_experience: (p.work_experience as unknown[] | null) ?? [],
     education:       (p.education as unknown[] | null)       ?? [],
     certifications:  (p.certifications as unknown[] | null)  ?? [],
-    projects:        [],
+    projects:        (p.projects as unknown[] | null) ?? [],
+    dob:             (p.dob as string | null) ?? null,
+    work_authorization: (p.work_authorization as string | null) ?? null,
+    expected_salary: (p.expected_salary as number | null) ?? null,
     skills:          (p.skills as string[] | null)           ?? [],
 
     // Tier gating

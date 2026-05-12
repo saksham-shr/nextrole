@@ -26,7 +26,7 @@ const TOP_NAV = [
   { id: "pipeline", label: "Pipeline", href: "/dashboard/pipeline" },
   { id: "evaluate", label: "Evaluate", href: "/dashboard/evaluate" },
   { id: "resume",   label: "Resume",   href: "/dashboard/resumes" },
-  { id: "profile",  label: "Profile",  href: "/dashboard/profile" },
+  { id: "profile",  label: "Application Profile",  href: "/dashboard/profile" },
   { id: "settings", label: "Settings", href: "/dashboard/settings" },
 ] as const;
 

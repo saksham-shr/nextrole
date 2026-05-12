@@ -1369,19 +1369,42 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
     finally { setImporting(false); }
   }
 
+  const hasCvText  = !!profile.base_cv?.trim();
+  const importCardVisible = completion.percent < 60;
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
       <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold">Your profile</h1>
+          <h1 className="text-[22px] font-semibold">Application Profile</h1>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
             One profile. Every job site. Fill any application in one click.
           </p>
         </div>
-        <GhostBtn onClick={importFromCv} disabled={importing}>
-          {importing ? "Importing…" : "📥 Import from CV"}
+        <GhostBtn onClick={importFromCv} disabled={importing || !hasCvText}>
+          {importing ? "Importing…" : "📥 Re-import from CV"}
         </GhostBtn>
       </header>
+
+      {importCardVisible && (
+        <div className="mb-6 rounded-xl border border-[var(--accent)] bg-[var(--accent)]/[0.06] p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-[15px] font-semibold">
+                📄 Quick start: import from your CV
+              </div>
+              <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+                {hasCvText
+                  ? "We'll parse the CV you pasted during onboarding and pre-fill every section below. You can edit anything afterward."
+                  : "Paste your CV text into the 'Profile summary' section below, then come back here to auto-fill the rest."}
+              </p>
+            </div>
+            <PrimaryBtn onClick={importFromCv} disabled={importing || !hasCvText}>
+              {importing ? "Parsing…" : "Parse & fill profile"}
+            </PrimaryBtn>
+          </div>
+        </div>
+      )}
 
       <div className="flex gap-8">
         <ProfileSidebar profile={profile} completion={completion} />
