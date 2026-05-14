@@ -1,4 +1,4 @@
-import { redirect, isRedirectError } from "next/navigation";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -76,7 +76,12 @@ export default async function DashboardLayout({ children }: { children: ReactNod
         }
       }
     } catch (e) {
-      if (isRedirectError(e)) throw e;
+      // Re-throw Next.js redirect errors so redirect() inside the try actually fires.
+      if (typeof e === "object" && e !== null && "digest" in e &&
+          typeof (e as { digest: unknown }).digest === "string" &&
+          (e as { digest: string }).digest.startsWith("NEXT_REDIRECT")) {
+        throw e;
+      }
       // Admin client not configured (dev) — skip gate.
     }
   }
