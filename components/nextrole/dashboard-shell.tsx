@@ -26,7 +26,6 @@ const TOP_NAV = [
   { id: "pipeline", label: "Pipeline", href: "/dashboard/pipeline" },
   { id: "evaluate", label: "Evaluate", href: "/dashboard/evaluate" },
   { id: "resume",   label: "Resume",   href: "/dashboard/resumes" },
-  { id: "profile",  label: "Application Profile",  href: "/dashboard/profile" },
   { id: "settings", label: "Settings", href: "/dashboard/settings" },
 ] as const;
 
@@ -37,11 +36,11 @@ function getActiveNav(pathname: string): NavId {
   if (pathname.startsWith("/dashboard/pipeline")) return "pipeline";
   if (pathname.startsWith("/dashboard/evaluate")) return "evaluate";
   if (pathname.startsWith("/dashboard/resumes")) return "resume";
-  if (pathname.startsWith("/dashboard/profile")) return "profile";
   if (
     pathname.startsWith("/dashboard/settings") ||
     pathname.startsWith("/dashboard/billing") ||
-    pathname.startsWith("/dashboard/admin")
+    pathname.startsWith("/dashboard/admin") ||
+    pathname.startsWith("/dashboard/profile")
   ) return "settings";
   return "home";
 }
@@ -310,6 +309,24 @@ export function DashboardShell({
                   )}
 
                   <div className="px-1 pt-1">
+                    <Link
+                      href="/dashboard/profile"
+                      onClick={() => setUserMenuOpen(false)}
+                      className="flex items-center gap-2 rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                      My Profile
+                    </Link>
+                    {isAdmin && (
+                      <Link
+                        href="/dashboard/admin"
+                        onClick={() => setUserMenuOpen(false)}
+                        className="flex items-center gap-2 rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                        Admin panel
+                      </Link>
+                    )}
                     <Link
                       href="/dashboard/billing"
                       onClick={() => setUserMenuOpen(false)}

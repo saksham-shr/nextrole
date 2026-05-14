@@ -89,7 +89,7 @@ export default async function DashboardPage() {
 
   const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
   const tier = isAdmin ? "pro" : ((profile?.tier as "free" | "starter" | "pro") ?? "free");
-  const creditsRemaining = isAdmin ? 300 : (profile?.credits_remaining ?? 0);
+  const creditsRemaining = profile?.credits_remaining ?? 0;
 
   return (
     <DashboardHome

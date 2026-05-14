@@ -26,6 +26,7 @@ const AF_ATS = [
   /myworkdayjobs\.com/,
   /smartrecruiters\.com/,
   /apply\.workable\.com/,
+  /\.keka\.com\/careers\/applyjob\//,
   /linkedin\.com\/jobs\/easy-apply/,
   /icims\.com/,
   /bamboohr\.com\/careers/,
@@ -633,10 +634,12 @@ function markFieldTypesFilled(fieldTypes) {
 // ─── Job context (for passing to AI suggestion calls) ─────────────────────────
 
 async function getPageJobContext() {
-  // 1. Cross-site context set by content.js when user clicks "Save & Apply"
+  // 1. Per-tab application session set by the popup / apply click handoff.
   try {
     const session = await new Promise((resolve) => {
-      chrome.storage.session.get("nr_cross_site_job", (d) => resolve(d.nr_cross_site_job ?? null));
+      chrome.runtime.sendMessage({ type: "GET_APPLICATION_SESSION" }, (res) => {
+        resolve(res?.session ?? null);
+      });
     });
     if (session && session.jobTitle && (Date.now() - (session.savedAt ?? 0)) < 60 * 60 * 1000) {
       const descEl = document.querySelector(".job-description, #job-description, [class*='jobDescription'], article, main");
@@ -1461,7 +1464,6 @@ async function _wdTypeaheadAdd(wrap, value, debugTag = "typeahead") {
     if (target) break;
   }
   if (!target) {
-    console.log("[NextRole][" + debugTag + "] no option matched for:", value);
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     return false;
   }
@@ -1575,17 +1577,10 @@ async function _wdAddSkills(skills) {
             '[data-automation-id*="menu"], [data-automation-id*="list"], ' +
             '[role="listbox"], [class*="popper"], [data-uxi-widget-type*="prompt"]',
           );
-          console.log("[NextRole][skills] DIAGNOSTIC — no options after 800ms");
-          console.log("  Total popup-ish elements:", popups.length);
+          void popups;
           popups.forEach((p, j) => {
             if (j > 6) return;
-            console.log(`  [${j}]`, p.tagName,
-              "automation-id=" + (p.getAttribute("data-automation-id") ?? "—"),
-              "role=" + (p.getAttribute("role") ?? "—"),
-              "class=" + (p.className ?? "").slice(0, 60),
-              "children=" + p.children.length,
-              "text=" + (p.textContent ?? "").trim().slice(0, 60),
-            );
+            void p;
           });
         }
         continue;
@@ -1633,13 +1628,10 @@ async function _wdAddSkills(skills) {
   await new Promise((r) => setTimeout(r, 100));
 
   const have = alreadyAddedSet();
-  const log = (...args) => console.log("[NextRole][skills]", ...args);
-  log("starting; profile skills:", skills.length, "already on form:", have.size);
-
   for (const raw of skills.slice(0, 20)) {
     const skill = String(raw ?? "").trim();
     if (!skill) continue;
-    if (have.has(skill.toLowerCase())) { log("skip (already pilled):", skill); continue; }
+    if (have.has(skill.toLowerCase())) continue;
 
     input.focus();
     await typeInto(skill);

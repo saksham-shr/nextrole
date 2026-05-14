@@ -9,6 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
+import { computeFollowupDueAt } from "@/lib/jobs";
 
 const VALID_STATUSES = new Set(["applied", "interview", "offer", "rejected", "archived"]);
 
@@ -39,15 +40,38 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid status" }, { status: 400 });
   }
 
+  const now = new Date().toISOString();
+  const nextFollowup = body.status === "applied" ? computeFollowupDueAt(now) : null;
+
   const { error } = await supabase
     .from("jobs")
-    .update({ status: body.status as "applied" | "interview" | "offer" | "rejected" | "archived" })
+    .update({
+      status: body.status as "applied" | "interview" | "offer" | "rejected" | "archived",
+      updated_at: now,
+      ...(body.status === "applied"
+        ? {
+            applied_at: now,
+            followup_due_at: nextFollowup,
+            followup_state: "pending",
+          }
+        : {}),
+    })
     .eq("id", id)
     .eq("user_id", resolved.userId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  await supabase.from("job_events").insert({
+    user_id: resolved.userId,
+    job_id: id,
+    event_type: "status_change",
+    payload: {
+      to: body.status,
+      applied_at: body.status === "applied" ? now : null,
+    },
+  });
 
   return NextResponse.json({ ok: true });
 }

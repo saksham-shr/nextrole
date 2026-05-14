@@ -172,7 +172,13 @@ export async function POST(request: NextRequest) {
     if (tier === "free") {
       await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
     } else {
-      await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.evaluate });
+      const { data: ok, error } = await supabase.rpc("deduct_credit", {
+        p_user_id: userId,
+        p_amount: CREDIT_COSTS.evaluate,
+      });
+      if (error || ok !== true) {
+        return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+      }
     }
   }
 
@@ -194,7 +200,13 @@ export async function POST(request: NextRequest) {
     raw_output: rawOutput, provider: route.provider, model: route.model,
   }).select("id").single();
 
-  supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: CREDIT_COSTS.evaluate, byok: false }).then(() => {});
+  await supabase.from("usage_log").insert({
+    user_id: userId,
+    task_type: "evaluate",
+    model: route.model,
+    credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
+    byok: false,
+  });
 
   await supabase.from("jobs").update({ status: "evaluated", archetype: archetype ?? job.archetype, updated_at: new Date().toISOString() })
     .eq("id", jobId).eq("user_id", userId);

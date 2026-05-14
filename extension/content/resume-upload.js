@@ -338,7 +338,7 @@ async function tailorAndOpen(anchor) {
       });
       overlay?.querySelector(".nr-view-dash")?.addEventListener("click", () => {
         if (response.resume_id) {
-          chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/resume` });
+          chrome.runtime.sendMessage({ type: "OPEN_TAB", url: `${NEXTROLE_URL}/dashboard/resumes` });
         }
       });
     }

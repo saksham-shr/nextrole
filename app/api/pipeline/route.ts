@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   // Pipeline job creation is allowed for all tiers; evaluation step requires feature gate
   const guard = await requireJobSlot();
   if (guard instanceof NextResponse) return guard;
-  const { userId, tier, isAdmin } = guard;
+  const { userId, tier } = guard;
 
   const supabase = await createClient();
 
@@ -89,12 +89,6 @@ export async function POST(request: NextRequest) {
         try { route = resolveRoute("evaluate"); }
         catch { return NextResponse.json({ error: "AI not configured" }, { status: 503 }); }
 
-        // Deduct credits for paid tiers
-        if (!isAdmin && tier !== "free") {
-          const { data: ok } = await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.evaluate });
-          if (!ok) return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
-        }
-
         const systemPrompt = buildSystemPrompt({
           applyThreshold: profile?.eval_score_apply ?? 3.5,
           watchThreshold: profile?.eval_score_watch ?? 2.5,
@@ -118,6 +112,18 @@ export async function POST(request: NextRequest) {
           const score    = typeof evaluation?.score    === "number" ? evaluation.score : null;
           const decision = typeof evaluation?.decision === "string" ? evaluation.decision : null;
 
+          if (tier === "free") {
+            await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
+          } else {
+            const { data: ok, error } = await supabase.rpc("deduct_credit", {
+              p_user_id: userId,
+              p_amount: CREDIT_COSTS.evaluate,
+            });
+            if (error || ok !== true) {
+              return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+            }
+          }
+
           await supabase.from("evaluations").insert({
             user_id: userId, job_id: jobId, score,
             decision: decision as "apply" | "skip" | "watch" | null,
@@ -139,7 +145,13 @@ export async function POST(request: NextRequest) {
             results.status_update = { new_status: newStatus };
           }
 
-          supabase.from("usage_log").insert({ user_id: userId, task_type: "evaluate", model: route.model, credits_used: CREDIT_COSTS.evaluate, byok: false }).then(() => {});
+          await supabase.from("usage_log").insert({
+            user_id: userId,
+            task_type: "evaluate",
+            model: route.model,
+            credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
+            byok: false,
+          });
         } catch (err) {
           results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
         }

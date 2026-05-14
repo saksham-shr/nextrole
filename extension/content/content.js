@@ -246,7 +246,6 @@ function fromGreenhouse() {
   const parts = location.pathname.split("/").filter(Boolean);
   const hasJobsSegment = parts.includes("jobs");
   if (!hasJobsSegment && !parts.some((p) => /^\d+$/.test(p))) {
-    console.log("[NextRole][detect] greenhouse: skipped (not a detail page) parts=", parts);
     return null;
   }
 
@@ -277,13 +276,6 @@ function fromGreenhouse() {
     document.querySelector(".section--text") ??
     document.querySelector("#application");
   const description = descEl ? cleanText(descEl.innerHTML.replace(/<[^>]+>/g, " ")) : null;
-
-  console.log("[NextRole][detect] greenhouse:", {
-    host, pathname: location.pathname, hasJobsSegment,
-    foundTitle: !!title, title,
-    foundCompany: !!company, company,
-    foundDescEl: !!descEl, descLen: description?.length ?? 0,
-  });
 
   if (title) {
     return { title, company: company ?? companyFromDomain(), description, confidence: "high", source: "greenhouse" };
@@ -324,8 +316,14 @@ function fromAshby() {
 // ─── Extractor 8: Workday ─────────────────────────────────────────────────────
 
 function fromWorkday() {
-  // workday.com is the product website — only myworkdayjobs.com is the ATS
-  if (!location.hostname.includes("myworkdayjobs.com")) return null;
+  // Accept genuine Workday tenants plus branded Workday-powered hosts.
+  const host = location.hostname.toLowerCase();
+  const isWorkdayHost =
+    host.includes("myworkdayjobs.com") ||
+    host === "jobs.careers.microsoft.com" ||
+    host === "jobs.netflix.com" ||
+    host === "explore.jobs.netflix.net";
+  if (!isWorkdayHost) return null;
 
   const title = texts([
     '[data-automation-id="jobPostingHeader"]',
@@ -1568,18 +1566,18 @@ function showAlreadySavedCard(job, jobId) {
     removeCard();
   });
   card.querySelector("#nr-card-fill-app").addEventListener("click", () => {
-    // Store cross-site context so apply-card.js auto-shows if user is redirected
+    // Store tab-scoped application state so apply-card.js auto-shows if user is redirected
     // to an ATS apply page (includes jobId for artifact lookup).
     try {
-      chrome.storage.session.set({
-        nr_cross_site_job: {
-          jobId:          jobId,
-          jobTitle:       job.title       ?? "",
-          company:        job.company     ?? "",
-          jobDescription: job.description ?? "",
-          sourceUrl:      location.href,
-          savedAt:        Date.now(),
-        },
+      setApplicationSession({
+        job_id:         jobId,
+        jobTitle:       job.title ?? "",
+        company:        job.company ?? "",
+        jobDescription: job.description ?? "",
+        source_url:     location.href,
+        target_url:     null,
+        status:         "intent",
+        savedAt:        Date.now(),
       });
     } catch {}
     removeCard();
@@ -1721,14 +1719,16 @@ function submitFromCard(job, action, card) {
           nr_last_job_id:    jobId,
           nr_last_job_title: job.title   ?? "",
           nr_last_company:   job.company ?? "",
-          nr_cross_site_job: {
-            jobId:          jobId,
-            jobTitle:       job.title       ?? "",
-            company:        job.company     ?? "",
-            jobDescription: job.description ?? "",
-            sourceUrl:      location.href,
-            savedAt:        Date.now(),
-          },
+        });
+        setApplicationSession({
+          job_id:         jobId,
+          jobTitle:       job.title ?? "",
+          company:        job.company ?? "",
+          jobDescription: job.description ?? "",
+          source_url:     location.href,
+          target_url:     null,
+          status:         action === "evaluate" ? "evaluating" : "intent",
+          savedAt:        Date.now(),
         });
       }
 
@@ -2117,7 +2117,7 @@ function renderAutofillButton(card, job, tier, usage, limits) {
   if (!area) return;
 
   // Free users — hard gate
-  if (tier === "free") {
+  if (false && tier === "free") {
     area.innerHTML = `
       <div class="nr-action-row nr-locked" title="Autofill requires Starter or above">
         <div class="nr-action-icon" style="opacity:0.45;">
@@ -2160,7 +2160,7 @@ function renderAutofillButton(card, job, tier, usage, limits) {
   }
 
   const label     = "Autofill Fields";
-  const costLabel = tier === "starter" ? "2cr · 8 AI/day" : "2 credits";
+  const costLabel = tier === "free" ? "Basic" : tier === "starter" ? "2cr · 8 AI/day" : "2 credits";
 
   area.innerHTML = `
     <div class="nr-action-row" id="nr-autofill-btn">
@@ -2287,10 +2287,9 @@ function detectAndShow() {
   return true;
 }
 
-// Retry at 1s → 2.5s → 5s → 9s → 15s after navigation.
-// Heavy SPAs (Workday, LinkedIn) can take many seconds to render job content.
+// Retry quickly at first, then back off for heavy SPAs.
 let _retryTimer = null;
-const RETRY_DELAYS = [1000, 2500, 5000, 9000, 15000];
+const RETRY_DELAYS = [250, 800, 1800, 4000, 8000];
 
 function detectWithRetry() {
   clearTimeout(_retryTimer);
@@ -2314,6 +2313,42 @@ function detectWithRetry() {
 
 const APPLY_TEXT_RE = /^(easy\s+)?apply(\s+(now|online|for\s+this\s+job|to\s+this\s+job|here|for\s+job))?$/i;
 
+function setApplicationSession(session) {
+  chrome.runtime.sendMessage({ type: "SET_APPLICATION_SESSION", session }, () => {});
+}
+
+function getApplicationSession(cb) {
+  chrome.runtime.sendMessage({ type: "GET_APPLICATION_SESSION" }, (res) => cb(res?.session ?? null));
+}
+
+function clearApplicationSession() {
+  chrome.runtime.sendMessage({ type: "CLEAR_APPLICATION_SESSION" }, () => {});
+}
+
+function syncSubmittedApplication() {
+  try {
+    const det = window.NR_ATS?.detectATSFromHost?.();
+    if (!det?.entry || !window.NR_ATS?.detectSubmittedState?.(det.entry)) return;
+
+    getApplicationSession((session) => {
+      const jobId = session?.job_id ?? session?.jobId ?? null;
+      if (!jobId || session?.submitted_at) return;
+
+      const submittedAt = new Date().toISOString();
+      chrome.runtime.sendMessage({ type: "UPDATE_JOB_STATUS", jobId, status: "applied" }, () => {});
+      setApplicationSession({
+        ...session,
+        job_id: jobId,
+        target_url: location.href,
+        ats_family: det.entry.family ?? session?.ats_family ?? null,
+        status: "submitted",
+        submitted_at: submittedAt,
+        failure_reason: null,
+      });
+    });
+  } catch {}
+}
+
 document.addEventListener("click", (e) => {
   // Walk up from click target to find a button or link
   const el = e.target.closest("a[href], button, input[type='button'], input[type='submit'], [role='button']");
@@ -2333,18 +2368,18 @@ document.addEventListener("click", (e) => {
     try {
       // Tag Naukri source so the landing ATS page can show a "Redirected from Naukri" banner
       const isNaukri = location.hostname.includes("naukri.com");
-      chrome.storage.session.set({
-        nr_cross_site_job: {
-          jobTitle:       job.title       ?? "",
-          company:        job.company     ?? "",
-          jobDescription: job.description ?? "",
-          sourceUrl:      location.href,
-          savedAt:        Date.now(),
-          ...(isNaukri && {
-            fromNaukri:   true,
-            naukriJobId:  job.siteJobId ?? null,
-          }),
-        },
+      setApplicationSession({
+        jobTitle:       job.title ?? "",
+        company:        job.company ?? "",
+        jobDescription: job.description ?? "",
+        source_url:     location.href,
+        target_url:     null,
+        status:         "intent",
+        savedAt:        Date.now(),
+        ...(isNaukri && {
+          fromNaukri:   true,
+          naukriJobId:  job.siteJobId ?? null,
+        }),
       });
     } catch {}
   } else {
@@ -2353,14 +2388,14 @@ document.addEventListener("click", (e) => {
       chrome.storage.session.get(["nr_last_job_title", "nr_last_company"], (d) => {
         if (chrome.runtime.lastError) return;
         if (!d.nr_last_job_title) return;
-        chrome.storage.session.set({
-          nr_cross_site_job: {
-            jobTitle:       d.nr_last_job_title ?? "",
-            company:        d.nr_last_company   ?? "",
-            jobDescription: "",
-            sourceUrl:      location.href,
-            savedAt:        Date.now(),
-          },
+        setApplicationSession({
+          jobTitle:       d.nr_last_job_title ?? "",
+          company:        d.nr_last_company ?? "",
+          jobDescription: "",
+          source_url:     location.href,
+          target_url:     null,
+          status:         "intent",
+          savedAt:        Date.now(),
         });
       });
     } catch {}
@@ -2369,7 +2404,7 @@ document.addEventListener("click", (e) => {
 
 // ── Naukri: clear cross-site context when chatbot opens ──────────────────────
 // When user clicks the chatbot-based "Apply" on Naukri the click interceptor
-// above still saves nr_cross_site_job (we can't know which button type it is at
+// above still saves the per-tab application session (we can't know which button type it is at
 // click-time). If the chatbot panel then opens within 5 s we know the user is
 // applying on Naukri itself — no redirect will happen — so the cross-site context
 // would be stale noise on future ATS visits. Clear it.
@@ -2380,12 +2415,10 @@ if (location.hostname.includes("naukri.com")) {
     new MutationObserver(() => {
       if (chatbotEl.children.length === 0) return; // collapsed / empty — no action
       try {
-        chrome.storage.session.get("nr_cross_site_job", (d) => {
-          if (chrome.runtime.lastError) return;
-          const ctx = d.nr_cross_site_job;
-          // Only clear if saved very recently (≤5 s) — i.e. from THIS Apply click
+        getApplicationSession((ctx) => {
+          // Only clear if saved very recently (?5 s) ? i.e. from THIS Apply click
           if (ctx && ctx.fromNaukri && (Date.now() - (ctx.savedAt ?? 0)) <= 5000) {
-            chrome.storage.session.remove("nr_cross_site_job");
+            clearApplicationSession();
           }
         });
       } catch {}
@@ -2399,6 +2432,7 @@ if (location.hostname.includes("naukri.com")) {
 
 // Initial detection
 detectWithRetry();
+setTimeout(syncSubmittedApplication, 1200);
 
 // ── Unified DOM watcher ───────────────────────────────────────────────────────
 //
@@ -2430,6 +2464,7 @@ new MutationObserver((mutations) => {
     _lastUrl = location.href;
     clearTimeout(_popupTimer);
     detectWithRetry();
+    setTimeout(syncSubmittedApplication, 1200);
     return; // URL change takes priority — don't also run popup logic
   }
 
@@ -2460,20 +2495,20 @@ new MutationObserver((mutations) => {
     // This is the key handoff: JD from listing/detail panel → apply form.
     if (job.description) {
       try {
-        chrome.storage.session.get("nr_cross_site_job", (d) => {
-          const prev = d.nr_cross_site_job;
+        getApplicationSession((prev) => {
           // Overwrite if: no existing context, or it's the same job, or context is stale (> 10 min).
           const isStale   = !prev || (Date.now() - (prev.savedAt ?? 0)) > 10 * 60 * 1000;
           const isSameJob = prev?.jobTitle === job.title;
           if (isStale || isSameJob) {
-            chrome.storage.session.set({
-              nr_cross_site_job: {
-                jobTitle:       job.title       ?? "",
-                company:        job.company     ?? "",
-                jobDescription: job.description ?? "",
-                sourceUrl:      location.href,
-                savedAt:        Date.now(),
-              },
+            setApplicationSession({
+              ...(prev ?? {}),
+              jobTitle:       job.title ?? "",
+              company:        job.company ?? "",
+              jobDescription: job.description ?? "",
+              source_url:     location.href,
+              target_url:     null,
+              status:         prev?.status ?? "intent",
+              savedAt:        Date.now(),
             });
           }
         });
@@ -2490,4 +2525,8 @@ new MutationObserver((mutations) => {
 
 // bfcache restore — fires when the user hits back/forward to a frozen page.
 // Scripts don't re-run in bfcache, so we must re-detect here.
-window.addEventListener("pageshow", (e) => { if (e.persisted) detectWithRetry(); });
+window.addEventListener("pageshow", (e) => {
+  if (!e.persisted) return;
+  detectWithRetry();
+  setTimeout(syncSubmittedApplication, 1200);
+});

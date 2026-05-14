@@ -36,13 +36,13 @@ export async function GET(req: NextRequest) {
   // "load saved evaluation" picker to jobs that actually have an eval.
   const { data: jobsRaw } = await admin
     .from("jobs")
-    .select("id, title, company, status, created_at")
+    .select("id, title, company, status, url, canonical_url, ats_family, applied_at, followup_due_at, followup_state, created_at")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(15);
 
   const jobIds = (jobsRaw ?? []).map((j) => j.id as string);
-  let latestEvalByJob = new Map<string, { score: number | null; decision: string | null }>();
+  const latestEvalByJob = new Map<string, { score: number | null; decision: string | null }>();
   if (jobIds.length > 0) {
     const { data: evalRows } = await admin
       .from("evaluations")
@@ -57,14 +57,42 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  const latestSessionByJob = new Map<string, { status: string | null; submitted_at: string | null; failure_reason: string | null; target_url: string | null }>();
+  if (jobIds.length > 0) {
+    const { data: sessionRows } = await admin
+      .from("application_sessions")
+      .select("job_id, status, submitted_at, failure_reason, target_url, created_at")
+      .eq("user_id", userId)
+      .in("job_id", jobIds)
+      .order("created_at", { ascending: false });
+
+    for (const s of (sessionRows ?? []) as Array<{ job_id: string; status: string | null; submitted_at: string | null; failure_reason: string | null; target_url: string | null }>) {
+      if (s.job_id && !latestSessionByJob.has(s.job_id)) {
+        latestSessionByJob.set(s.job_id, {
+          status: s.status,
+          submitted_at: s.submitted_at,
+          failure_reason: s.failure_reason,
+          target_url: s.target_url,
+        });
+      }
+    }
+  }
+
   const recentJobs = (jobsRaw ?? []).slice(0, 8).map((j) => ({
     id:         j.id,
     title:      j.title,
     company:    j.company,
     status:     j.status,
+    url:        j.url,
+    canonical_url: j.canonical_url,
+    ats_family: j.ats_family,
+    applied_at: j.applied_at,
+    followup_due_at: j.followup_due_at,
+    followup_state: j.followup_state,
     created_at: j.created_at,
     eval_score:    latestEvalByJob.get(j.id as string)?.score    ?? null,
     eval_decision: latestEvalByJob.get(j.id as string)?.decision ?? null,
+    latest_session: latestSessionByJob.get(j.id as string) ?? null,
   }));
 
   // Recent tailored resumes (latest 10) — for the resume picker dropdown.
@@ -114,10 +142,10 @@ export async function GET(req: NextRequest) {
   const [{ data: job }, { data: evaluations }, { data: resumes }] = await Promise.all([
     admin
       .from("jobs")
-      .select("id, title, company, url, description, status, created_at")
-      .eq("id", jobId)
-      .eq("user_id", userId)
-      .single(),
+    .select("id, title, company, url, canonical_url, description, status, ats_family, applied_at, followup_due_at, followup_state, created_at")
+    .eq("id", jobId)
+    .eq("user_id", userId)
+    .single(),
     admin
       .from("evaluations")
       .select(
@@ -157,6 +185,18 @@ export async function GET(req: NextRequest) {
     },
   } : null;
 
+  let latestSession = null;
+  if (jobId) {
+    const { data: sessionRows } = await admin
+      .from("application_sessions")
+      .select("id, status, source_tab_id, source_url, target_url, ats_family, started_at, fill_started_at, submitted_at, failure_reason, last_seen_at, created_at")
+      .eq("user_id", userId)
+      .eq("job_id", jobId)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    latestSession = sessionRows?.[0] ?? null;
+  }
+
   return NextResponse.json({
     ok:             true,
     recent_jobs:    recentJobs,
@@ -164,5 +204,6 @@ export async function GET(req: NextRequest) {
     job:            job ?? null,
     evaluation:     normalizedEval,
     resume:         (resumes as ResumeRow[] | null)?.[0] ?? null,
+    application_session: latestSession,
   });
 }

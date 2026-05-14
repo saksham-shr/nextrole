@@ -39,11 +39,15 @@ export async function GET() {
 
   const { data, error } = await supabase
     .from("profile_files")
-    .select("id, kind, file_name, file_size, mime_type, is_default, created_at")
+    .select("id, kind, file_name, size_bytes, mime_type, is_default, created_at")
     .eq("user_id", user.id)
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Table may not exist yet (migration pending) — return empty list instead of crashing
+  if (error) {
+    console.warn("[profile/files] DB error (table may not be migrated):", error.message);
+    return NextResponse.json({ files: [] });
+  }
   return NextResponse.json({ files: data ?? [] });
 }
 
@@ -106,11 +110,11 @@ export async function POST(req: NextRequest) {
       kind,
       file_name:    file.name.slice(0, 200),
       storage_path: storagePath,
-      file_size:    file.size,
-      mime_type:    file.type || null,
+      size_bytes:   file.size,
+      mime_type:    file.type || "application/octet-stream",
       is_default:   isDefault,
     })
-    .select("id, kind, file_name, file_size, mime_type, is_default, created_at")
+    .select("id, kind, file_name, size_bytes, mime_type, is_default, created_at")
     .single();
 
   if (insErr) {

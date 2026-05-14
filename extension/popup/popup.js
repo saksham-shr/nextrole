@@ -23,12 +23,7 @@ function getSession() {
   return new Promise((resolve) => {
     chrome.runtime.sendMessage({ type: "GET_SESSION" }, (res) => {
       if (chrome.runtime.lastError) {
-        setTimeout(() => {
-          chrome.runtime.sendMessage({ type: "GET_SESSION" }, (res2) => {
-            if (chrome.runtime.lastError) { resolve({ ok: false, loggedIn: false }); return; }
-            resolve(res2 ?? { ok: false, loggedIn: false });
-          });
-        }, 250);
+        resolve({ ok: false, loggedIn: false });
         return;
       }
       resolve(res ?? { ok: false, loggedIn: false });
@@ -190,7 +185,73 @@ function updateStatus(jobId, status) {
   });
 }
 
-// ─── Connect button ───────────────────────────────────────────────────────────
+function checkJobUrl(url) {
+  return new Promise((resolve) => {
+    if (!url) { resolve({ ok: false, exists: false }); return; }
+    chrome.runtime.sendMessage({ type: "CHECK_JOB_URL", url }, (response) => {
+      if (chrome.runtime.lastError) { resolve({ ok: false, exists: false }); return; }
+      resolve(response ?? { ok: false, exists: false });
+    });
+  });
+}
+
+function fetchJobArtifacts(jobId) {
+  return new Promise((resolve) => {
+    if (!jobId) { resolve(null); return; }
+    chrome.runtime.sendMessage({ type: "GET_JOB_ARTIFACTS", jobId }, (response) => {
+      if (chrome.runtime.lastError || !response?.ok) { resolve(null); return; }
+      resolve(response);
+    });
+  });
+}
+
+function setApplicationSession(tabId, session) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      { type: "SET_APPLICATION_SESSION", tabId, session },
+      (response) => {
+        if (chrome.runtime.lastError) { reject(new Error(chrome.runtime.lastError.message)); return; }
+        if (response?.ok) resolve(response.session ?? null);
+        else reject(new Error(response?.error ?? "Unknown error"));
+      }
+    );
+  });
+}
+
+function relativeSavedLabel(dateString) {
+  if (!dateString) return "Already saved";
+  const diff = Date.now() - new Date(dateString).getTime();
+  const days = Math.max(0, Math.floor(diff / 86_400_000));
+  if (days === 0) return "Already saved today";
+  if (days === 1) return "Already saved yesterday";
+  return `Already saved ${days} days ago`;
+}
+
+async function hydratePipelineStatus(job) {
+  const ribbon = document.getElementById("job-ribbon");
+  if (!ribbon || !job?.url) return;
+
+  const existing = await checkJobUrl(job.url);
+  if (!existing?.exists || !existing.job_id) {
+    ribbon.innerHTML = "";
+    ribbon.classList.add("hidden");
+    return;
+  }
+
+  currentJobId = existing.job_id;
+  const artifacts = await fetchJobArtifacts(existing.job_id);
+  const savedLabel = relativeSavedLabel(artifacts?.job?.created_at);
+  const evalScore = artifacts?.evaluation?.score;
+  const evalDecision = artifacts?.evaluation?.decision ?? "apply";
+  const evalLabel = typeof evalScore === "number"
+    ? ` &nbsp;·&nbsp; ★ ${evalScore.toFixed(1)} · ${evalDecision}`
+    : "";
+
+  ribbon.innerHTML = `${savedLabel}${evalLabel}`;
+  ribbon.classList.remove("hidden");
+}
+
+// ????????? Connect button ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 $("link-signup").href = NEXTROLE_URL + "/signup";
 
@@ -200,7 +261,7 @@ $("btn-connect").addEventListener("click", async () => {
   errEl.textContent = "";
   errEl.classList.add("hidden");
   btn.disabled = true;
-  btn.textContent = "Connecting…";
+  btn.textContent = "Connecting...";
 
   const res = await new Promise((resolve) => {
     chrome.runtime.sendMessage({ type: "CONNECT_EXTENSION" }, (r) => {
@@ -221,7 +282,7 @@ $("btn-connect").addEventListener("click", async () => {
   }
 });
 
-// ─── Init ─────────────────────────────────────────────────────────────────────
+// ????????? Init ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 async function init() {
   show("loading");
@@ -249,12 +310,13 @@ async function init() {
     [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => {
       if (b) b.disabled = false;
     });
+    hydratePipelineStatus(job).catch(() => {});
   } else {
     show("no-job");
   }
 }
 
-// ─── Save job ─────────────────────────────────────────────────────────────────
+// ????????? Save job ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 async function saveJob(label) {
   if (!currentJob) throw new Error("No job data available.");
@@ -277,16 +339,22 @@ async function saveJob(label) {
     currentJobId = jobId;
     chrome.storage.session.set({
       nr_last_job_id:    jobId,
-      nr_last_job_url:   currentJob.url    ?? "",
-      nr_last_job_title: currentJob.title  ?? "",
+      nr_last_job_url:   currentJob.url ?? "",
+      nr_last_job_title: currentJob.title ?? "",
       nr_last_company:   currentJob.company ?? "",
     });
   }
 
-  return jobId;
+  return {
+    jobId,
+    created: res.created === true,
+    existing: res.existing === true,
+    canonicalUrl: res.canonical_url ?? null,
+    atsFamily: res.ats_family ?? null,
+  };
 }
 
-// ─── Action handlers ──────────────────────────────────────────────────────────
+// ????????? Action handlers ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 
 function populateSuccessCard(message) {
   if (successTitle) successTitle.textContent = currentJob?.title ?? "";
@@ -298,11 +366,11 @@ function populateSuccessCard(message) {
 async function handleEvaluate() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    const jobId = await saveJob("Saving & opening evaluation…");
-    if (jobId) {
-      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/pipeline?job=${jobId}&action=evaluate` });
+    const saved = await saveJob("Saving and opening evaluation...");
+    if (saved.jobId) {
+      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/pipeline?job=${saved.jobId}&action=evaluate` });
     }
-    populateSuccessCard("Saved and opening evaluation in NextRole…");
+    populateSuccessCard("Saved and opening evaluation in NextRole...");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -312,7 +380,7 @@ async function handleEvaluate() {
 async function handlePipeline() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    await saveJob("Saving for later…");
+    await saveJob("Saving for later...");
     populateSuccessCard("Saved to your pipeline.");
     show("success");
   } catch (err) {
@@ -320,45 +388,41 @@ async function handlePipeline() {
   }
 }
 
-// Save & Apply: save the JD to pipeline AND set an apply-intent flag in session
-// storage. The next time the user lands on a real apply form page, the
-// floating apply card auto-opens with this job as the context. If the current
-// tab is ALREADY an apply form (Greenhouse-style single-page), open the card
-// immediately so the user doesn't have to navigate or reload.
 async function handleSaveAndApply() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    const jobId = await saveJob("Saving & preparing apply flow…");
+    const saved = await saveJob("Saving and preparing apply flow...");
 
-    const intent = {
-      jobId:          jobId ?? null,
-      jobTitle:       currentJob?.title       ?? "",
-      company:        currentJob?.company     ?? "",
+    const sessionPayload = {
+      job_id:         saved.jobId ?? null,
+      jobTitle:       currentJob?.title ?? "",
+      company:        currentJob?.company ?? "",
       jobDescription: currentJob?.description ?? "",
-      sourceUrl:      currentJob?.url ?? "",
+      source_url:     currentJob?.url ?? "",
+      target_url:     null,
+      canonical_url:  saved.canonicalUrl ?? null,
+      ats_family:     saved.atsFamily ?? null,
+      status:         "intent",
       savedAt:        Date.now(),
     };
 
-    await new Promise((r) => chrome.storage.session.set({ nr_apply_intent: intent }, r));
-
-    // If the current tab has the apply form on the same page, tell the content
-    // script to open the floating card right now.
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab?.id) {
+        await setApplicationSession(tab.id, sessionPayload);
         chrome.tabs.sendMessage(tab.id, {
           type: "OPEN_APPLY_CARD",
           payload: {
-            jobId,
-            jobTitle:       intent.jobTitle,
-            company:        intent.company,
-            jobDescription: intent.jobDescription,
+            jobId: saved.jobId,
+            jobTitle:       sessionPayload.jobTitle,
+            company:        sessionPayload.company,
+            jobDescription: sessionPayload.jobDescription,
           },
-        }, () => { /* ignore lastError — tab may not have content script */ });
+        }, () => { /* ignore lastError: tab may not have content script */ });
       }
-    } catch { /* tabs API may not be available; intent flag is enough */ }
+    } catch { /* tabs API may not be available; session state is enough */ }
 
-    populateSuccessCard("Saved. Click Apply on this page — we'll auto-open the fill card.");
+    populateSuccessCard("Saved. Click Apply on this page and we'll auto-open the fill card.");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -368,11 +432,11 @@ async function handleSaveAndApply() {
 async function handleResume() {
   [$("btn-evaluate"), $("btn-pipeline"), $("btn-save-apply"), $("btn-resume")].forEach((b) => { if (b) b.disabled = true; });
   try {
-    const jobId = await saveJob("Saving & opening resume builder…");
-    if (jobId) {
-      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/resume?job=${jobId}` });
+    const saved = await saveJob("Saving and opening resume builder...");
+    if (saved.jobId) {
+      chrome.tabs.create({ url: `${NEXTROLE_URL}/dashboard/resumes?job=${saved.jobId}` });
     }
-    populateSuccessCard("Saved and opening resume builder in NextRole…");
+    populateSuccessCard("Saved and opening resume builder in NextRole...");
     show("success");
   } catch (err) {
     showJobError(err.message);
@@ -427,3 +491,4 @@ $("btn-open-nextrole-nojob").addEventListener("click", () => {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 init();
+

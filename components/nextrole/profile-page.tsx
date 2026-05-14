@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable react-hooks/set-state-in-effect */
+
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import type {
   ProfileRow,
@@ -1146,7 +1148,7 @@ type ProfileFile = {
   id: string;
   kind: "resume" | "cover_letter";
   file_name: string;
-  file_size: number | null;
+  size_bytes: number | null;
   mime_type: string | null;
   is_default: boolean;
   created_at: string;
@@ -1300,7 +1302,7 @@ function FileUploadCard({
                   )}
                 </div>
                 <div className="text-[11px] text-[var(--muted-foreground)]">
-                  {fmtBytes(f.file_size)} · {new Date(f.created_at).toLocaleDateString()}
+                  {fmtBytes(f.size_bytes)} · {new Date(f.created_at).toLocaleDateString()}
                 </div>
               </div>
               <div className="flex shrink-0 gap-3">

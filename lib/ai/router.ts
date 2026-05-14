@@ -111,11 +111,11 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
   const route = opts.routeOverride ?? resolveRoute(opts.task);
 
   // Deduct credits atomically
-  const { data: ok } = await supabase.rpc("deduct_credit", {
+  const { data: ok, error } = await supabase.rpc("deduct_credit", {
     p_user_id: opts.userId,
     p_amount:  credits,
   });
-  if (!ok) throw new Error("INSUFFICIENT_CREDITS");
+  if (error || ok !== true) throw new Error("INSUFFICIENT_CREDITS");
 
   const result = await callProvider({
     provider:       route.provider,
@@ -129,14 +129,13 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
     fallbackModels: route.fallbackModels,
   });
 
-  // Fire-and-forget usage log
-  supabase.from("usage_log").insert({
+  await supabase.from("usage_log").insert({
     user_id:      opts.userId,
     task_type:    opts.task,
     model:        route.model,
     credits_used: credits,
     byok:         false,
-  }).then(() => {});
+  });
 
   return result;
 }

@@ -205,7 +205,7 @@ function TagInput({
                 style={{ color: "var(--accent)" }}
                 onMouseDown={(e) => { e.preventDefault(); addTag(input.trim()); }}
               >
-                <span className="text-[var(--muted-foreground)]">Add</span> "{input.trim()}"
+                <span className="text-[var(--muted-foreground)]">Add</span> &quot;{input.trim()}&quot;
               </div>
             )}
           </div>
@@ -629,7 +629,7 @@ export function SettingsPageContent({
                 </Field>
               </div>
               <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-                Scores above Apply → "apply" · between thresholds → "watch" · below Watch → "skip"
+                Scores above Apply → &quot;apply&quot; · between thresholds → &quot;watch&quot; · below Watch → &quot;skip&quot;
               </p>
 
               <Field label="Custom evaluation focus (optional)">

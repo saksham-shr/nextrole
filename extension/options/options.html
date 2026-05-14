@@ -71,32 +71,40 @@
       margin-bottom: 16px;
     }
 
-    /* ── Login form ── */
-    .field { margin-bottom: 14px; }
-    label {
-      display: block;
+    .steps {
+      list-style: none;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .steps li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+    .steps li .num {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 1px solid var(--line-soft);
+      background: var(--bg);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-family: 'DM Mono', monospace;
       font-size: 9px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--muted2);
-      margin-bottom: 6px;
+      font-weight: 500;
+      color: var(--accent);
+      margin-top: 1px;
     }
-    input {
-      width: 100%;
-      background: var(--bg);
-      border: 1px solid var(--line-soft);
-      border-radius: 8px;
-      padding: 9px 12px;
-      font-family: 'Inter', sans-serif;
-      font-size: 13px;
-      color: var(--fg);
-      outline: none;
-      transition: border-color 0.15s;
-    }
-    input:focus { border-color: var(--accent); }
+    .steps li strong { color: var(--fg); }
 
-    /* ── Account info ── */
+    /* Account info */
     .account-row {
       display: flex;
       align-items: center;
@@ -125,8 +133,12 @@
     }
     .server-url .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex-shrink: 0; }
 
-    .btn-row { display: flex; gap: 8px; margin-top: 4px; }
-    button {
+    .btn-row { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+    button, .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
       padding: 9px 18px;
       border-radius: 8px;
       border: none;
@@ -137,31 +149,28 @@
       letter-spacing: 0.16em;
       cursor: pointer;
       transition: opacity 0.15s;
+      text-decoration: none;
     }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
-    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary   { background: var(--accent); color: #fff; }
     .btn-primary:hover:not(:disabled) { opacity: 0.88; }
     .btn-secondary { background: var(--surface); color: var(--fg); border: 1px solid var(--line-soft); }
     .btn-secondary:hover:not(:disabled) { border-color: var(--line); }
-    .btn-danger { background: var(--bad-bg); color: var(--bad); border: 1px solid rgba(181,58,58,0.25); }
+    .btn-danger    { background: var(--bad-bg); color: var(--bad); border: 1px solid rgba(181,58,58,0.25); }
     .btn-danger:hover:not(:disabled) { background: rgba(181,58,58,0.15); }
-
-    .status {
-      display: none;
-      align-items: center;
-      gap: 8px;
-      margin-top: 14px;
-      padding: 10px 12px;
-      border-radius: 8px;
-      font-size: 12px;
-    }
-    .status.ok  { display: flex; background: var(--ok-bg);  color: var(--ok);  }
-    .status.err { display: flex; background: var(--bad-bg); color: var(--bad); }
 
     .hidden { display: none !important; }
 
-    a.link { color: var(--accent); font-size: 12px; text-decoration: none; }
-    a.link:hover { text-decoration: underline; }
+    .field { margin-bottom: 14px; }
+    label.field-label {
+      display: block;
+      font-family: 'DM Mono', monospace;
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--muted2);
+      margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
@@ -176,15 +185,47 @@
     </div>
 
     <h1>Extension Settings</h1>
-    <p class="subtitle">Sign in with your NextRole account to connect the extension.</p>
+    <p class="subtitle">Manage your NextRole extension connection.</p>
 
-    <!-- Logged-out: login form -->
-    <div id="section-login" class="hidden">
+    <!-- Loading -->
+    <div id="section-loading">
+      <p style="font-size:12px;color:var(--muted)">Loading…</p>
+    </div>
+
+    <!-- Not connected -->
+    <div id="section-connect" class="hidden">
       <div class="card">
-        <p class="card-title">Sign in</p>
+        <p class="card-title">Connect your account</p>
+        <ul class="steps">
+          <li>
+            <span class="num">1</span>
+            <span>Open <strong>nextrole.live</strong> and sign in to your account.</span>
+          </li>
+          <li>
+            <span class="num">2</span>
+            <span>Go to <strong>Dashboard → Settings → Browser Extension</strong>.</span>
+          </li>
+          <li>
+            <span class="num">3</span>
+            <span>Click <strong>"Connect Extension"</strong> — this tab will update automatically.</span>
+          </li>
+        </ul>
+        <div class="btn-row">
+          <button id="btn-open-settings" class="btn-primary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            Open NextRole Settings
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Connected -->
+    <div id="section-account" class="hidden">
+      <div class="card">
+        <p class="card-title">Account</p>
 
         <div class="field">
-          <label>Connected to</label>
+          <label class="field-label">Connected to</label>
           <div class="server-url">
             <span class="dot"></span>
             <span id="server-url-display">—</span>
@@ -192,38 +233,7 @@
         </div>
 
         <div class="field">
-          <label for="login-email">Email</label>
-          <input id="login-email" type="email" placeholder="you@example.com" autocomplete="email" />
-        </div>
-        <div class="field">
-          <label for="login-password">Password</label>
-          <input id="login-password" type="password" placeholder="••••••••" autocomplete="current-password" />
-        </div>
-
-        <div class="btn-row">
-          <button id="btn-sign-in" class="btn-primary">Sign in</button>
-          <a id="link-signup" href="#" target="_blank" class="link" style="display:flex;align-items:center;">Sign up free →</a>
-        </div>
-
-        <div id="login-status" class="status"></div>
-      </div>
-    </div>
-
-    <!-- Logged-in: account info + logout -->
-    <div id="section-account" class="hidden">
-      <div class="card">
-        <p class="card-title">Account</p>
-
-        <div class="field">
-          <label>Connected to</label>
-          <div class="server-url">
-            <span class="dot"></span>
-            <span id="server-url-display-2">—</span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label>Signed in as</label>
+          <label class="field-label">Signed in as</label>
           <div class="account-row">
             <span class="account-dot"></span>
             <span id="account-email" class="account-email">—</span>
@@ -232,16 +242,9 @@
 
         <div class="btn-row">
           <button id="btn-open-dashboard" class="btn-secondary">Open Dashboard</button>
-          <button id="btn-logout" class="btn-danger">Sign out</button>
+          <button id="btn-logout" class="btn-danger">Disconnect</button>
         </div>
-
-        <div id="logout-status" class="status"></div>
       </div>
-    </div>
-
-    <!-- Loading -->
-    <div id="section-loading">
-      <p style="font-size:12px;color:var(--muted)">Loading…</p>
     </div>
 
   </div>

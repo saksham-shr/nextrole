@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 /**
  * Run with Node.js to generate PNG icons from SVG.
  * Requires: npm install -g sharp  OR  use the Canvas API approach below.

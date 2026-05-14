@@ -4,7 +4,7 @@
  * Large tabbed overlay for filling out job applications.
  * Triggered by:
  *   1. nr:open-apply-card CustomEvent (dispatched by content.js after save)
- *   2. Auto-detect: ATS page + fresh nr_cross_site_job session context
+ *   2. Auto-detect: ATS page + fresh per-tab application session context
  *
  * Tabs: Fill Form | Evaluation | Resume | Cover Letter
  *
@@ -903,6 +903,35 @@ function isApplyFormPage() {
   return hasFileInput && identityFieldCount >= 2;
 }
 
+function isNaukriChatbotApplyActive() {
+  const chatbot = document.querySelector("#chatbot-container");
+  return !!chatbot && chatbot.children.length > 0;
+}
+
+function isKekaApplyPage() {
+  const host = location.hostname.toLowerCase();
+  return host.includes(".keka.com") && /\/applyjob\//i.test(location.href);
+}
+
+function isSourceBoardJobPage() {
+  const host = location.hostname.toLowerCase();
+  const url = location.href;
+
+  if (host.includes("naukri.com")) {
+    return !isNaukriChatbotApplyActive();
+  }
+
+  if (host.includes("linkedin.com")) {
+    return /\/jobs\//i.test(url) && !/easy-apply/i.test(url);
+  }
+
+  if (host.includes("indeed.com")) {
+    return !/apply\.indeed\.com/i.test(host) && !/\/apply/i.test(url);
+  }
+
+  return false;
+}
+
 // Backward-compat alias (still referenced by checkAutoTrigger below)
 function looksLikeFormPage() { return isApplyFormPage(); }
 
@@ -910,14 +939,7 @@ function looksLikeFormPage() { return isApplyFormPage(); }
 // content script to auto-open the floating card the next time we land on
 // a real apply form.
 function getApplyIntent() {
-  return new Promise((resolve) => {
-    chrome.storage.session.get("nr_apply_intent", (d) => resolve(d?.nr_apply_intent ?? null));
-  });
-}
-function clearApplyIntent() {
-  return new Promise((resolve) => {
-    chrome.storage.session.remove("nr_apply_intent", () => resolve());
-  });
+  return swMsg({ type: "GET_APPLICATION_SESSION" }).then((res) => res?.session ?? null);
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -1024,9 +1046,7 @@ function enableDragAndResize(card) {
 // ─── Session helpers ──────────────────────────────────────────────────────────
 
 function getCrossSiteCtx() {
-  return new Promise((resolve) => {
-    chrome.storage.session.get("nr_cross_site_job", (d) => resolve(d.nr_cross_site_job ?? null));
-  });
+  return swMsg({ type: "GET_APPLICATION_SESSION" }).then((res) => res?.session ?? null);
 }
 
 // ─── Service worker calls ─────────────────────────────────────────────────────
@@ -1061,6 +1081,38 @@ function swMsg(msg, timeoutMs = 15000) {
 
 function _tailorStateKey() {
   return `nr_tailor_state_${location.href.split("?")[0].replace(/\/$/, "")}`;
+}
+
+async function updateApplicationSession(patch = {}) {
+  const currentRes = await swMsg({ type: "GET_APPLICATION_SESSION" });
+  const current = currentRes?.session ?? {};
+  const det = window.NR_ATS?.detectATSFromHost?.();
+  return swMsg({
+    type: "SET_APPLICATION_SESSION",
+    session: {
+      ...current,
+      target_url: location.href,
+      ats_family: det?.entry?.family ?? current.ats_family ?? null,
+      savedAt: current.savedAt ?? Date.now(),
+      ...patch,
+    },
+  });
+}
+
+async function markFillStarted() {
+  return updateApplicationSession({
+    status: "filling",
+    fill_started_at: new Date().toISOString(),
+    failure_reason: null,
+  });
+}
+
+async function markFillResult(result) {
+  const errors = Array.isArray(result?.errors) ? result.errors.filter(Boolean) : [];
+  return updateApplicationSession({
+    status: errors.length > 0 ? "failed" : "filled",
+    failure_reason: errors.length > 0 ? errors.slice(0, 5).join("; ") : null,
+  });
 }
 
 async function loadTailorState() {
@@ -1235,9 +1287,18 @@ async function runTailorIfEnabled({ jobId, job }) {
   return out;
 }
 
+const ARTIFACT_CACHE = new Map();
+
 async function fetchArtifacts(jobId) {
+  const key = jobId ?? "__none__";
+  const cached = ARTIFACT_CACHE.get(key);
+  if (cached && (Date.now() - cached.savedAt) <= 10_000) {
+    return cached.value;
+  }
+
   const res = await swMsg({ type: "GET_JOB_ARTIFACTS", jobId: jobId ?? undefined });
   if (!res?.ok) return null;
+  ARTIFACT_CACHE.set(key, { value: res, savedAt: Date.now() });
   return res;
 }
 
@@ -1262,7 +1323,7 @@ function requestFieldScan() {
         document.removeEventListener("nr:scan-res", handler);
         resolve({ fields: [] });
       }
-    }, 1500);
+    }, 900);
   });
 }
 
@@ -1270,6 +1331,7 @@ function requestFieldScan() {
 
 async function checkAutoTrigger() {
   if (_dismissed || _card) return;
+  if (isSourceBoardJobPage()) return;
   if (!isApplyFormPage()) return;
 
   // Prefer the explicit apply-intent flag set by the popup's "Save & Apply"
@@ -1277,11 +1339,9 @@ async function checkAutoTrigger() {
   // click interceptor captures on JD pages.
   const intent = await getApplyIntent();
   const ctx    = await getCrossSiteCtx();
-  const fresh  = (data) => data && (Date.now() - (data.savedAt ?? 0)) <= 90 * 60 * 1000;
+  const fresh  = (data) => data && data.status === "intent" && (Date.now() - (data.savedAt ?? 0)) <= 90 * 60 * 1000;
 
   if (fresh(intent)) {
-    // Clear so we don't auto-open a second time on accidental reload
-    clearApplyIntent();
     openCardFromCtx(intent);
     return;
   }
@@ -1296,13 +1356,14 @@ async function checkAutoTrigger() {
 async function openCardFromCtx(ctx) {
   buildCardShell();
   if (!_card) return;
+  await updateApplicationSession({ status: "form_ready" }).catch(() => {});
 
   const inner = _card.querySelector("#nr-ac-inner");
   if (inner) {
     inner.innerHTML = `<div class="nr-ac-body"><div class="nr-ac-loading"><span class="nr-ac-spin"></span>&nbsp;Loading…</div></div>`;
   }
 
-  await loadConfirmScreen(ctx.jobId ?? null, ctx);
+  await loadConfirmScreen(ctx.job_id ?? ctx.jobId ?? null, ctx);
 }
 
 // ─── Card shell builder (shared by openCard + openCardDirect) ────────────────
@@ -1356,6 +1417,7 @@ function buildCardShell() {
 async function openCardDirect(jobId, job) {
   buildCardShell();
   if (!_card) return;
+  await updateApplicationSession({ job_id: jobId ?? null, status: "form_ready" }).catch(() => {});
 
   // Show a spinner in the inner area while we load artifacts
   const inner = _card.querySelector("#nr-ac-inner");
@@ -1394,7 +1456,7 @@ async function openCard(jobId) {
 
 // ─── Load confirm screen (with retry / auth handling) ─────────────────────────
 
-// ctxHint is the raw nr_cross_site_job object (may contain jobTitle/company/jobDescription/fromNaukri)
+// ctxHint is the raw application session object (may contain jobTitle/company/jobDescription/fromNaukri)
 // passed through from checkAutoTrigger when the card is opened via auto-trigger.
 async function loadConfirmScreen(jobId, ctxHint = null) {
   const inner = _card?.querySelector("#nr-ac-inner");
@@ -2196,6 +2258,7 @@ async function renderFillUniform(opts) {
     fillBtn.disabled = true;
     fillBtn.textContent = "Filling…";
     resultEl.style.display = "none";
+    await markFillStarted().catch(() => {});
 
     let resumeData = null;
     let coverLetterData = null;
@@ -2223,6 +2286,7 @@ async function renderFillUniform(opts) {
     ]);
 
     if (!resumeData && !optionalResume) {
+      await updateApplicationSession({ status: "failed", failure_reason: "No resume available" }).catch(() => {});
       resultEl.style.display = "block";
       resultEl.innerHTML = NR.banner({
         tone: "skip",
@@ -2242,6 +2306,7 @@ async function renderFillUniform(opts) {
     let res;
     try { res = await requestFill(resumeData, coverLetterData, tailorData); }
     catch (e) { res = { filled: 0, skipped: 0, errors: [e?.message ?? "Fill failed"] }; }
+    await markFillResult(res).catch(() => {});
 
     const hasErrors = res.errors?.length > 0;
     const tone  = res.filled > 0 && !hasErrors ? "apply" : res.filled > 0 ? "watch" : "skip";
@@ -2892,6 +2957,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
       btn.disabled = true;
       btn.textContent = "Filling…";
       resultEl.style.display = "none";
+      await markFillStarted().catch(() => {});
 
       // Fetch resume + cover letter + tailor (if enabled) in parallel.
       const tailorState = await loadTailorState();
@@ -2906,6 +2972,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
       ]);
 
       if (!resumeData) {
+        await updateApplicationSession({ status: "failed", failure_reason: "No resume available" }).catch(() => {});
         resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
         resultEl.innerHTML = "No resume available. <a href='" + (NEXTROLE_URL ?? "") + "/dashboard/profile#section-resume' target='_blank' style='color:inherit;text-decoration:underline;'>Upload one</a> or generate a tailored resume first.";
         btn.disabled = false;
@@ -2915,6 +2982,7 @@ async function renderGreenhouseHelper(container, jobId, job) {
 
       btn.textContent = "Filling…";
       const res = await requestGreenhouseFill(resumeData, coverLetterData, tailorResult);
+      await markFillResult(res).catch(() => {});
 
       const hasErrors = res.errors && res.errors.length > 0;
       const color = res.filled > 0 && !hasErrors ? "#f0fdf4" : res.filled > 0 ? "#fefce8" : "#fef2f2";
@@ -3088,6 +3156,8 @@ async function renderSimpleHelper(opts) {
     btn.textContent = "Filling…";
     resultEl.style.display = "none";
 
+    await markFillStarted().catch(() => {});
+
     // Tailor + file fetch in parallel
     const tailorState = await loadTailorState();
     const tailorPromise = tailorState.tailor_enabled
@@ -3100,6 +3170,7 @@ async function renderSimpleHelper(opts) {
     ]);
 
     if (!resumeData && !optionalResume) {
+      await updateApplicationSession({ status: "failed", failure_reason: "No resume available" }).catch(() => {});
       resultEl.style.cssText = "display:block;margin-top:6px;padding:8px 10px;border-radius:8px;font-size:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;";
       resultEl.innerHTML = `No resume available. <a href="#" id="nr-fill-upload-link" style="color:inherit;text-decoration:underline;">Upload one in your profile</a>.`;
       container.querySelector("#nr-fill-upload-link")?.addEventListener("click", (ev) => {
@@ -3113,6 +3184,7 @@ async function renderSimpleHelper(opts) {
 
     btn.textContent = "Filling…";
     const r = await requestFill(resumeData, coverLetterData, tailorData);
+    await markFillResult(r).catch(() => {});
 
     const hasErrors = r.errors && r.errors.length > 0;
     const color  = r.filled > 0 && !hasErrors ? "#f0fdf4" : r.filled > 0 ? "#fefce8" : "#fef2f2";
@@ -4279,35 +4351,47 @@ async function renderWorkdayHelper(container, jobId, job, section) {
 
 // ─── Accenture fill dispatcher ────────────────────────────────────────────────
 
-// Tries the tailored resume for this job first; if absent, falls back to the
-// user's uploaded default resume from the Profile page.
+// If the user explicitly chose a saved tailored resume, use that first.
+// Otherwise prefer the original resume uploaded on the Profile page because
+// many ATS parsers handle real PDF/DOCX files more reliably than HTML-backed
+// .doc exports. Tailored resumes remain available as a fallback.
 async function fetchResumeBlob(jobId) {
   // 0. User picked a saved resume from another job — try that first.
   if (_resumeJobOverride && _resumeJobOverride !== jobId) {
     try {
-      const res = await swMsg({ type: "GET_RESUME_FILE", jobId: _resumeJobOverride });
+      const res = await swMsg({
+        type: "GET_RESUME_FILE",
+        jobId: _resumeJobOverride,
+        format: isKekaApplyPage() ? "docx" : "pdf",
+      });
       if (res?.ok && res.data) {
         return {
           data:     res.data,
-          type:     res.type ?? "application/msword",
-          filename: res.filename ?? "nextrole_resume.doc",
+          type:     res.type ?? (isKekaApplyPage() ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf"),
+          filename: res.filename ?? (isKekaApplyPage() ? "nextrole_resume.docx" : "nextrole_resume.pdf"),
         };
       }
     } catch { /* fall through to default lookup */ }
   }
-  // 1. Job-specific tailored resume (AI-generated HTML → .doc)
+
+  // 1. Job-specific tailored resume.
   if (jobId) {
     try {
-      const res = await swMsg({ type: "GET_RESUME_FILE", jobId });
+      const res = await swMsg({
+        type: "GET_RESUME_FILE",
+        jobId,
+        format: isKekaApplyPage() ? "docx" : "pdf",
+      });
       if (res?.ok && res.data) {
         return {
           data:     res.data,
-          type:     res.type ?? "application/msword",
-          filename: res.filename ?? "nextrole_resume.doc",
+          type:     res.type ?? (isKekaApplyPage() ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document" : "application/pdf"),
+          filename: res.filename ?? (isKekaApplyPage() ? "nextrole_resume.docx" : "nextrole_resume.pdf"),
         };
       }
     } catch { /* fall through */ }
   }
+
   // 2. User's uploaded default resume (PDF/DOCX from Profile page)
   try {
     const res = await swMsg({ type: "GET_PROFILE_FILE", kind: "resume" });
@@ -4319,6 +4403,7 @@ async function fetchResumeBlob(jobId) {
       };
     }
   } catch { /* no resume available */ }
+
   return null;
 }
 
@@ -5208,6 +5293,10 @@ document.addEventListener("nr:open-apply-card", (e) => {
   removeCard();
   _dismissed = false;
 
+  if (mode === "fill" && (isSourceBoardJobPage() || !isApplyFormPage())) {
+    return;
+  }
+
   const job = jobTitle ? {
     title:       jobTitle,
     company:     e.detail?.company        ?? "",
@@ -5235,9 +5324,9 @@ document.addEventListener("nr:open-apply-card", (e) => {
 // Wait for DOM ready + small delay so auto-fill.js has time to set up scan listener
 function tryAutoTrigger() {
   if (document.readyState === "complete" || document.readyState === "interactive") {
-    setTimeout(checkAutoTrigger, 900);
+    setTimeout(checkAutoTrigger, 250);
   } else {
-    window.addEventListener("load", () => setTimeout(checkAutoTrigger, 900), { once: true });
+    window.addEventListener("load", () => setTimeout(checkAutoTrigger, 250), { once: true });
   }
 }
 tryAutoTrigger();
@@ -5246,7 +5335,7 @@ tryAutoTrigger();
 document.addEventListener("nr:page-changed", () => {
   _dismissed = false;
   _card = null;
-  setTimeout(checkAutoTrigger, 900);
+  setTimeout(checkAutoTrigger, 250);
 });
 
 })();

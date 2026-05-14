@@ -410,6 +410,7 @@ function ScorePill({ score }: { score: number }) {
 }
 
 function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; onToggle: () => void }) {
+  const [now] = useState(() => Date.now());
   const dec = ev.decision as Decision;
   const decStyle: Record<Decision, string> = {
     apply: "bg-[var(--ok)] text-white",
@@ -421,7 +422,6 @@ function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; 
   const jobId   = ev.jobs?.id      ?? null;
 
   const d = new Date(ev.created_at);
-  const now = Date.now();
   const diff = now - d.getTime();
   const days = Math.floor(diff / 86_400_000);
   const when = days === 0 ? "Today"

@@ -38,6 +38,7 @@ import { callProvider } from "@/lib/ai/providers";
 import { resolveRoute } from "@/lib/ai/router";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { CREDIT_COSTS, STARTER_DAILY_TAILOR_CAP, canAccess } from "@/lib/ai/gates";
+import { chargeExtensionAiSuccess } from "@/lib/extension-ai";
 
 const ALLOWED_FIELDS = new Set([
   "cover_letter", "why_company", "about_yourself", "experience", "additional_info",
@@ -217,12 +218,8 @@ export async function POST(req: NextRequest) {
       }, { status: 429 });
     }
   } else if (tier === "pro") {
-    // Pro: deduct credits atomically
-    const { data: deducted } = await admin.rpc("deduct_credit", {
-      p_user_id: userId,
-      p_amount:  CREDIT_COSTS.tailor,
-    });
-    if (!deducted) {
+    const creditsLeft = (profile.credits_remaining ?? 0) as number;
+    if (creditsLeft < CREDIT_COSTS.tailor) {
       return NextResponse.json({
         error: `Insufficient credits (${CREDIT_COSTS.tailor} required). Top up or wait for daily reset.`,
         insufficient_credits: true,
@@ -314,8 +311,20 @@ export async function POST(req: NextRequest) {
       parsed = m ? JSON.parse(m[0]) : {};
     }
 
-    // Increment usage counter (best-effort, fire-and-forget)
-    admin.rpc("increment_daily_usage", { p_field: "tailor_sessions", p_user: userId }).then(() => {});
+    const creditsCharged = await chargeExtensionAiSuccess(admin, {
+      userId,
+      tier,
+      task: "tailor",
+      starterUsageField: "tailor_sessions",
+    });
+
+    await admin.from("usage_log").insert({
+      user_id: userId,
+      task_type: "tailor",
+      model: route.model,
+      credits_used: creditsCharged,
+      byok: false,
+    });
 
     return NextResponse.json({
       answers:              (parsed.answers ?? {}) as Record<string, string>,

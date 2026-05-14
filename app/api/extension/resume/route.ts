@@ -17,6 +17,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, FREE_DAILY_LIMITS, CREDIT_COSTS } from "@/lib/ai/gates";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
+import { chargeExtensionAiSuccess } from "@/lib/extension-ai";
 
 export const maxDuration = 120;
 
@@ -128,11 +129,12 @@ export async function POST(req: NextRequest) {
   catch { return NextResponse.json({ error: "AI returned invalid response" }, { status: 502 }); }
 
   // AI succeeded — NOW deduct credits / increment free usage
-  if (tier === "free") {
-    await admin.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
-  } else {
-    await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.resume_standard });
-  }
+  await chargeExtensionAiSuccess(admin, {
+    userId,
+    tier,
+    task: "resume_standard",
+    freeUsageField: "resumes",
+  });
 
   const html     = renderResumeHtml(resumeData);
   const coverage = Math.max(0, Math.min(100, (resumeData as { coverage?: number }).coverage ?? 0));
@@ -142,7 +144,13 @@ export async function POST(req: NextRequest) {
     content: JSON.stringify(resumeData), html, coverage, status: "draft", version: 1,
   }).select("id").single();
 
-  admin.from("usage_log").insert({ user_id: userId, task_type: "resume_standard", model: route.model, credits_used: tier === "free" ? 0 : CREDIT_COSTS.resume_standard, byok: false }).then(() => {});
+  await admin.from("usage_log").insert({
+    user_id: userId,
+    task_type: "resume_standard",
+    model: route.model,
+    credits_used: tier === "free" ? 0 : CREDIT_COSTS.resume_standard,
+    byok: false,
+  });
 
   return NextResponse.json({ resume_id: resume?.id ?? null, html, coverage, job_title: jobTitle, company });
 }

@@ -36,6 +36,8 @@ const NR_ATS_REGISTRY = {
     jdPattern:    /\/job\/[^/]+(?:\?|$|#)/,
     applyPattern: /\/(?:apply|applyManually|applyFlow)(?:\/|$|\?|#)/,
     formMarker:   '[data-automation-id="applyFlowPage"], [data-automation-id="progressBar"]',
+    submitPattern: /\/(?:apply|applyManually|applyFlow)\/(?:complete|success)|\/application-submitted/i,
+    submitMarker:  '[data-automation-id="applyFlowCompletePage"], [data-automation-id="applicationComplete"]',
     multiStep:    true,
     stepIndicator: '[data-automation-id="progressBarActiveStep"] label',
     fieldWrapper:  '[data-automation-id^="formField-"]',
@@ -76,6 +78,7 @@ const NR_ATS_REGISTRY = {
     jdPattern:    /\/jobs\/\d+/,
     applyPattern: /\/jobs\/\d+/,  // same URL — form is below JD on same page
     formMarker:   '#application-form, .application--form',
+    submitMarker: '.application-confirmation, #application_confirmation, [data-qa="application-confirmation"]',
     multiStep:    false,
     stepIndicator: null,
     fieldWrapper:  '.field-wrapper, .input-wrapper',
@@ -280,6 +283,7 @@ const NR_ATS_REGISTRY = {
     jdPattern:    /\/[^/]+\/[a-f0-9-]+$/,
     applyPattern: /\/[^/]+\/[a-f0-9-]+\/apply/,
     formMarker:   '.application-question, input[name="resume"]',
+    submitMarker: '.application-thank-you, [data-qa="application-thank-you"]',
     multiStep:    false,
     fields: {
       firstName: 'input[name="name"]',  // Lever uses combined name field
@@ -299,6 +303,7 @@ const NR_ATS_REGISTRY = {
     jdPattern:    /\/[^/]+\/[a-f0-9-]+$/,
     applyPattern: /\/[^/]+\/[a-f0-9-]+\/application/,
     formMarker:   'input[id^="_systemfield_"], .ashby-application-form-question',
+    submitMarker: '[data-testid="application-submitted"], .ashby-job-posting-success',
     multiStep:    false,
     fields: {
       firstName: 'input[id="_systemfield_name"]',  // approximate
@@ -414,7 +419,15 @@ function hasApplyFormDOM(entry) {
   catch { return false; }
 }
 
+function detectSubmittedState(entry, url = location.href) {
+  if (!entry) return false;
+  if (entry.submitPattern?.test?.(url)) return true;
+  if (!entry.submitMarker) return false;
+  try { return !!document.querySelector(entry.submitMarker); }
+  catch { return false; }
+}
+
 // Expose to other content scripts loaded after this one
 window.NR_ATS_REGISTRY = NR_ATS_REGISTRY;
 window.NR_ATS_REGISTRY_VERSION = ATS_REGISTRY_VERSION;
-window.NR_ATS = { detectATSFromHost, isJDPage, isApplyPage, hasApplyFormDOM };
+window.NR_ATS = { detectATSFromHost, isJDPage, isApplyPage, hasApplyFormDOM, detectSubmittedState };

@@ -246,9 +246,6 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         </Link>
       </nav>
       <div className="ml-auto flex items-center gap-2.5 md:ml-0">
-        <span className="hidden rounded-full border border-[var(--accent)] bg-[#fcefe7] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--accent)] sm:inline-block">
-          Private beta
-        </span>
         <Link
           href="/login"
           className="rounded-md border px-2.5 py-1.5 text-[13px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
@@ -258,7 +255,14 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         </Link>
         <Link
           href="/signup"
-          className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90 md:hidden"
+          className="rounded-md border px-2.5 py-1.5 text-[13px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
+          style={{ border: "1px solid var(--line-soft)" }}
+        >
+          Sign up
+        </Link>
+        <Link
+          href="/signup"
+          className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90"
           style={{ background: "var(--accent)" }}
         >
           Get started
@@ -482,18 +486,18 @@ export function LandingPage() {
         <div className="mb-6 flex flex-col gap-3 sm:flex-row">
           <Link
             href="/signup"
+            className="inline-flex items-center justify-center gap-2 rounded-md border px-6 py-3.5 text-[15px] font-medium transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
+            style={{ border: "1px solid var(--line-soft)" }}
+          >
+            Sign up
+          </Link>
+          <Link
+            href="/signup"
             className="inline-flex items-center justify-center gap-2 rounded-md px-6 py-3.5 text-[15px] font-medium text-[#fffdf8] transition hover:opacity-90"
             style={{ background: "var(--accent)" }}
           >
-            Get started free
+            Get started
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </Link>
-          <Link
-            href="/#how-it-works"
-            className="inline-flex items-center justify-center gap-2 rounded-md border px-6 py-3.5 text-[15px] font-medium transition hover:border-[var(--line)]"
-            style={{ border: "1px solid var(--line-soft)" }}
-          >
-            See how it works
           </Link>
         </div>
         <div className="flex items-center gap-2.5 text-[13px] text-[var(--muted-foreground)]">
@@ -885,14 +889,14 @@ export function PrivacyPage() {
             <h3 className="text-lg font-bold">Supabase</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
               Hosts our database and handles authentication. Your account data and
-              job pipeline are stored in Supabase's infrastructure.
+              job pipeline are stored in Supabase&apos;s infrastructure.
             </p>
           </Surface>
           <Surface className="p-5">
             <h3 className="text-lg font-bold">OpenRouter</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
               Powers NextRole AI. When you run an evaluation or generate a resume,
-              your CV context and job text are routed through OpenRouter's API to
+              your CV context and job text are routed through OpenRouter&apos;s API to
               process your request. No data is stored by OpenRouter beyond the request.
             </p>
           </Surface>
@@ -920,7 +924,7 @@ export function PrivacyPage() {
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
             <p>All data is encrypted in transit via HTTPS. Supabase encrypts data at rest.</p>
             <p>API keys and sensitive credentials are stored encrypted and only used server-side.</p>
-            <p>No internet-facing system can guarantee absolute security. Please don't store information in NextRole you wouldn't want processed by the above services.</p>
+            <p>No internet-facing system can guarantee absolute security. Please don&apos;t store information in NextRole you wouldn&apos;t want processed by the above services.</p>
           </div>
         </Surface>
       </section>
@@ -951,8 +955,8 @@ export function TermsPage() {
         <Surface tone="accent" className="p-5">
           <SectionTitle title="Acceptable use" subtitle="Use the tool responsibly" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>You must be 18 or older to use NextRole. You're responsible for keeping your login credentials secure.</p>
-            <p>Don't use NextRole to submit false or misleading information to employers, scrape third-party job platforms in violation of their terms, or abuse the credit system.</p>
+            <p>You must be 18 or older to use NextRole. You&apos;re responsible for keeping your login credentials secure.</p>
+            <p>Don&apos;t use NextRole to submit false or misleading information to employers, scrape third-party job platforms in violation of their terms, or abuse the credit system.</p>
             <p>One account per person. Sharing accounts or reselling access is not permitted.</p>
           </div>
         </Surface>
@@ -1000,7 +1004,7 @@ export function TermsPage() {
           <SectionTitle title="Warranty and liability" subtitle="Service provided as-is" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
             <p>NextRole is provided on an as-available basis. We do not guarantee uninterrupted service, and we may update or discontinue features with reasonable notice.</p>
-            <p>To the fullest extent permitted by law, NextRole's liability is limited to the amount you paid in the 3 months prior to any claim.</p>
+            <p>To the fullest extent permitted by law, NextRole&apos;s liability is limited to the amount you paid in the 3 months prior to any claim.</p>
           </div>
         </Surface>
       </section>

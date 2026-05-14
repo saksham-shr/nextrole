@@ -15,6 +15,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
 import { resolveRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
+import { chargeExtensionAiSuccess } from "@/lib/extension-ai";
 
 export const maxDuration = 60;
 
@@ -161,11 +162,12 @@ export async function POST(req: NextRequest) {
   const archetype = result.archetype ?? null;
 
   // AI succeeded — NOW deduct credits / increment free usage
-  if (tier === "free") {
-    await admin.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
-  } else {
-    await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.evaluate });
-  }
+  await chargeExtensionAiSuccess(admin, {
+    userId,
+    tier,
+    task: "evaluate",
+    freeUsageField: "evaluations",
+  });
 
   // Persist evaluation row
   const { data: evaluation } = await admin.from("evaluations").insert({
@@ -191,13 +193,13 @@ export async function POST(req: NextRequest) {
     updated_at: new Date().toISOString(),
   }).eq("id", jobId).eq("user_id", userId);
 
-  admin.from("usage_log").insert({
+  await admin.from("usage_log").insert({
     user_id: userId,
     task_type: "evaluate",
     model: route.model,
     credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
     byok: false,
-  }).then(() => {});
+  });
 
   return NextResponse.json({
     evaluation_id: evaluation?.id ?? null,

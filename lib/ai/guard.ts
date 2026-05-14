@@ -29,7 +29,8 @@ const STARTER_USAGE_COL: Record<string, keyof typeof STARTER_DAILY_LIMITS> = {
 
 /**
  * Gate every protected AI API route.
- * Admin email bypasses all tier/credit checks.
+ * Admin email gets Pro feature access, but still uses the real profile credit
+ * balance so dashboard numbers, usage logs, and deductions stay in sync.
  */
 export async function requireFeature(
   feature: string,
@@ -43,22 +44,17 @@ export async function requireFeature(
 
   const isAdmin = !!(user.email && user.email.toLowerCase() === ADMIN_EMAIL);
 
-  // Admin bypasses everything
-  if (isAdmin) {
-    return { ok: true, userId: user.id, tier: "pro", creditsRemaining: 999999, isAdmin };
-  }
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("tier, credits_remaining, subscription_status")
     .eq("id", user.id)
     .single();
 
-  const tier    = (profile?.tier ?? "free") as Tier;
+  const tier    = (isAdmin ? "pro" : (profile?.tier ?? "free")) as Tier;
   const status  = (profile?.subscription_status ?? null) as SubStatus;
   const credits = profile?.credits_remaining ?? 0;
 
-  if (status === "paused") {
+  if (!isAdmin && status === "paused") {
     return NextResponse.json({ error: "SUBSCRIPTION_PAUSED", currentTier: tier }, { status: 402 });
   }
 

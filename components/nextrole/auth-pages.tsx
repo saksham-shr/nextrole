@@ -14,15 +14,9 @@ import type { ReactNode } from "react";
 import { useState, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BrandMark, BrandWordmark } from "@/components/nextrole/brand";
-import { checkBetaAccess } from "@/app/actions/auth";
+import { BrandMark } from "@/components/nextrole/brand";
 import {
-  Badge,
-  Button,
-  Display,
-  InputField,
   Spinner,
-  Surface,
 } from "@/components/nextrole/ui";
 import { createClient } from "@/lib/supabase/client";
 
@@ -260,13 +254,6 @@ export function LoginPage({
     setLoading(true);
     setError(undefined);
 
-    const allowed = await checkBetaAccess(email);
-    if (!allowed) {
-      setError("NextRole is currently in private beta — we’ll be opening up soon.");
-      setLoading(false);
-      return;
-    }
-
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
       setError(error.message);
@@ -343,15 +330,9 @@ export function LoginPage({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Signup — email confirmation is disabled; signUp() resolves immediately with
-// a session and we redirect straight to /onboarding.
+// Signup. If email confirmation is disabled, signUp() resolves with a session
+// and redirects to onboarding; otherwise we send the user to a clear inbox prompt.
 // ─────────────────────────────────────────────────────────────────────────────
-
-const SIGNUP_BENEFITS: [string, string][] = [
-  ["🎯", "See if a job is right for you, in seconds."],
-  ["📄", "Tailor your resume to any role automatically."],
-  ["💬", "Prep answers for likely interview questions."],
-];
 
 export function SignupPage() {
   const router = useRouter();
@@ -368,15 +349,21 @@ export function SignupPage() {
     setLoading(true);
     setError(undefined);
 
-    const allowed = await checkBetaAccess(email);
-    if (!allowed) {
-      setError("NextRole is currently in private beta — we'll be opening up soon.");
-      setLoading(false);
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=/onboarding`,
+      },
+    });
+    if (error) { setError(error.message); setLoading(false); return; }
+
+    if (!data.session) {
+      const message = encodeURIComponent("Check your email to confirm your account, then sign in.");
+      router.push(`/login?message=${message}`);
+      router.refresh();
       return;
     }
-
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) { setError(error.message); setLoading(false); return; }
 
     router.push("/onboarding");
     router.refresh();

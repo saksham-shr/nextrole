@@ -149,8 +149,8 @@ export type ProfileFileRow = {
   kind: "resume" | "cover_letter";
   file_name: string;
   storage_path: string;
-  file_size: number | null;
-  mime_type: string | null;
+  size_bytes: number;
+  mime_type: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -178,17 +178,51 @@ export type ProviderCredentialRow = {
   updated_at: string;
 };
 
+export type InviteRow = {
+  id: string;
+  email: string;
+  invited_by: string | null;
+  created_at: string;
+  used_at: string | null;
+  expires_at: string | null;
+  tier: string;
+};
+
 export type JobRow = {
   id: string;
   user_id: string;
   title: string;
   company: string;
   url: string | null;
+  canonical_url: string | null;
   description: string | null;
   status: JobStatus;
   source: string | null;
+  ats_family: string | null;
   archetype: string | null;
   notes: string | null;
+  applied_at: string | null;
+  last_response_at: string | null;
+  followup_due_at: string | null;
+  followup_state: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ApplicationSessionRow = {
+  id: string;
+  user_id: string;
+  job_id: string | null;
+  source_tab_id: number | null;
+  source_url: string | null;
+  target_url: string | null;
+  ats_family: string | null;
+  status: string;
+  started_at: string;
+  fill_started_at: string | null;
+  submitted_at: string | null;
+  failure_reason: string | null;
+  last_seen_at: string;
   created_at: string;
   updated_at: string;
 };
@@ -506,11 +540,17 @@ export type Database = {
           title: string;
           company: string;
           url?: string | null;
+          canonical_url?: string | null;
           description?: string | null;
           status?: JobStatus;
           source?: string | null;
+          ats_family?: string | null;
           archetype?: string | null;
           notes?: string | null;
+          applied_at?: string | null;
+          last_response_at?: string | null;
+          followup_due_at?: string | null;
+          followup_state?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -518,14 +558,63 @@ export type Database = {
           title?: string;
           company?: string;
           url?: string | null;
+          canonical_url?: string | null;
           description?: string | null;
           status?: JobStatus;
           source?: string | null;
+          ats_family?: string | null;
           archetype?: string | null;
           notes?: string | null;
+          applied_at?: string | null;
+          last_response_at?: string | null;
+          followup_due_at?: string | null;
+          followup_state?: string | null;
           updated_at?: string;
         };
         Relationships: [];
+      };
+      application_sessions: {
+        Row: ApplicationSessionRow;
+        Insert: {
+          id?: string;
+          user_id: string;
+          job_id?: string | null;
+          source_tab_id?: number | null;
+          source_url?: string | null;
+          target_url?: string | null;
+          ats_family?: string | null;
+          status?: string;
+          started_at?: string;
+          fill_started_at?: string | null;
+          submitted_at?: string | null;
+          failure_reason?: string | null;
+          last_seen_at?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          job_id?: string | null;
+          source_tab_id?: number | null;
+          source_url?: string | null;
+          target_url?: string | null;
+          ats_family?: string | null;
+          status?: string;
+          started_at?: string;
+          fill_started_at?: string | null;
+          submitted_at?: string | null;
+          failure_reason?: string | null;
+          last_seen_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "application_sessions_job_id_fkey";
+            columns: ["job_id"];
+            isOneToOne: false;
+            referencedRelation: "jobs";
+            referencedColumns: ["id"];
+          },
+        ];
       };
       job_events: {
         Row: JobEventRow;
@@ -905,8 +994,8 @@ export type Database = {
           kind: "resume" | "cover_letter";
           file_name: string;
           storage_path: string;
-          file_size?: number | null;
-          mime_type?: string | null;
+          size_bytes: number;
+          mime_type: string;
           is_default?: boolean;
           created_at?: string;
           updated_at?: string;
@@ -1013,6 +1102,24 @@ export type Database = {
           created_at?: string;
         };
         Update: Record<string, never>;
+        Relationships: [];
+      };
+      invites: {
+        Row: InviteRow;
+        Insert: {
+          id?: string;
+          email: string;
+          invited_by?: string | null;
+          tier?: string;
+          created_at?: string;
+          expires_at?: string | null;
+          used_at?: string | null;
+        };
+        Update: {
+          used_at?: string | null;
+          expires_at?: string | null;
+          tier?: string;
+        };
         Relationships: [];
       };
       daily_usage: {

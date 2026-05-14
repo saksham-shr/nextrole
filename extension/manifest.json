@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "NextRole — Job Detector",
   "version": "1.0.0",
-  "description": "Detect job postings on any site and add them to your NextRole pipeline in one click.",
+  "description": "Detect job postings, evaluate fit, and autofill applications — powered by your NextRole profile.",
   "minimum_chrome_version": "102",
   "permissions": ["activeTab", "storage", "tabs", "identity"],
   "host_permissions": ["<all_urls>"],
@@ -12,8 +12,8 @@
   "action": {
     "default_popup": "popup/popup.html",
     "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
+      "16":  "icons/icon16.png",
+      "48":  "icons/icon48.png",
       "128": "icons/icon128.png"
     }
   },
@@ -46,10 +46,10 @@
   "background": {
     "service_worker": "background/service-worker.js"
   },
-  "options_page": "popup/popup.html",
+  "options_page": "options/options.html",
   "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
+    "16":  "icons/icon16.png",
+    "48":  "icons/icon48.png",
     "128": "icons/icon128.png"
   }
 }

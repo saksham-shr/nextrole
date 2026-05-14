@@ -158,7 +158,13 @@ export async function POST(req: NextRequest) {
 
   if (tier === "starter" || tier === "pro") {
     // Deduct 2 credits per AI call for both tiers
-    await admin.rpc("deduct_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.autofill });
+    const { data: ok, error } = await admin.rpc("deduct_credit", {
+      p_user_id: userId,
+      p_amount: CREDIT_COSTS.autofill,
+    });
+    if (error || ok !== true) {
+      return NextResponse.json({ error: "No credits remaining — top up your plan", upgrade: true }, { status: 402 });
+    }
     await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
     // Track daily credit spend for Starter cap enforcement
     if (tier === "starter") {
@@ -169,10 +175,10 @@ export async function POST(req: NextRequest) {
     creditsCharged = CREDIT_COSTS.autofill;
   }
 
-  admin.from("usage_log").insert({
+  await admin.from("usage_log").insert({
     user_id: userId, task_type: "autofill", model: route.model,
     credits_used: creditsCharged, byok: false,
-  }).then(() => {});
+  });
 
   return NextResponse.json({ suggestion: suggestion.trim() });
 }

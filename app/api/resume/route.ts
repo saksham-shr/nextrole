@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Pre-flight credit check — deduction happens after AI succeeds to avoid charging for failures
-  if (!isAdmin && tier !== "free") {
+  if (tier !== "free") {
     const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
     const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
     if (creditsLeft < creditAmount) {
@@ -120,12 +120,23 @@ export async function POST(request: NextRequest) {
   }
 
   // AI succeeded — NOW deduct credits / increment usage
-  if (!isAdmin) {
-    const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
-    if (tier === "free" && !isPremium) {
-      await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
-    } else if (tier !== "free") {
-      await supabase.rpc("deduct_credit", { p_user_id: userId, p_amount: creditAmount });
+  const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
+  if (tier === "free" && !isPremium) {
+    await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
+  } else if (tier !== "free") {
+    const { data: ok, error } = await supabase.rpc("deduct_credit", {
+      p_user_id: userId,
+      p_amount: creditAmount,
+    });
+    if (error || ok !== true) {
+      if (taskRun) {
+        await supabase.from("task_runs").update({
+          status: "failed",
+          error: "NO_CREDITS",
+          updated_at: new Date().toISOString(),
+        }).eq("id", taskRun.id);
+      }
+      return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
   }
 
@@ -147,13 +158,13 @@ export async function POST(request: NextRequest) {
     }).eq("id", taskRun.id);
   }
 
-  supabase.from("usage_log").insert({
+  await supabase.from("usage_log").insert({
     user_id: userId,
     task_type: isPremium ? "resume_premium" : "resume_standard",
     model: route.model,
-    credits_used: isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard,
+    credits_used: tier === "free" ? 0 : creditAmount,
     byok: false,
-  }).then(() => {});
+  });
 
   return NextResponse.json({ resume_id: resume?.id, coverage, html });
 }

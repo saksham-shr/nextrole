@@ -145,7 +145,7 @@ export function OnboardingPricing({ trialEndsAt, email }: Props) {
     if (!url) return;
     setLoading(tierId);
     await completeOnboarding();
-    window.location.href = url;
+    window.location.assign(url);
   }
 
   return (

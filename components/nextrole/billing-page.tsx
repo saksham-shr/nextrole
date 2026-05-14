@@ -89,6 +89,7 @@ const TASK_LABELS: Record<string, string> = {
   resume_standard:"Standard resume",
   resume_premium: "Premium resume",
   autofill:       "Autofill",
+  tailor:         "AI tailoring",
   compare:        "Job comparison",
   interview_prep: "Interview prep",
   cover_letter:   "Cover letter",
@@ -100,6 +101,8 @@ function taskLabel(type: string) {
 }
 
 function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
+  const [now] = useState(() => Date.now());
+
   if (entries.length === 0) {
     return (
       <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
@@ -117,7 +120,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
       <div className="mb-4 flex items-center justify-between">
         <h3 className="text-[14px] font-semibold">Credit usage log</h3>
-        <span className="font-mono text-[11px] text-[var(--muted-foreground)]">{totalSpent} credits · last {entries.length} actions</span>
+        <span className="font-mono text-[11px] text-[var(--muted-foreground)]">{totalSpent} spent in shown log · last {entries.length} actions</span>
       </div>
       <div className="overflow-hidden rounded-xl border border-[var(--line-soft)]">
         <table className="w-full text-[13px]">
@@ -131,7 +134,6 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
           <tbody className="divide-y divide-[var(--line-soft)]">
             {entries.map((e) => {
               const d = new Date(e.created_at);
-              const now = Date.now();
               const diff = now - d.getTime();
               const mins = Math.floor(diff / 60_000);
               const hrs = Math.floor(diff / 3_600_000);
@@ -383,7 +385,8 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
                   ["Job evaluation",    "5 credits"],
                   ["Standard resume",   "10 credits"],
                   ["Premium resume",    "25 credits"],
-                  ["Autofill (form)",   "8 credits"],
+                  ["Autofill AI suggestion", "2 credits"],
+                  ["Tailor freeform answers", "8 credits"],
                 ].map(([action, cost]) => (
                   <tr key={action}>
                     <td className="py-1.5 text-[var(--muted-foreground)]">{action}</td>

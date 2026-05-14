@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    console.log("[ext-token:GET] looking up hash prefix", tokenHash.slice(0, 8), "expires_gt", now);
 
     const { data: row, error: lookupError } = await admin
       .from("extension_tokens")
@@ -50,8 +49,6 @@ export async function GET(request: NextRequest) {
       .eq("token_hash", tokenHash)
       .gt("expires_at", now)
       .single();
-
-    console.log("[ext-token:GET] found:", !!row, "error:", lookupError?.message ?? "none");
 
     if (!row) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 

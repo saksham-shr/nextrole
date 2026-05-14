@@ -49,7 +49,7 @@ export default async function Billing() {
   } catch { /* portal not critical */ }
 
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
-  const creditsRemaining = isAdmin ? 300 : (profile?.credits_remaining ?? 0);
+  const creditsRemaining = profile?.credits_remaining ?? 0;
 
   return (
     <BillingPage

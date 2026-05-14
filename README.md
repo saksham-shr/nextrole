@@ -2,8 +2,6 @@
 
 **AI-powered job search assistant.** Evaluate roles, generate tailored resumes, autofill applications, and track your entire pipeline — all from one place.
 
-> Currently in private beta.
-
 ---
 
 ## What it does
