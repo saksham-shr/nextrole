@@ -255,13 +255,6 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
         </Link>
         <Link
           href="/signup"
-          className="rounded-md border px-2.5 py-1.5 text-[13px] font-medium text-[var(--muted-foreground)] transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
-          style={{ border: "1px solid var(--line-soft)" }}
-        >
-          Sign up
-        </Link>
-        <Link
-          href="/signup"
           className="rounded-md px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90"
           style={{ background: "var(--accent)" }}
         >
@@ -484,13 +477,6 @@ export function LandingPage() {
           Detect jobs as you browse, evaluate fit instantly, autofill applications, and tailor your resume — all in one flow.
         </p>
         <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-          <Link
-            href="/signup"
-            className="inline-flex items-center justify-center gap-2 rounded-md border px-6 py-3.5 text-[15px] font-medium transition hover:border-[var(--line)] hover:text-[var(--foreground)]"
-            style={{ border: "1px solid var(--line-soft)" }}
-          >
-            Sign up
-          </Link>
           <Link
             href="/signup"
             className="inline-flex items-center justify-center gap-2 rounded-md px-6 py-3.5 text-[15px] font-medium text-[#fffdf8] transition hover:opacity-90"
