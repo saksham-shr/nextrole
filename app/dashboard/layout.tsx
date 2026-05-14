@@ -53,7 +53,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       if (invite && !invite.used_at) {
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         await Promise.all([
-          admin.from("profiles").update({ tier: "pro", subscription_ends_at: expiresAt, credits_remaining: 500 }).eq("id", user.id),
+          admin.from("profiles").update({ tier: "pro", subscription_ends_at: expiresAt, credits_remaining: 300 }).eq("id", user.id),
           admin.from("invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id),
         ]);
         // Re-fetch to get the latest values. If the re-fetch fails, we still
