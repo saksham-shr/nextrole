@@ -260,8 +260,7 @@ export function LoginPage({
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   }
 
   return (
@@ -675,8 +674,7 @@ export function ResetPasswordPage() {
       setLoading(false);
       return;
     }
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = "/dashboard";
   }
 
   return (

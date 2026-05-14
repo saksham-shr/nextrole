@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect, isRedirectError } from "next/navigation";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
@@ -94,7 +94,8 @@ export default async function DashboardLayout({
           );
         }
       }
-    } catch {
+    } catch (e) {
+      if (isRedirectError(e)) throw e;
       // If admin client not configured, skip the gate (dev mode)
     }
   }
