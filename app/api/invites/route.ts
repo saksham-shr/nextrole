@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSameOrigin } from "@/lib/security/csrf";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
-async function requireAdmin(req: NextRequest) {
-  if (!isSameOrigin(req)) return false;
+async function requireAdmin(_req: NextRequest) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   return user && (user.email ?? "").toLowerCase() === ADMIN_EMAIL;

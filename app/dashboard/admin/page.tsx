@@ -11,7 +11,13 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Never";
-  return new Date(value).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+  const d = new Date(value);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const min = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd} ${hh}:${min} UTC`;
 }
 
 function MiniBar({ value, max, tone = "accent" }: { value: number; max: number; tone?: "accent" | "ok" | "warn" }) {
