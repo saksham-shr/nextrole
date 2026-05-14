@@ -4,16 +4,13 @@ import { createServerClient } from "@supabase/ssr";
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
 
-  // Use the pinned site URL so redirects are consistent across Vercel's
-  // internal host and the public domain (avoids landing-page fallback from
-  // Supabase when the dynamic origin doesn't match the allowlist).
   const siteOrigin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextrole.live").replace(/\/$/, "");
 
   const code = searchParams.get("code");
   const rawNext = searchParams.get("next");
-  // Decode the next param (encoded by signInWithOAuth) and restrict to safe relative paths.
   const next = rawNext ? decodeURIComponent(rawNext) : "/dashboard";
-  const safePath = next.startsWith("/") ? next : "/dashboard";
+  // Restrict to safe relative paths only.
+  const safePath = next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
 
   if (!code) {
     return NextResponse.redirect(`${siteOrigin}/login?error=Missing+confirmation+code`);
@@ -25,7 +22,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${siteOrigin}/login?error=Supabase+is+not+configured`);
   }
 
-  const response = NextResponse.redirect(`${siteOrigin}${safePath}`);
+  // All redirects share this helper so session cookies are never dropped.
+  function makeRedirect(path: string) {
+    return NextResponse.redirect(`${siteOrigin}${path}`);
+  }
+
+  // Start with the happy-path redirect. Cookies will be written onto this
+  // response by the setAll handler, then copied to any other redirect we return.
+  let response = makeRedirect(safePath);
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -43,13 +47,13 @@ export async function GET(request: NextRequest) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(`${siteOrigin}/login?error=${encodeURIComponent(error.message)}`);
+    return makeRedirect(`/login?error=${encodeURIComponent(error.message)}`);
   }
 
-  // Send to onboarding if not yet completed. This covers both email signups
-  // and Google OAuth users arriving from the login page (next=/dashboard).
-  // Also fires for brand-new Google users who have no profile row yet.
-  if (!safePath.startsWith("/reset-password") && !safePath.startsWith("/connect-extension") && safePath !== "/onboarding") {
+  // Redirect to onboarding when profile is missing or not yet completed.
+  // This covers email signups, Google OAuth from the login page, and brand-new
+  // Google users who have no profile row yet.
+  if (safePath !== "/onboarding" && !safePath.startsWith("/reset-password") && !safePath.startsWith("/connect-extension")) {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase
@@ -57,9 +61,15 @@ export async function GET(request: NextRequest) {
         .select("onboarding_completed")
         .eq("id", user.id)
         .single();
-      // No profile row OR onboarding not done → go to onboarding
+
       if (!profile?.onboarding_completed) {
-        return NextResponse.redirect(`${siteOrigin}/onboarding`);
+        // Swap the destination but keep the same response object so cookies
+        // set by exchangeCodeForSession travel with the redirect.
+        const onboardingRedirect = makeRedirect("/onboarding");
+        response.cookies.getAll().forEach(({ name, value, ...rest }) => {
+          onboardingRedirect.cookies.set(name, value, rest);
+        });
+        return onboardingRedirect;
       }
     }
   }
