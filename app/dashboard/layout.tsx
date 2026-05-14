@@ -56,24 +56,24 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           admin.from("profiles").update({ tier: "pro", subscription_ends_at: expiresAt }).eq("id", user.id),
           admin.from("invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id),
         ]);
+        // Re-fetch to get the latest values. If the re-fetch fails, we still
+        // know the grant ran so we hard-code "pro" as the fallback.
         const { data: updated } = await supabase
           .from("profiles")
           .select("tier, credits_remaining, subscription_ends_at, onboarding_completed")
           .eq("id", user.id)
           .single();
-        if (updated) {
-          return (
-            <DashboardShell
-              user={{ email: user.email ?? "" }}
-              isAdmin={false}
-              tier={(updated.tier as UserTier) ?? "pro"}
-              creditsRemaining={updated.credits_remaining ?? 0}
-              trialEndsAt={(updated.subscription_ends_at as string | null) ?? null}
-            >
-              {children}
-            </DashboardShell>
-          );
-        }
+        return (
+          <DashboardShell
+            user={{ email: user.email ?? "" }}
+            isAdmin={false}
+            tier={(updated?.tier as UserTier) ?? "pro"}
+            creditsRemaining={updated?.credits_remaining ?? 0}
+            trialEndsAt={(updated?.subscription_ends_at as string | null) ?? expiresAt}
+          >
+            {children}
+          </DashboardShell>
+        );
       }
     } catch (e) {
       // Re-throw Next.js redirect errors so redirect() inside the try actually fires.
