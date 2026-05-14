@@ -1,41 +1,31 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-/**
- * PKCE code-exchange landing route.
- *
- * Supabase redirects users here after they confirm their email or click a
- * password-reset link. We swap the `code` for a session, write the resulting
- * sb-* cookies onto the redirect response, and forward the user to `next`.
- *
- * Cookie handling notes:
- * - Use NextRequest's `cookies` API (not manual `Cookie` header parsing) so
- *   we get correctly URL-decoded values for JWT-shaped cookie values.
- * - Write the new cookies onto the SAME redirect response we return — that's
- *   the only way Set-Cookie reaches the browser from a Route Handler.
- * - Mirror writes onto `request.cookies` too so subsequent reads inside this
- *   handler see the freshly-set session.
- */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+
+  // Use the pinned site URL so redirects are consistent across Vercel's
+  // internal host and the public domain (avoids landing-page fallback from
+  // Supabase when the dynamic origin doesn't match the allowlist).
+  const siteOrigin = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextrole.live").replace(/\/$/, "");
+
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const rawNext = searchParams.get("next");
+  // Decode the next param (encoded by signInWithOAuth) and restrict to safe relative paths.
+  const next = rawNext ? decodeURIComponent(rawNext) : "/dashboard";
+  const safePath = next.startsWith("/") ? next : "/dashboard";
 
   if (!code) {
-    return NextResponse.redirect(
-      `${origin}/login?error=Missing+confirmation+code`,
-    );
+    return NextResponse.redirect(`${siteOrigin}/login?error=Missing+confirmation+code`);
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) {
-    return NextResponse.redirect(
-      `${origin}/login?error=Supabase+is+not+configured`,
-    );
+    return NextResponse.redirect(`${siteOrigin}/login?error=Supabase+is+not+configured`);
   }
 
-  const response = NextResponse.redirect(`${origin}${next}`);
+  const response = NextResponse.redirect(`${siteOrigin}${safePath}`);
 
   const supabase = createServerClient(url, publishableKey, {
     cookies: {
@@ -44,9 +34,7 @@ export async function GET(request: NextRequest) {
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
-          // Mirror onto the request so Supabase reads consistent state.
           request.cookies.set(name, value);
-          // Actually send it to the browser.
           response.cookies.set(name, value, options);
         });
       },
@@ -55,16 +43,13 @@ export async function GET(request: NextRequest) {
 
   const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
-    return NextResponse.redirect(
-      `${origin}/login?error=${encodeURIComponent(error.message)}`,
-    );
+    return NextResponse.redirect(`${siteOrigin}/login?error=${encodeURIComponent(error.message)}`);
   }
 
-  // For OAuth sign-ins the caller passes next=/dashboard (login page) or
-  // next=/onboarding (signup page). But a first-time OAuth user arriving from
-  // the login page would land on /dashboard without completing onboarding.
-  // Override: if onboarding isn't done yet, always send them to /onboarding.
-  if (next !== "/onboarding" && !next.startsWith("/reset-password") && !next.startsWith("/connect-extension")) {
+  // Send to onboarding if not yet completed. This covers both email signups
+  // and Google OAuth users arriving from the login page (next=/dashboard).
+  // Also fires for brand-new Google users who have no profile row yet.
+  if (!safePath.startsWith("/reset-password") && !safePath.startsWith("/connect-extension") && safePath !== "/onboarding") {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       const { data: profile } = await supabase
@@ -72,8 +57,9 @@ export async function GET(request: NextRequest) {
         .select("onboarding_completed")
         .eq("id", user.id)
         .single();
-      if (profile && !profile.onboarding_completed) {
-        return NextResponse.redirect(`${origin}/onboarding`);
+      // No profile row OR onboarding not done → go to onboarding
+      if (!profile?.onboarding_completed) {
+        return NextResponse.redirect(`${siteOrigin}/onboarding`);
       }
     }
   }

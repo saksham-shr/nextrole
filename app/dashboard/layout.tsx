@@ -1,5 +1,4 @@
 import { redirect, isRedirectError } from "next/navigation";
-import { cookies } from "next/headers";
 import type { ReactNode } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -8,25 +7,15 @@ import type { UserTier } from "@/lib/db/types";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 
-export default async function DashboardLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function DashboardLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
-    const cookieStore = await cookies();
-    for (const cookie of cookieStore.getAll()) {
-      if (cookie.name.startsWith("sb-")) cookieStore.delete(cookie.name);
-    }
     redirect("/login?error=Session+expired.+Please+sign+in+again.");
   }
 
-  const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
+  const isAdmin = ADMIN_EMAIL !== "" && (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
 
   const { data: profile } = await supabase
     .from("profiles")
@@ -34,13 +23,13 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
+  // If onboarding isn't done (including no profile row yet), send them there.
   if (!isAdmin && !profile?.onboarding_completed) {
     redirect("/onboarding");
   }
 
   // ── Invite gate ──────────────────────────────────────────────────────────
-  // Non-admins must be on the invite list to access the dashboard.
-  // If invited and not yet activated, we grant pro tier for 30 days here.
+  // Admins always bypass. Non-admins must be on the invite list.
   if (!isAdmin) {
     try {
       const admin = createAdminClient();
@@ -57,24 +46,16 @@ export default async function DashboardLayout({
         (!invite.expires_at || new Date(invite.expires_at) > new Date());
 
       if (!inviteValid) {
-        // Not invited — send to early access page
         redirect("/early-access");
       }
 
-      // First time using the invite — grant pro tier
+      // First access with a fresh invite — grant pro tier for 30 days.
       if (invite && !invite.used_at) {
         const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
         await Promise.all([
-          admin
-            .from("profiles")
-            .update({ tier: "pro", subscription_ends_at: expiresAt })
-            .eq("id", user.id),
-          admin
-            .from("invites")
-            .update({ used_at: new Date().toISOString() })
-            .eq("id", invite.id),
+          admin.from("profiles").update({ tier: "pro", subscription_ends_at: expiresAt }).eq("id", user.id),
+          admin.from("invites").update({ used_at: new Date().toISOString() }).eq("id", invite.id),
         ]);
-        // Re-fetch profile with updated tier
         const { data: updated } = await supabase
           .from("profiles")
           .select("tier, credits_remaining, subscription_ends_at, onboarding_completed")
@@ -96,7 +77,7 @@ export default async function DashboardLayout({
       }
     } catch (e) {
       if (isRedirectError(e)) throw e;
-      // If admin client not configured, skip the gate (dev mode)
+      // Admin client not configured (dev) — skip gate.
     }
   }
   // ── End invite gate ──────────────────────────────────────────────────────
