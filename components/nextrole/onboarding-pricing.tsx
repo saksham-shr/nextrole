@@ -1,33 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandWordmark } from "@/components/nextrole/brand";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
 
 type Period = "monthly" | "yearly";
 
-// ─── Tier definitions ─────────────────────────────────────────────────────────
+const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
-const LS_URLS = {
-  starter: process.env.NEXT_PUBLIC_LS_STARTER_URL ?? "",
-  pro:     process.env.NEXT_PUBLIC_LS_PRO_URL     ?? "",
-};
-
-const VARIANT_IDS = {
-  starter_monthly: process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID ?? "",
-  starter_yearly:  process.env.NEXT_PUBLIC_LS_STARTER_YEARLY_ID  ?? "",
-  pro_monthly:     process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID     ?? "",
-  pro_yearly:      process.env.NEXT_PUBLIC_LS_PRO_YEARLY_ID      ?? "",
-};
-
-function buildCheckoutUrl(plan: "starter" | "pro", period: Period, email: string): string {
-  const base = LS_URLS[plan];
-  const id = VARIANT_IDS[`${plan}_${period}`];
-  if (!base || !id) return "";
-  const emailParam = email ? `&checkout[email]=${encodeURIComponent(email)}` : "";
-  return `${base}?variant=${id}${emailParam}`;
+interface RzpOptions {
+  key: string; amount: number; currency: string; order_id: string;
+  name: string; description: string; prefill: { email: string };
+  theme: { color: string };
+  handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
+  modal: { ondismiss: () => void };
 }
+declare global { interface Window { Razorpay: new (o: RzpOptions) => { open(): void } } }
 
 const TIERS = [
   {
@@ -124,15 +113,19 @@ export function OnboardingPricing({ trialEndsAt, email }: Props) {
   const [period, setPeriod] = useState<Period>("monthly");
   const daysLeft = trialDaysLeft(trialEndsAt);
   const { price, currency, loading: currencyLoading } = useCurrency();
+  const scriptLoaded = useRef(false);
 
   const toggleDiscount = yearlyDiscount(INR_PRICES.pro_monthly, INR_PRICES.pro_yearly);
 
+  useEffect(() => {
+    if (scriptLoaded.current || document.getElementById("rzp-script")) { scriptLoaded.current = true; return; }
+    const s = document.createElement("script");
+    s.id = "rzp-script"; s.src = "https://checkout.razorpay.com/v1/checkout.js"; s.async = true;
+    document.body.appendChild(s); scriptLoaded.current = true;
+  }, []);
+
   async function completeOnboarding() {
-    await fetch("/api/onboarding", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
-    });
+    await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
   }
 
   async function handleFreeOrByok(tierId: TierId) {
@@ -141,11 +134,33 @@ export function OnboardingPricing({ trialEndsAt, email }: Props) {
     router.push("/dashboard");
   }
 
-  async function handlePaidTier(tierId: TierId, url: string) {
-    if (!url) return;
+  async function handlePaidTier(tierId: "starter" | "pro") {
     setLoading(tierId);
-    await completeOnboarding();
-    window.location.assign(url);
+    try {
+      const res = await fetch("/api/razorpay/create-order", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "subscription", plan: tierId, period }),
+      });
+      const order = await res.json() as { order_id?: string; amount?: number; currency?: string; error?: string };
+      if (!order.order_id) { alert(order.error ?? "Could not create order"); setLoading(null); return; }
+
+      const rzp = new window.Razorpay({
+        key: RZP_KEY, amount: order.amount!, currency: order.currency!, order_id: order.order_id,
+        name: "NextRole", description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
+        prefill: { email }, theme: { color: "#c84a1f" },
+        handler: async (paymentRes) => {
+          const verify = await fetch("/api/razorpay/verify-payment", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...paymentRes, type: "subscription", plan: tierId, period }),
+          });
+          const result = await verify.json() as { ok?: boolean; error?: string };
+          if (result.ok) { await completeOnboarding(); router.push("/dashboard"); }
+          else { alert(result.error ?? "Payment verification failed"); setLoading(null); }
+        },
+        modal: { ondismiss: () => setLoading(null) },
+      });
+      rzp.open();
+    } catch { setLoading(null); }
   }
 
   return (
@@ -200,8 +215,6 @@ export function OnboardingPricing({ trialEndsAt, email }: Props) {
             const isByok    = false;
             const isPaid    = ["starter", "pro"].includes(tier.id);
             const isLoading = loading === tier.id;
-            const checkoutUrl = isPaid ? buildCheckoutUrl(tier.id as "starter" | "pro", period, email) : "";
-            const hasUrl    = !!checkoutUrl;
             const discount  = period === "yearly" && tier.inrMonthly > 0
               ? yearlyDiscount(tier.inrMonthly, tier.inrYearly)
               : null;
@@ -290,28 +303,23 @@ export function OnboardingPricing({ trialEndsAt, email }: Props) {
                 {/* CTA */}
                 <div className="mt-5">
                   {tier.id === "free" ? (
-                    <button onClick={() => handleFreeOrByok("free")} disabled={isLoading}
+                    <button onClick={() => handleFreeOrByok("free")} disabled={!!loading}
                       className="w-full rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50">
                       {isLoading ? "Starting…" : tier.cta}
                     </button>
-                  ) : isPaid && hasUrl ? (
+                  ) : isPaid ? (
                     <button
-                      onClick={() => handlePaidTier(tier.id as TierId, checkoutUrl)}
-                      disabled={isLoading}
+                      onClick={() => handlePaidTier(tier.id as "starter" | "pro")}
+                      disabled={!!loading}
                       className={[
                         "w-full rounded-full py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition disabled:opacity-50",
                         tier.ctaStyle === "primary"
                           ? "bg-[var(--foreground)] text-[var(--background)] hover:opacity-90"
                           : "border border-[var(--line-soft)] text-[var(--foreground)] hover:border-[var(--line)]",
                       ].join(" ")}>
-                      {isLoading ? "Redirecting…" : tier.cta}
+                      {isLoading ? "Processing…" : tier.cta}
                     </button>
-                  ) : (
-                    <button disabled
-                      className="w-full cursor-not-allowed rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] opacity-50">
-                      Coming soon
-                    </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             );

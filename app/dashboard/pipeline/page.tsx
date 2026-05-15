@@ -12,12 +12,14 @@ export default async function PipelinePage({
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const { data: jobs } = await supabase
+  const { data: jobs, error: jobsError } = await supabase
     .from("jobs")
-    .select("*")
+    .select("*, evaluations!evaluations_job_id_fkey(score, created_at)")
     .eq("user_id", user.id)
     .neq("status", "archived")
     .order("created_at", { ascending: false });
+
+  if (jobsError) console.error("[pipeline] jobs query error", jobsError.message);
 
   const allJobs = (jobs ?? []).map((j) => ({ title: j.title, company: j.company }));
 

@@ -42,9 +42,23 @@ export async function GET(req: NextRequest) {
   if (!users || users.length === 0) return NextResponse.json({ reset: 0 });
 
   let reset = 0;
+  let expired = 0;
 
   for (const user of users) {
     const tier = user.tier as "starter" | "pro";
+
+    // Expire subscriptions that have passed their end date
+    const endsAt = user.subscription_ends_at as string | null;
+    if (endsAt && new Date(endsAt) < new Date()) {
+      await admin.from("profiles").update({
+        tier:                 "free",
+        credits_remaining:    0,
+        subscription_status:  "expired",
+        subscription_ends_at: null,
+      }).eq("id", user.id);
+      expired++;
+      continue;
+    }
 
     if (tier === "starter") {
       await admin
@@ -57,7 +71,6 @@ export async function GET(req: NextRequest) {
 
     // Pro: 300 base + preserved top-up balance
     // Billing period start = subscription_ends_at - 30 days (approximation)
-    const endsAt = user.subscription_ends_at as string | null;
     const billingStart = endsAt
       ? new Date(new Date(endsAt).getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
       : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -109,5 +122,5 @@ export async function GET(req: NextRequest) {
     reset++;
   }
 
-  return NextResponse.json({ reset });
+  return NextResponse.json({ reset, expired });
 }

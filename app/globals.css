@@ -78,32 +78,34 @@ select {
 }
 
 [data-theme="dark"] {
-  --background: #1a1814;
-  --foreground: #f0ebe0;
-  --muted-foreground: #9a9286;
-  --muted-foreground-2: #6b6358;
-  --surface: #221e19;
-  --surface-soft: #2d2720;
-  --surface-ink: #f0ebe0;
-  --line: #3a352e;
-  --line-soft: rgba(240, 235, 224, 0.15);
-  --line-softer: rgba(240, 235, 224, 0.08);
-  --accent: #e05a28;
-  --accent-hover: #c84a1f;
-  --accent-soft: rgba(224, 90, 40, 0.1);
-  --ok: #3a9a48;
-  --ok-bg: rgba(58, 154, 72, 0.1);
-  --warn: #c08a28;
-  --warn-bg: rgba(192, 138, 40, 0.1);
-  --bad: #c54040;
-  --bad-bg: rgba(197, 64, 64, 0.1);
-  --accent-bg: rgba(224, 90, 40, 0.1);
-  --line-hard: #f0ebe0;
+  --background:         #0f1117;
+  --foreground:         #e6edf3;
+  --muted-foreground:   #8b949e;
+  --muted-foreground-2: #6e7681;
+  --surface:            #161b22;
+  --surface-soft:       #1e2330;
+  --surface-ink:        #e6edf3;
+  --line:               #30363d;
+  --line-hard:          #e6edf3;
+  --line-soft:          rgba(240, 246, 252, 0.12);
+  --line-softer:        rgba(240, 246, 252, 0.06);
+  --accent:             #e05a28;
+  --accent-hover:       #c84a1f;
+  --accent-soft:        rgba(224, 90, 40, 0.15);
+  --accent-bg:          rgba(224, 90, 40, 0.12);
+  --ok:                 #3fb950;
+  --ok-bg:              rgba(63, 185, 80, 0.1);
+  --warn:               #d29922;
+  --warn-bg:            rgba(210, 153, 34, 0.1);
+  --bad:                #f85149;
+  --bad-bg:             rgba(248, 81, 73, 0.1);
+  --shadow:             0 1px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-md:          0 4px 12px rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.3);
 }
 
 [data-theme="dark"] html {
   background:
-    radial-gradient(rgba(255,255,255,0.015) 1px, transparent 1px),
+    radial-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
     var(--background);
   background-size: 6px 6px, auto;
 }
@@ -128,6 +130,48 @@ select {
     transparent 12px
   );
 }
+
+/* Dual-range slider — pointer-events only on thumb, not the track */
+.nr-range-thumb {
+  pointer-events: none;
+}
+.nr-range-thumb::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 0;           /* hide native thumb; custom dot div is used instead */
+  width: 20px;
+  height: 20px;
+  pointer-events: all;
+  cursor: grab;
+}
+.nr-range-thumb::-moz-range-thumb {
+  appearance: none;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+  pointer-events: all;
+  cursor: grab;
+}
+.nr-range-thumb:active::-webkit-slider-thumb { cursor: grabbing; }
+.nr-range-thumb:active::-moz-range-thumb     { cursor: grabbing; }
+
+/* Single-thumb custom slider — hide native thumb, full pointer events on input */
+.nr-range-single::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+}
+.nr-range-single::-moz-range-thumb {
+  appearance: none;
+  opacity: 0;
+  width: 20px;
+  height: 20px;
+  border: none;
+}
+.nr-range-single:focus { outline: none; }
 
 @keyframes shimmer {
   from { background-position: -600px 0; }

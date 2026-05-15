@@ -35,19 +35,6 @@ export default async function Billing() {
       .limit(30),
   ]);
 
-  // Fetch Lemon Squeezy portal URL if on paid plan
-  let portalUrl: string | null = null;
-  try {
-    const appUrl = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
-    const res = await fetch(`${appUrl}/api/billing/portal`, {
-      method: "GET",
-    });
-    if (res.ok) {
-      const data = await res.json() as { url?: string };
-      portalUrl = data.url ?? null;
-    }
-  } catch { /* portal not critical */ }
-
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
   const creditsRemaining = profile?.credits_remaining ?? 0;
 
@@ -58,7 +45,6 @@ export default async function Billing() {
       trialEndsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}
       subscriptionStatus={isAdmin ? "active" : ((profile?.subscription_status as string | null) ?? null)}
       renewsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}
-      portalUrl={isAdmin ? null : portalUrl}
       usage={{
         creditsRemaining,
         evaluationsToday: usageRow?.evaluations ?? 0,

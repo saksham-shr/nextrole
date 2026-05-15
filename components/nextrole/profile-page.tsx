@@ -10,6 +10,7 @@ import type {
   CertificationEntry,
   ProjectEntry,
 } from "@/lib/db/types";
+import { CompensationSlider, useIsIndia } from "@/components/nextrole/compensation-slider";
 
 // ─── Style tokens (match settings-page.tsx) ───────────────────────────────────
 
@@ -20,24 +21,24 @@ const textareaCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(
 // ─── Section registry — drives the sidebar nav and the cards ──────────────────
 
 type SectionId =
-  | "preferences" | "contact" | "address" | "experience" | "education"
-  | "skills" | "languages" | "projects" | "certifications" | "demographics"
-  | "resume" | "cover_letter" | "summary";
+  | "cv" | "contact" | "preferences" | "job_targets" | "compensation" | "ai_eval"
+  | "experience" | "education" | "skills"
+  | "projects" | "certifications" | "address" | "demographics";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "preferences",     label: "Career preferences" },
-  { id: "contact",         label: "Contact & links" },
-  { id: "address",         label: "Address" },
+  { id: "cv",              label: "CV" },
+  { id: "contact",         label: "Contact & Identity" },
+  { id: "preferences",     label: "Career" },
+  { id: "job_targets",     label: "Job Targets" },
+  { id: "compensation",    label: "Compensation" },
   { id: "experience",      label: "Work experience" },
   { id: "education",       label: "Education" },
   { id: "skills",          label: "Key skills" },
-  { id: "languages",       label: "Languages" },
   { id: "projects",        label: "Projects" },
   { id: "certifications",  label: "Certifications" },
+  { id: "address",         label: "Address" },
   { id: "demographics",    label: "Demographics" },
-  { id: "summary",         label: "Profile summary" },
-  { id: "resume",          label: "Resume files" },
-  { id: "cover_letter",    label: "Cover letters" },
+  { id: "ai_eval",         label: "AI & Evaluation" },
 ];
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -121,6 +122,32 @@ async function savePatch(patch: Record<string, unknown>) {
     throw new Error(j.error ?? `Save failed (${res.status})`);
   }
   return res.json() as Promise<{ ok: boolean; updated: number }>;
+}
+
+// ─── Inline save feedback ─────────────────────────────────────────────────────
+
+function useSaveState(onComplete?: () => void) {
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function setSaved() {
+    if (timer.current) clearTimeout(timer.current);
+    setSavedMsg("Saved");
+    timer.current = setTimeout(() => { setSavedMsg(null); onComplete?.(); }, 1400);
+  }
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+  return { savedMsg, setSaved };
+}
+
+function SaveStatus({ msg }: { msg: string | null }) {
+  if (!msg) return null;
+  return (
+    <span className="flex items-center gap-1 text-[12px] font-medium text-[var(--ok)]">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 6 9 17l-5-5" />
+      </svg>
+      {msg}
+    </span>
+  );
 }
 
 // ─── Tag input (used by skills, target_roles, languages) ──────────────────────
@@ -217,7 +244,7 @@ function ProfileSidebar({ profile, completion }: { profile: ProfileRow; completi
   }, []);
 
   return (
-    <aside className="sticky top-20 hidden h-fit w-[220px] shrink-0 lg:block">
+    <aside className="sticky top-6 hidden w-[220px] shrink-0 self-start lg:block">
       <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
         <div className="mb-3 text-[13px] font-semibold">Quick links</div>
         <nav className="flex flex-col gap-1">
@@ -282,7 +309,7 @@ function computeCompletion(p: ProfileRow): number {
 // SECTION COMPONENTS
 // ============================================================================
 
-// ─── 1. Career Preferences ────────────────────────────────────────────────────
+// ─── 1. Career (work_mode, seniority, years_exp, notice, relocate, visa) ─────
 
 function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
   const [editing, setEditing] = useState(false);
@@ -290,15 +317,10 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
   const [workMode, setWorkMode] = useState(p.work_mode ?? "");
   const [seniority, setSeniority] = useState(p.seniority ?? "");
   const [yearsExp, setYearsExp] = useState(p.years_experience?.toString() ?? "");
-  const [compMin, setCompMin] = useState(p.comp_min?.toString() ?? "");
-  const [compMax, setCompMax] = useState(p.comp_max?.toString() ?? "");
   const [notice, setNotice] = useState(p.notice_period ?? "");
   const [relocate, setRelocate] = useState(p.willing_to_relocate ?? true);
   const [sponsor, setSponsor] = useState(p.sponsorship_needed ?? false);
-  const [roles, setRoles] = useState<string[]>(p.target_roles ?? []);
-  const [locations, setLocations] = useState<string[]>(p.target_locations ?? []);
-  useEffect(() => { setRoles(p.target_roles ?? []); }, [p.target_roles]);
-  useEffect(() => { setLocations(p.target_locations ?? []); }, [p.target_locations]);
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
 
   async function save() {
     setBusy(true);
@@ -307,41 +329,34 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
         work_mode: workMode || null,
         seniority: seniority || null,
         years_experience: yearsExp ? Number(yearsExp) : null,
-        comp_min: compMin ? Number(compMin) : null,
-        comp_max: compMax ? Number(compMax) : null,
         notice_period: notice || null,
         willing_to_relocate: relocate,
         sponsorship_needed: sponsor,
-        target_roles: roles,
-        target_locations: locations,
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
-      setEditing(false);
+      setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
 
   if (!editing) {
     return (
-      <Card id="preferences" title="Career preferences" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+      <Card id="preferences" title="Career" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
           <ViewField label="Work mode" value={p.work_mode} />
           <ViewField label="Seniority" value={p.seniority} />
           <ViewField label="Years of experience" value={p.years_experience?.toString()} />
-          <ViewField label="Expected salary" value={p.comp_min ? `${p.comp_min}${p.comp_max ? ` – ${p.comp_max}` : ""}` : null} />
           <ViewField label="Notice period" value={p.notice_period?.replace(/_/g, " ")} />
           <ViewField label="Willing to relocate" value={p.willing_to_relocate === true ? "Yes" : p.willing_to_relocate === false ? "No" : null} />
           <ViewField label="Visa sponsorship needed" value={p.sponsorship_needed === true ? "Yes" : p.sponsorship_needed === false ? "No" : null} />
-          <ViewField label="Target roles" value={(p.target_roles ?? []).join(", ") || null} />
-          <ViewField label="Preferred locations" value={(p.target_locations ?? []).join(", ") || null} className="sm:col-span-2" />
         </div>
       </Card>
     );
   }
 
   return (
-    <Card id="preferences" title="Career preferences" subtitle="Used for fill suggestions on every application">
+    <Card id="preferences" title="Career" subtitle="Used for fill suggestions on every application">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Work mode">
           <select className={selectCls} value={workMode} onChange={(e) => setWorkMode(e.target.value)}>
@@ -369,12 +384,6 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
             <option value="3_months">3 months</option>
           </select>
         </Field>
-        <Field label="Expected salary (min)" hint="Currency-free number, e.g. 1500000 for 15 LPA">
-          <input className={inputCls} type="number" min={0} value={compMin} onChange={(e) => setCompMin(e.target.value)} />
-        </Field>
-        <Field label="Expected salary (max)">
-          <input className={inputCls} type="number" min={0} value={compMax} onChange={(e) => setCompMax(e.target.value)} />
-        </Field>
         <Field label="Willing to relocate">
           <select className={selectCls} value={relocate ? "yes" : "no"} onChange={(e) => setRelocate(e.target.value === "yes")}>
             <option value="yes">Yes</option><option value="no">No</option>
@@ -385,20 +394,355 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
             <option value="no">No</option><option value="yes">Yes</option>
           </select>
         </Field>
-        <div className="sm:col-span-2">
-          <Field label="Target roles">
-            <TagInput tags={roles} onChange={setRoles} placeholder="Add target role…" />
-          </Field>
-        </div>
-        <div className="sm:col-span-2">
-          <Field label="Preferred locations">
-            <TagInput tags={locations} onChange={setLocations} placeholder="Add city or 'Remote'…" />
-          </Field>
-        </div>
       </div>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
         <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Card>
+  );
+}
+
+// ─── 1b. Job Targets (roles, locations, archetypes, company types, languages) ─
+
+const ROLE_SUGGESTIONS = [
+  "Software Engineer", "Senior Software Engineer", "Staff Engineer", "Principal Engineer",
+  "Engineering Manager", "Director of Engineering", "VP Engineering", "CTO",
+  "Product Manager", "Senior Product Manager", "Data Engineer", "ML Engineer",
+  "AI Engineer", "Backend Engineer", "Frontend Engineer", "Full Stack Engineer",
+  "DevOps Engineer", "Platform Engineer", "Site Reliability Engineer",
+];
+const LOCATION_SUGGESTIONS = [
+  "Remote", "Remote (India)", "Remote (US)", "Remote (EU)",
+  "Bengaluru", "Mumbai", "Delhi", "Hyderabad", "Pune", "Chennai",
+  "San Francisco", "New York", "Seattle", "Austin", "London", "Singapore", "Dubai",
+];
+const ARCHETYPE_SUGGESTIONS = [
+  "Backend", "Frontend", "Full Stack", "Platform", "Product Eng", "LLMOps", "Agentic",
+  "AI Platform", "Technical PM", "SA", "FDE", "Transformation", "Data", "ML/AI",
+];
+const COMPANY_TYPE_SUGGESTIONS = [
+  "startup", "scaleup", "enterprise", "AI lab", "fintech", "SaaS", "B2B", "B2C",
+  "consumer", "deep tech", "climate tech", "crypto/web3", "healthcare tech", "edtech",
+];
+const LANG_SUGGESTIONS = [
+  "TypeScript", "JavaScript", "Python", "Go", "Rust", "Java", "Kotlin", "Swift",
+  "C++", "C#", "Ruby", "PHP", "Scala", "Elixir", "SQL", "GraphQL",
+];
+
+function JobTargetsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const [roles, setRoles]          = useState<string[]>(p.target_roles ?? []);
+  const [locations, setLocations]  = useState<string[]>(p.target_locations ?? []);
+  const [archetypes, setArchetypes]= useState<string[]>(p.target_archetypes ?? []);
+  const [companyTypes, setCompanyTypes] = useState<string[]>(p.preferred_company_types ?? []);
+  const [languages, setLanguages]  = useState<string[]>(p.languages ?? []);
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
+  useEffect(() => { setRoles(p.target_roles ?? []); }, [p.target_roles]);
+  useEffect(() => { setLocations(p.target_locations ?? []); }, [p.target_locations]);
+  useEffect(() => { setArchetypes(p.target_archetypes ?? []); }, [p.target_archetypes]);
+  useEffect(() => { setCompanyTypes(p.preferred_company_types ?? []); }, [p.preferred_company_types]);
+  useEffect(() => { setLanguages(p.languages ?? []); }, [p.languages]);
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        target_roles: roles,
+        target_locations: locations,
+        target_archetypes: archetypes,
+        preferred_company_types: companyTypes,
+        languages,
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { alert((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  if (!editing) {
+    return (
+      <Card id="job_targets" title="Job Targets" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          <ViewField label="Target roles" value={(p.target_roles ?? []).join(", ") || null} className="sm:col-span-2" />
+          <ViewField label="Preferred locations" value={(p.target_locations ?? []).join(", ") || null} className="sm:col-span-2" />
+          <ViewField label="Archetypes" value={(p.target_archetypes ?? []).join(", ") || null} />
+          <ViewField label="Company types" value={(p.preferred_company_types ?? []).join(", ") || null} />
+          <ViewField label="Technical languages" value={(p.languages ?? []).join(", ") || null} className="sm:col-span-2" />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card id="job_targets" title="Job Targets" subtitle="Tunes AI scoring and resume focus for every evaluation.">
+      <div className="flex flex-col gap-4">
+        <Field label="Target roles">
+          <TagInput tags={roles} onChange={setRoles} placeholder="Add role…" suggestions={ROLE_SUGGESTIONS} />
+        </Field>
+        <Field label="Preferred locations">
+          <TagInput tags={locations} onChange={setLocations} placeholder="Add city or 'Remote'…" suggestions={LOCATION_SUGGESTIONS} />
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Archetypes">
+            <TagInput tags={archetypes} onChange={setArchetypes} placeholder="Platform, LLMOps…" suggestions={ARCHETYPE_SUGGESTIONS} />
+          </Field>
+          <Field label="Company types">
+            <TagInput tags={companyTypes} onChange={setCompanyTypes} placeholder="startup, SaaS…" suggestions={COMPANY_TYPE_SUGGESTIONS} />
+          </Field>
+        </div>
+        <Field label="Technical languages">
+          <TagInput tags={languages} onChange={setLanguages} placeholder="TypeScript, Go…" suggestions={LANG_SUGGESTIONS} />
+        </Field>
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Card>
+  );
+}
+
+// ─── 1c. Compensation (slider, locale-aware) ──────────────────────────────────
+
+function CompensationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const isIndia = useIsIndia();
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
+
+  function fmt(v: number | null | undefined) {
+    if (v == null) return null;
+    if (isIndia) return `${v} LPA`;
+    return `$${(v / 1000).toFixed(0)}k / yr`;
+  }
+
+  async function save() {
+    if (!formRef.current) return;
+    setBusy(true);
+    const data = new FormData(formRef.current);
+    const patch = {
+      current_comp: data.get("current_comp") ? Number(data.get("current_comp")) : null,
+      comp_min:     data.get("comp_min")     ? Number(data.get("comp_min"))     : null,
+      comp_max:     data.get("comp_max")     ? Number(data.get("comp_max"))     : null,
+    };
+    try {
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { alert((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  if (!editing) {
+    return (
+      <Card id="compensation" title="Compensation" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-3">
+          <ViewField label="Current" value={fmt(p.current_comp)} />
+          <ViewField label="Target min" value={fmt(p.comp_min)} />
+          <ViewField label="Target max" value={fmt(p.comp_max)} />
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card id="compensation" title="Compensation" subtitle={isIndia ? "All figures in LPA (Lakhs Per Annum)" : "All figures in USD per year"}>
+      <form ref={formRef}>
+        <CompensationSlider isIndia={isIndia} currentComp={p.current_comp} compMin={p.comp_min} compMax={p.comp_max} />
+      </form>
+      <div className="mt-5 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Card>
+  );
+}
+
+// ─── 1d. AI & Evaluation ──────────────────────────────────────────────────────
+
+function AIEvalCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy]       = useState(false);
+  const [lang, setLang]       = useState(p.preferred_language ?? "en");
+  const [applyThresh, setApplyThresh] = useState(p.eval_score_apply?.toString() ?? "3.5");
+  const [watchThresh, setWatchThresh] = useState(p.eval_score_watch?.toString() ?? "2.5");
+  const [focus, setFocus]     = useState(p.custom_eval_focus ?? "");
+  const [archetypes, setArchetypes] = useState<string[]>(p.custom_archetypes ?? []);
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        preferred_language: lang,
+        eval_score_apply: applyThresh ? parseFloat(applyThresh) : 3.5,
+        eval_score_watch: watchThresh ? parseFloat(watchThresh) : 2.5,
+        custom_eval_focus: focus || null,
+        custom_archetypes: archetypes.length ? archetypes : null,
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { alert((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  if (!editing) {
+    const LANGS: Record<string, string> = {
+      en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
+      pt: "Portuguese", zh: "Chinese", ja: "Japanese", ar: "Arabic", ko: "Korean",
+      it: "Italian", nl: "Dutch",
+    };
+    return (
+      <Card id="ai_eval" title="AI & Evaluation" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
+          <ViewField label="Output language" value={LANGS[lang] ?? lang} />
+          <ViewField label="Apply / Watch thresholds" value={`${applyThresh} / ${watchThresh}`} />
+          {focus && <ViewField label="Custom focus" value={focus} className="sm:col-span-2" />}
+          {archetypes.length > 0 && <ViewField label="Custom archetypes" value={archetypes.join(", ")} className="sm:col-span-2" />}
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card id="ai_eval" title="AI & Evaluation" subtitle="Customise how every AI workflow runs for you.">
+      <div className="flex flex-col gap-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Preferred output language">
+            <select className={selectCls} value={lang} onChange={(e) => setLang(e.target.value)}>
+              <option value="en">English</option><option value="hi">Hindi / हिन्दी</option>
+              <option value="es">Spanish / Español</option><option value="fr">French / Français</option>
+              <option value="de">German / Deutsch</option><option value="pt">Portuguese / Português</option>
+              <option value="zh">Chinese / 中文</option><option value="ja">Japanese / 日本語</option>
+              <option value="ar">Arabic / العربية</option><option value="ko">Korean / 한국어</option>
+              <option value="it">Italian / Italiano</option><option value="nl">Dutch / Nederlands</option>
+            </select>
+          </Field>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Apply threshold (default 3.5)">
+            <input className={inputCls} type="number" min={0} max={5} step={0.1} value={applyThresh} onChange={(e) => setApplyThresh(e.target.value)} />
+          </Field>
+          <Field label="Watch threshold (default 2.5)">
+            <input className={inputCls} type="number" min={0} max={5} step={0.1} value={watchThresh} onChange={(e) => setWatchThresh(e.target.value)} />
+          </Field>
+        </div>
+        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+          Score ≥ Apply → apply · between thresholds → watch · below Watch → skip
+        </p>
+        <Field label="Custom evaluation focus (optional)">
+          <textarea className={textareaCls} rows={3} value={focus} onChange={(e) => setFocus(e.target.value)}
+            placeholder="e.g. Prioritise companies with strong remote culture. Weight AI/ML stack experience highly." />
+        </Field>
+        <Field label="Custom archetypes (optional — overrides defaults)">
+          <TagInput tags={archetypes} onChange={setArchetypes} placeholder="AI Infrastructure, Applied ML…" suggestions={ARCHETYPE_SUGGESTIONS} />
+        </Field>
+      </div>
+      <div className="mt-5 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Card>
+  );
+}
+
+// ─── 1e. CV upload ────────────────────────────────────────────────────────────
+
+function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging]   = useState(false);
+  const [wordCount, setWordCount] = useState<number | null>(
+    p.base_cv ? p.base_cv.split(/\s+/).filter(Boolean).length : null,
+  );
+  const inputRef = useRef<HTMLInputElement>(null);
+  const CV_ACCEPT = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+  async function uploadFile(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/profile/base-cv", { method: "POST", body: form });
+      const j = await res.json().catch(() => ({})) as { words?: number; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `Upload failed (${res.status})`);
+      setWordCount(j.words ?? null);
+      onSaved({ base_cv: "__uploaded__" } as Partial<ProfileRow>);
+    } catch (e) { alert((e as Error).message); }
+    finally { setUploading(false); }
+  }
+
+  function onDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) void uploadFile(f);
+  }
+
+  const hasCV = wordCount !== null && wordCount > 0;
+
+  return (
+    <Card
+      id="cv"
+      title="CV"
+      subtitle="Upload once — powers every evaluation, tailoring, cover letter, and auto-fill."
+    >
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={onDrop}
+        onClick={() => inputRef.current?.click()}
+        className={`cursor-pointer rounded-lg border-2 border-dashed p-8 text-center transition-colors ${
+          dragging ? "border-[var(--accent)] bg-[var(--surface-soft)]" : "border-[var(--line-soft)] hover:bg-[var(--surface-soft)]"
+        }`}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept={CV_ACCEPT}
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void uploadFile(f);
+            e.target.value = "";
+          }}
+        />
+        <svg className="mx-auto mb-3 text-[var(--muted-foreground)]" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+        <div className="text-[14px] font-medium">
+          {uploading ? "Extracting text…" : hasCV ? "Replace CV" : "Upload your CV or resume"}
+        </div>
+        <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">
+          PDF, DOC, or DOCX · up to 5 MB
+        </div>
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        {hasCV ? (
+          <>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20 6 9 17l-5-5" />
+            </svg>
+            <span className="text-[12px] text-[var(--ok)] font-medium">CV ready</span>
+            <span className="text-[12px] text-[var(--muted-foreground)]">· {wordCount?.toLocaleString()} words extracted</span>
+          </>
+        ) : (
+          <span className="text-[12px] text-[var(--muted-foreground)]">
+            After uploading, use <strong>Import from CV</strong> at the top to auto-fill your profile.
+          </span>
+        )}
       </div>
     </Card>
   );
@@ -423,6 +767,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
   const [li, setLi] = useState(p.linkedin_url ?? "");
   const [gh, setGh] = useState(p.github_url ?? "");
   const [pf, setPf] = useState(p.portfolio_url ?? "");
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
 
   async function save() {
     setBusy(true);
@@ -436,7 +781,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
-      setEditing(false);
+      setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -467,9 +812,10 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
         <Field label="GitHub URL"><input className={inputCls} value={gh} onChange={(e) => setGh(e.target.value)} placeholder="https://github.com/…" /></Field>
         <Field label="Portfolio / website"><input className={inputCls} value={pf} onChange={(e) => setPf(e.target.value)} placeholder="https://…" /></Field>
       </div>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
         <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
       </div>
     </Card>
   );
@@ -492,6 +838,7 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
   const [zip, setZip] = useState(p.zip_postal ?? "");
   const [street, setStreet] = useState(p.street_address ?? "");
   const [nationality, setNationality] = useState(p.nationality ?? "Indian");
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
 
   async function save() {
     setBusy(true);
@@ -506,7 +853,7 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
-      setEditing(false);
+      setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -549,9 +896,10 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
           <input className={inputCls} value={street} onChange={(e) => setStreet(e.target.value)} />
         </Field>
       </div>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
         <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
       </div>
     </Card>
   );
@@ -572,6 +920,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
   }
   function openEdit(i: number) { setDraft({ ...entries[i] }); setEditIdx(i); }
   function cancel() { setDraft(null); setEditIdx(null); }
+  const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
     if (!draft?.role || !draft?.company) {
@@ -586,7 +935,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
       await savePatch({ work_experience: next });
       setEntries(next);
       onSaved({ work_experience: next });
-      cancel();
+      setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -643,9 +992,10 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
               </Field>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex items-center gap-3">
             <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save entry"}</PrimaryBtn>
             <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
           </div>
         </div>
       )}
@@ -694,6 +1044,7 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
   function openNew() { setDraft({ degree: "", institution: "", field: "", start: "", end: "", grade: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i] }); setEditIdx(i); }
   function cancel() { setDraft(null); setEditIdx(null); }
+  const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
     if (!draft?.degree || !draft?.institution) { alert("Degree and institution are required"); return; }
@@ -701,7 +1052,7 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
     setBusy(true);
     try {
       await savePatch({ education: next });
-      setEntries(next); onSaved({ education: next }); cancel();
+      setEntries(next); onSaved({ education: next }); setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -725,9 +1076,10 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
             <Field label="Start year"><input className={inputCls} value={draft.start ?? ""} onChange={(e) => setDraft({ ...draft, start: e.target.value })} placeholder="2022" /></Field>
             <Field label="End year"><input className={inputCls} value={draft.end ?? ""} onChange={(e) => setDraft({ ...draft, end: e.target.value })} placeholder="2026 or Present" /></Field>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex items-center gap-3">
             <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save entry"}</PrimaryBtn>
             <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
           </div>
         </div>
       )}
@@ -775,11 +1127,12 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<string[]>(p.skills ?? []);
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
   useEffect(() => { setSkills(p.skills ?? []); }, [p.skills]);
 
   async function save() {
     setBusy(true);
-    try { await savePatch({ skills }); onSaved({ skills }); setEditing(false); }
+    try { await savePatch({ skills }); onSaved({ skills }); setSaved(); }
     catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -802,50 +1155,10 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
   return (
     <Card id="skills" title="Key skills" subtitle="Used to fill skills ng-select fields and pick relevant items per JD">
       <TagInput tags={skills} onChange={setSkills} suggestions={SKILL_SUGGESTIONS} placeholder="Add a skill and press Enter…" />
-      <div className="mt-4 flex gap-2">
+      <div className="mt-4 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
         <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
-      </div>
-    </Card>
-  );
-}
-
-// ─── 7. Languages ─────────────────────────────────────────────────────────────
-
-function LanguagesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [langs, setLangs] = useState<string[]>(p.languages ?? []);
-  useEffect(() => { setLangs(p.languages ?? []); }, [p.languages]);
-
-  async function save() {
-    setBusy(true);
-    try { await savePatch({ languages: langs }); onSaved({ languages: langs }); setEditing(false); }
-    catch (e) { alert((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  if (!editing) {
-    return (
-      <Card id="languages" title="Languages" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
-        {(p.languages ?? []).length === 0 ? (
-          <div className="text-[13px] text-[var(--muted-foreground)]">No languages added.</div>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {(p.languages ?? []).map((s, i) => (
-              <span key={i} className="rounded-full border border-[var(--line-soft)] bg-[var(--background)] px-3 py-1 text-[12px]">{s}</span>
-            ))}
-          </div>
-        )}
-      </Card>
-    );
-  }
-  return (
-    <Card id="languages" title="Languages">
-      <TagInput tags={langs} onChange={setLangs} placeholder="English, Hindi, …" />
-      <div className="mt-4 flex gap-2">
-        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
       </div>
     </Card>
   );
@@ -863,6 +1176,7 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
   function openNew() { setDraft({ title: "", description: "", tech: [], url: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i], tech: entries[i].tech ?? [] }); setEditIdx(i); }
   function cancel() { setDraft(null); setEditIdx(null); }
+  const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
     if (!draft?.title) { alert("Title is required"); return; }
@@ -870,7 +1184,7 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
     setBusy(true);
     try {
       await savePatch({ projects: next });
-      setEntries(next); onSaved({ projects: next }); cancel();
+      setEntries(next); onSaved({ projects: next }); setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -896,9 +1210,10 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
               <Field label="Description"><textarea className={textareaCls} value={draft.description ?? ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} rows={3} /></Field>
             </div>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex items-center gap-3">
             <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
             <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
           </div>
         </div>
       )}
@@ -946,6 +1261,7 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
   function openNew() { setDraft({ title: "", issuer: "", year: "", url: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i] }); setEditIdx(i); }
   function cancel() { setDraft(null); setEditIdx(null); }
+  const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
     if (!draft?.title) { alert("Title is required"); return; }
@@ -953,7 +1269,7 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
     setBusy(true);
     try {
       await savePatch({ certifications: next });
-      setEntries(next); onSaved({ certifications: next }); cancel();
+      setEntries(next); onSaved({ certifications: next }); setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -975,9 +1291,10 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
             <Field label="Year"><input className={inputCls} value={draft.year ?? ""} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="2024" /></Field>
             <Field label="Credential URL"><input className={inputCls} value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://…" /></Field>
           </div>
-          <div className="mt-4 flex gap-2">
+          <div className="mt-4 flex items-center gap-3">
             <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
             <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
           </div>
         </div>
       )}
@@ -1017,6 +1334,8 @@ function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
   const [veteran, setVeteran] = useState(p.veteran_status ?? "");
   const [disability, setDisability] = useState(p.disability_status ?? "");
 
+  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
+
   async function save() {
     setBusy(true);
     try {
@@ -1029,7 +1348,7 @@ function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
-      setEditing(false);
+      setSaved();
     } catch (e) { alert((e as Error).message); }
     finally { setBusy(false); }
   }
@@ -1091,261 +1410,12 @@ function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
           </select>
         </Field>
       </div>
-      <div className="mt-5 flex gap-2">
+      <div className="mt-5 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
         <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
+        <SaveStatus msg={savedMsg} />
       </div>
     </Card>
-  );
-}
-
-// ─── 11. Profile summary (long-form CV) ──────────────────────────────────────
-
-function SummaryCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [cv, setCv] = useState(p.base_cv ?? "");
-
-  async function save() {
-    setBusy(true);
-    try { await savePatch({ base_cv: cv }); onSaved({ base_cv: cv }); setEditing(false); }
-    catch (e) { alert((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  return (
-    <Card
-      id="summary"
-      title="Profile summary"
-      subtitle="Your full CV text. Used as the AI knowledge base for tailoring cover letters and freeform answers."
-      action={!editing && <LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}
-    >
-      {editing ? (
-        <>
-          <textarea
-            className={textareaCls}
-            value={cv} onChange={(e) => setCv(e.target.value)}
-            rows={14}
-            placeholder="Paste your full CV here…"
-          />
-          <div className="mt-4 flex gap-2">
-            <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-            <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
-          </div>
-        </>
-      ) : (
-        <div className="text-[13px] leading-[1.6] whitespace-pre-wrap text-[var(--foreground)]">
-          {p.base_cv?.trim() ? p.base_cv : <span className="text-[var(--muted-foreground)] italic">No CV text yet — paste your full resume to power AI tailoring.</span>}
-        </div>
-      )}
-    </Card>
-  );
-}
-
-// ─── 12. Resume / Cover-letter file uploads ──────────────────────────────────
-
-type ProfileFile = {
-  id: string;
-  kind: "resume" | "cover_letter";
-  file_name: string;
-  size_bytes: number | null;
-  mime_type: string | null;
-  is_default: boolean;
-  created_at: string;
-};
-
-function fmtBytes(n: number | null): string {
-  if (!n) return "—";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / 1024 / 1024).toFixed(2)} MB`;
-}
-
-function FileUploadCard({
-  id, title, subtitle, kind, accept,
-}: {
-  id: SectionId;
-  title: string;
-  subtitle: string;
-  kind: "resume" | "cover_letter";
-  accept: string;
-}) {
-  const [files, setFiles] = useState<ProfileFile[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  const visible = useMemo(() => files.filter((f) => f.kind === kind), [files, kind]);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/profile/files");
-      if (!res.ok) throw new Error("Failed to load files");
-      const j = (await res.json()) as { files: ProfileFile[] };
-      setFiles(j.files ?? []);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
-  }, []);
-
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  async function uploadFiles(fileList: FileList | File[]) {
-    const arr = Array.from(fileList);
-    if (arr.length === 0) return;
-
-    setUploading(true);
-    try {
-      for (const file of arr) {
-        const form = new FormData();
-        form.append("file", file);
-        form.append("kind", kind);
-        // First upload of a kind → mark as default automatically
-        if (visible.length === 0) form.append("is_default", "true");
-        const res = await fetch("/api/profile/files", { method: "POST", body: form });
-        if (!res.ok) {
-          const j = await res.json().catch(() => ({}));
-          throw new Error(j.error ?? `Upload failed (${res.status})`);
-        }
-      }
-      await refresh();
-    } catch (e) { alert((e as Error).message); }
-    finally { setUploading(false); }
-  }
-
-  async function setDefault(fileId: string) {
-    try {
-      const res = await fetch(`/api/profile/files/${fileId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_default: true }),
-      });
-      if (!res.ok) throw new Error("Failed to set default");
-      // Optimistic: update local state immediately
-      setFiles((prev) => prev.map((f) => ({
-        ...f,
-        is_default: f.kind === kind ? f.id === fileId : f.is_default,
-      })));
-    } catch (e) { alert((e as Error).message); }
-  }
-
-  async function remove(fileId: string) {
-    if (!confirm("Delete this file?")) return;
-    try {
-      const res = await fetch(`/api/profile/files/${fileId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Delete failed");
-      setFiles((prev) => prev.filter((f) => f.id !== fileId));
-    } catch (e) { alert((e as Error).message); }
-  }
-
-  function onDrop(e: React.DragEvent) {
-    e.preventDefault();
-    setDragging(false);
-    if (e.dataTransfer.files?.length) void uploadFiles(e.dataTransfer.files);
-  }
-
-  return (
-    <Card id={id} title={title} subtitle={subtitle}>
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={onDrop}
-        onClick={() => inputRef.current?.click()}
-        className={`cursor-pointer rounded-lg border-2 border-dashed p-6 text-center transition-colors ${
-          dragging
-            ? "border-[var(--accent)] bg-[var(--surface-soft)]"
-            : "border-[var(--line-soft)] hover:bg-[var(--surface-soft)]"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          multiple={false}
-          onChange={(e) => {
-            if (e.target.files?.length) void uploadFiles(e.target.files);
-            e.target.value = "";
-          }}
-        />
-        <div className="text-[14px] font-medium">
-          {uploading ? "Uploading…" : `Drop a ${kind === "resume" ? "resume" : "cover letter"} here`}
-        </div>
-        <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-          or click to browse · PDF, DOC, DOCX up to 5 MB
-        </div>
-      </div>
-
-      {loading ? (
-        <div className="mt-4 text-center text-[12.5px] text-[var(--muted-foreground)]">
-          Loading…
-        </div>
-      ) : visible.length === 0 ? (
-        <div className="mt-4 text-center text-[12.5px] text-[var(--muted-foreground)]">
-          No {kind === "resume" ? "resumes" : "cover letters"} uploaded yet.
-        </div>
-      ) : (
-        <ul className="mt-4 flex flex-col gap-2">
-          {visible.map((f) => (
-            <li
-              key={f.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2.5"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-[13px] font-medium">{f.file_name}</span>
-                  {f.is_default && (
-                    <span className="shrink-0 rounded-[4px] bg-[var(--accent)] px-1.5 py-0.5 text-[9.5px] font-semibold uppercase tracking-wider text-white">
-                      Default
-                    </span>
-                  )}
-                </div>
-                <div className="text-[11px] text-[var(--muted-foreground)]">
-                  {fmtBytes(f.size_bytes)} · {new Date(f.created_at).toLocaleDateString()}
-                </div>
-              </div>
-              <div className="flex shrink-0 gap-3">
-                {!f.is_default && (
-                  <button onClick={() => setDefault(f.id)} className="text-[12px] text-[var(--accent)] hover:underline">
-                    Set as default
-                  </button>
-                )}
-                <button onClick={() => remove(f.id)} className="text-[12px] text-[var(--bad)] hover:underline">
-                  Delete
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
-  );
-}
-
-const FILE_ACCEPT = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-function ResumeCard() {
-  return (
-    <FileUploadCard
-      id="resume"
-      title="Resume / CV files"
-      subtitle="The extension auto-uploads your default resume to job application file inputs."
-      kind="resume"
-      accept={FILE_ACCEPT}
-    />
-  );
-}
-
-function CoverLetterCard() {
-  return (
-    <FileUploadCard
-      id="cover_letter"
-      title="Cover letter files"
-      subtitle="Used when a job form has a cover-letter file input. AI-generated tailoring coming next."
-      kind="cover_letter"
-      accept={FILE_ACCEPT}
-    />
   );
 }
 
@@ -1364,7 +1434,7 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
   const [importing, setImporting] = useState(false);
   async function importFromCv() {
     if (!profile.base_cv?.trim()) {
-      alert("Paste your CV in the 'Profile summary' section first.");
+      alert("Upload your CV in the 'CV' section first.");
       return;
     }
     if (!confirm("Import work experience, education and certifications from your CV?\n\nThis will REPLACE current entries.")) return;
@@ -1379,8 +1449,8 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
     finally { setImporting(false); }
   }
 
-  const hasCvText  = !!profile.base_cv?.trim();
-  const importCardVisible = completion < 60;
+  const hasCvText = !!profile.base_cv?.trim();
+  const importCardVisible = hasCvText && completion < 80;
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
@@ -1391,8 +1461,8 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
             One profile. Every job site. Fill any application in one click.
           </p>
         </div>
-        <GhostBtn onClick={importFromCv} disabled={importing || !hasCvText}>
-          {importing ? "Importing…" : "📥 Re-import from CV"}
+        <GhostBtn onClick={importFromCv} disabled={importing}>
+          {importing ? "Importing…" : "Import from CV"}
         </GhostBtn>
       </header>
 
@@ -1400,16 +1470,12 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
         <div className="mb-6 rounded-xl border border-[var(--accent)] bg-[var(--accent)]/[0.06] p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-[15px] font-semibold">
-                📄 Quick start: import from your CV
-              </div>
+              <div className="text-[15px] font-semibold">Import from CV</div>
               <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                {hasCvText
-                  ? "We'll parse the CV you pasted during onboarding and pre-fill every section below. You can edit anything afterward."
-                  : "Paste your CV text into the 'Profile summary' section below, then come back here to auto-fill the rest."}
+                Pre-fill Work Experience, Education and Certifications from your uploaded CV. You can edit anything afterward.
               </p>
             </div>
-            <PrimaryBtn onClick={importFromCv} disabled={importing || !hasCvText}>
+            <PrimaryBtn onClick={importFromCv} disabled={importing}>
               {importing ? "Parsing…" : "Parse & fill profile"}
             </PrimaryBtn>
           </div>
@@ -1419,21 +1485,22 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
       <div className="flex gap-8">
         <ProfileSidebar profile={profile} completion={completion} />
         <main className="flex-1 min-w-0 flex flex-col gap-5">
-          <PreferencesCard    p={profile} onSaved={handleSaved} />
+          <CVCard             p={profile} onSaved={handleSaved} />
           <ContactCard        p={profile} onSaved={handleSaved} />
-          <AddressCard        p={profile} onSaved={handleSaved} />
+          <PreferencesCard    p={profile} onSaved={handleSaved} />
+          <JobTargetsCard     p={profile} onSaved={handleSaved} />
+          <CompensationCard   p={profile} onSaved={handleSaved} />
           <ExperienceCard     p={profile} onSaved={handleSaved} />
           <EducationCard      p={profile} onSaved={handleSaved} />
           <SkillsCard         p={profile} onSaved={handleSaved} />
-          <LanguagesCard      p={profile} onSaved={handleSaved} />
           <ProjectsCard       p={profile} onSaved={handleSaved} />
           <CertificationsCard p={profile} onSaved={handleSaved} />
+          <AddressCard        p={profile} onSaved={handleSaved} />
           <DemographicsCard   p={profile} onSaved={handleSaved} />
-          <SummaryCard        p={profile} onSaved={handleSaved} />
-          <ResumeCard />
-          <CoverLetterCard />
+          <AIEvalCard         p={profile} onSaved={handleSaved} />
         </main>
       </div>
+
     </div>
   );
 }

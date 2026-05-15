@@ -6,6 +6,24 @@ import { useRouter } from "next/navigation";
 import { createJob, deleteJob, updateJobStatus } from "@/app/actions/jobs";
 import type { JobRow } from "@/lib/db/types";
 
+function ScoreBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) {
+    return <span className="text-[12px] text-[var(--muted-foreground)]">—</span>;
+  }
+  const tone =
+    score >= 4.0 ? { bg: "var(--ok-bg)", color: "var(--ok)" } :
+    score >= 3.0 ? { bg: "var(--warn-bg)", color: "var(--warn)" } :
+                  { bg: "var(--bad-bg)", color: "var(--bad)" };
+  return (
+    <span
+      className="inline-flex items-center rounded-[4px] px-1.5 py-0.5"
+      style={{ background: tone.bg, color: tone.color, fontFamily: "var(--font-mono-stack)", fontSize: 12, fontWeight: 500 }}
+    >
+      {score.toFixed(1)}
+    </span>
+  );
+}
+
 const ARCHETYPES = [
   "FDE", "SA", "PM", "LLMOps", "Agentic", "Transformation",
   "AI Platform", "Technical PM", "Backend", "Platform", "Product Eng",
@@ -373,6 +391,8 @@ export function PipelinePageContent({
             const addedDate = job.created_at
               ? new Date(job.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })
               : "—";
+            const evals = (job as unknown as { evaluations?: Array<{ score: number | null; created_at: string }> }).evaluations;
+            const evalScore = evals?.length ? evals.sort((a, b) => b.created_at.localeCompare(a.created_at))[0].score : null;
             return (
               <div
                 key={job.id}
@@ -441,7 +461,7 @@ export function PipelinePageContent({
                     <div className="text-[12.5px] text-[var(--muted-foreground)]">{job.company}{job.archetype ? ` · ${job.archetype}` : ""}</div>
                   </div>
                   <span style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12, color: "var(--muted-foreground)" }}>{addedDate}</span>
-                  <span className="text-[12px] text-[var(--muted-foreground)]">—</span>
+                  <ScoreBadge score={evalScore} />
                   <form action={updateJobStatus}>
                     <input type="hidden" name="job_id" value={job.id} />
                     <select

@@ -56,14 +56,14 @@ export default async function AdminDashboardPage({
 
   let metrics = {
     totalUsers: 0, totalJobs: 0, totalEvaluations: 0,
-    totalResumes: 0, totalTaskRuns: 0, activeTrialUsers: 0,
+    totalResumes: 0, totalTaskRuns: 0,
     usersSignedInAtLeastOnce: 0, failedTaskRuns: 0,
     freeUsers: 0, starterUsers: 0, proUsers: 0,
   };
 
   let recentUsers: Array<{
     id: string; email: string; createdAt: string;
-    lastSignInAt: string | null; trialDaysLeft: number; tier: string;
+    lastSignInAt: string | null; tier: string;
   }> = [];
 
   let recentTaskRuns: Array<{
@@ -99,19 +99,13 @@ export default async function AdminDashboardPage({
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
 
-    const NOW_MS = Date.now();
-    const withTrialInfo = users.map((account) => {
-      const created = new Date(account.created_at).getTime();
-      const diffDays = Math.floor((NOW_MS - created) / 86400000);
-      return {
-        id: account.id,
-        email: account.email ?? "Unknown",
-        createdAt: account.created_at,
-        lastSignInAt: account.last_sign_in_at ?? null,
-        trialDaysLeft: Math.max(0, 14 - diffDays),
-        tier: "free",
-      };
-    });
+    const userList = users.map((account) => ({
+      id: account.id,
+      email: account.email ?? "Unknown",
+      createdAt: account.created_at,
+      lastSignInAt: account.last_sign_in_at ?? null,
+      tier: "free",
+    }));
 
     // Tier breakdown from profiles
     const profileRows = profilesResult.data ?? [];
@@ -125,15 +119,14 @@ export default async function AdminDashboardPage({
       totalEvaluations: evaluationsResult.count ?? 0,
       totalResumes: resumesResult.count ?? 0,
       totalTaskRuns: taskRunsResult.count ?? 0,
-      activeTrialUsers: withTrialInfo.filter((a) => a.trialDaysLeft > 0).length,
-      usersSignedInAtLeastOnce: withTrialInfo.filter((a) => a.lastSignInAt).length,
+      usersSignedInAtLeastOnce: userList.filter((a) => a.lastSignInAt).length,
       failedTaskRuns: failedTasksResult.count ?? 0,
       freeUsers,
       starterUsers,
       proUsers,
     };
 
-    recentUsers = withTrialInfo.slice(0, 20);
+    recentUsers = userList.slice(0, 20);
     recentTaskRuns = (recentTaskRunsResult.data ?? []) as typeof recentTaskRuns;
     invites = (invitesResult.data ?? []) as import("@/lib/db/types").InviteRow[];
   }
@@ -189,7 +182,7 @@ export default async function AdminDashboardPage({
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Total users" value={String(metrics.totalUsers)} sublabel="profiles in system" tone="accent" />
             <StatCard label="Signed in" value={String(metrics.usersSignedInAtLeastOnce)} sublabel="users with login activity" />
-            <StatCard label="Trial active" value={String(metrics.activeTrialUsers)} sublabel="within 14-day trial" tone="ok" />
+            <StatCard label="Free tier" value={String(metrics.freeUsers)} sublabel="on free plan" tone="ok" />
             <StatCard label="Invites sent" value={String(invites.length)} sublabel={`${invites.filter((i) => !!i.used_at).length} used`} />
             <StatCard label="Jobs" value={String(metrics.totalJobs)} sublabel="tracked across all users" />
             <StatCard label="Evaluations" value={String(metrics.totalEvaluations)} sublabel="completed AI analyses" />
@@ -258,13 +251,13 @@ export default async function AdminDashboardPage({
         <Surface className="p-5">
           <h2 className="text-[15px] font-semibold">Recent accounts</h2>
           <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            Latest signups with trial state and last sign-in.
+            Latest signups and last sign-in activity.
           </p>
           <div className="mt-4 overflow-hidden rounded-[8px] border border-[var(--line)]">
             <table className="min-w-full border-collapse">
               <thead className="bg-[var(--surface-soft)]">
                 <tr>
-                  {["Email", "Signed up", "Last sign-in", "Trial", "Actions"].map((h) => (
+                  {["Email", "Signed up", "Last sign-in", "Actions"].map((h) => (
                     <th key={h} className="border-b border-[var(--line)] px-4 py-3 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
                       {h}
                     </th>
@@ -277,13 +270,6 @@ export default async function AdminDashboardPage({
                     <td className="px-4 py-3 text-[13px] font-semibold">{account.email}</td>
                     <td className="px-4 py-3 text-[12px] text-[var(--muted-foreground)]">{formatDate(account.createdAt)}</td>
                     <td className="px-4 py-3 text-[12px] text-[var(--muted-foreground)]">{formatDate(account.lastSignInAt)}</td>
-                    <td className="px-4 py-3">
-                      {account.trialDaysLeft > 0 ? (
-                        <Badge tone="ok">{account.trialDaysLeft}d left</Badge>
-                      ) : (
-                        <Badge tone="warn">Expired</Badge>
-                      )}
-                    </td>
                     <td className="px-4 py-3">
                       {account.email.toLowerCase() !== ADMIN_EMAIL ? (
                         <AdminDeleteButton userId={account.id} userEmail={account.email} />

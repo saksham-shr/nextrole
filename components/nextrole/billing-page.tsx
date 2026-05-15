@@ -1,29 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UserTier } from "@/lib/db/types";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
 import { TOPUP_PACKS } from "@/lib/ai/gates";
 
-const LS_URLS = {
-  starter: process.env.NEXT_PUBLIC_LS_STARTER_URL ?? "",
-  pro:     process.env.NEXT_PUBLIC_LS_PRO_URL     ?? "",
-};
+const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
-const VARIANT_IDS = {
-  starter_monthly: process.env.NEXT_PUBLIC_LS_STARTER_MONTHLY_ID ?? "",
-  starter_yearly:  process.env.NEXT_PUBLIC_LS_STARTER_YEARLY_ID  ?? "",
-  pro_monthly:     process.env.NEXT_PUBLIC_LS_PRO_MONTHLY_ID     ?? "",
-  pro_yearly:      process.env.NEXT_PUBLIC_LS_PRO_YEARLY_ID      ?? "",
-};
+// ── Razorpay script loader ──────────────────────────────────────────────────
 
-function checkoutUrl(plan: "starter" | "pro", period: "monthly" | "yearly", email: string): string | null {
-  const base = LS_URLS[plan];
-  const id = VARIANT_IDS[`${plan}_${period}`];
-  if (!base || !id) return null;
-  const emailParam = email ? `&checkout[email]=${encodeURIComponent(email)}` : "";
-  return `${base}?variant=${id}${emailParam}`;
+function useRazorpayScript() {
+  const loaded = useRef(false);
+  useEffect(() => {
+    if (loaded.current || document.getElementById("rzp-script")) { loaded.current = true; return; }
+    const s = document.createElement("script");
+    s.id  = "rzp-script";
+    s.src = "https://checkout.razorpay.com/v1/checkout.js";
+    s.async = true;
+    document.body.appendChild(s);
+    loaded.current = true;
+  }, []);
+}
+
+interface RzpOptions {
+  key: string;
+  amount: number;
+  currency: string;
+  order_id: string;
+  name: string;
+  description: string;
+  prefill: { email: string };
+  theme: { color: string };
+  handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
+  modal: { ondismiss: () => void };
+}
+
+declare global {
+  interface Window {
+    Razorpay: new (opts: RzpOptions) => { open(): void };
+  }
+}
+
+async function openRazorpayCheckout(opts: RzpOptions) {
+  const rzp = new window.Razorpay(opts);
+  rzp.open();
 }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
@@ -66,7 +87,6 @@ interface BillingPageProps {
   subscriptionStatus: string | null;
   renewsAt: string | null;
   usage: UsageData;
-  portalUrl?: string | null;
   creditLog?: CreditLogEntry[];
 }
 
@@ -164,29 +184,105 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
   );
 }
 
-export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, renewsAt, usage, portalUrl, creditLog = [] }: BillingPageProps) {
-  const [period, setPeriod]       = useState<"monthly" | "yearly">("monthly");
-  const [topupLoading, setTopupLoading] = useState<string | null>(null);
+export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, renewsAt, usage, creditLog = [] }: BillingPageProps) {
+  const [period, setPeriod]             = useState<"monthly" | "yearly">("monthly");
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const { price, loading: currencyLoading } = useCurrency();
 
-  const daysLeft = trialDaysLeft(trialEndsAt);
-  // Only show trial badge when subscription is actively trialing
-  const inTrial  = daysLeft !== null && daysLeft > 0 && subscriptionStatus === "trialing";
+  useRazorpayScript();
+
+  const daysLeft  = trialDaysLeft(trialEndsAt);
+  const inTrial   = daysLeft !== null && daysLeft > 0 && subscriptionStatus === "trialing";
   const dailyBase = DAILY_BASE[tier] ?? 0;
 
-  async function handleTopup(packId: string) {
-    setTopupLoading(packId);
+  async function startRazorpay(
+    loadingKey: string,
+    orderPayload: Record<string, string>,
+    description: string,
+    onSuccess: (ids: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => Promise<void>,
+  ) {
+    setCheckoutLoading(loadingKey);
     try {
-      const res = await fetch("/api/topup", {
-        method: "POST",
+      const res = await fetch("/api/razorpay/create-order", {
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pack_id: packId }),
+        body:    JSON.stringify(orderPayload),
       });
-      const data = await res.json() as { url?: string; error?: string };
-      if (data.url) window.location.href = data.url;
-    } finally {
-      setTopupLoading(null);
+      const text = await res.text();
+      let order: { order_id?: string; amount?: number; currency?: string; error?: string };
+      try { order = JSON.parse(text); } catch { alert(`Server error: ${text.slice(0, 120)}`); return; }
+      if (!order.order_id) {
+        alert(order.error ?? "Could not create payment order. Please try again.");
+        return;
+      }
+
+      await openRazorpayCheckout({
+        key:       RZP_KEY,
+        amount:    order.amount!,
+        currency:  order.currency!,
+        order_id:  order.order_id,
+        name:      "NextRole",
+        description,
+        prefill:   { email },
+        theme:     { color: "#c84a1f" },
+        handler:   async (paymentRes) => {
+          setCheckoutLoading(loadingKey + "_verifying");
+          try {
+            await onSuccess(paymentRes);
+          } finally {
+            setCheckoutLoading(null);
+          }
+        },
+        modal: {
+          ondismiss: () => setCheckoutLoading(null),
+        },
+      });
+    } catch (err) {
+      alert((err as Error).message ?? "Payment failed. Please try again.");
+      setCheckoutLoading(null);
     }
+  }
+
+  async function handleCheckout(plan: "starter" | "pro", checkoutPeriod: "monthly" | "yearly") {
+    await startRazorpay(
+      `${plan}_${checkoutPeriod}`,
+      { type: "subscription", plan, period: checkoutPeriod },
+      `NextRole ${plan.charAt(0).toUpperCase() + plan.slice(1)} — ${checkoutPeriod}`,
+      async (paymentRes) => {
+        const verify = await fetch("/api/razorpay/verify-payment", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ ...paymentRes, type: "subscription", plan, period: checkoutPeriod }),
+        });
+        const result = await verify.json() as { ok?: boolean; error?: string };
+        if (result.ok) {
+          window.location.reload();
+        } else {
+          alert(result.error ?? "Payment verification failed. Please contact support.");
+        }
+      },
+    );
+  }
+
+  async function handleTopup(packId: string) {
+    await startRazorpay(
+      packId,
+      { type: "topup", pack_id: packId },
+      `NextRole Credits — ${TOPUP_PACKS.find((p) => p.id === packId)?.credits ?? ""} credits`,
+      async (paymentRes) => {
+        const verify = await fetch("/api/razorpay/verify-payment", {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ ...paymentRes, type: "topup", pack_id: packId }),
+        });
+        const result = await verify.json() as { ok?: boolean; credits_added?: number; error?: string };
+        if (result.ok) {
+          window.location.reload();
+        } else {
+          alert(result.error ?? "Payment verification failed. Please contact support.");
+        }
+      },
+    );
   }
 
   return (
@@ -225,11 +321,6 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
             </div>
           </div>
           <div className="flex shrink-0 gap-2">
-            {portalUrl && (
-              <a href={portalUrl} className="rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[13px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]">
-                Manage billing
-              </a>
-            )}
             {tier !== "pro" && (
               <Link href="#plans" className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-white transition hover:opacity-90">
                 Upgrade →
@@ -290,23 +381,26 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
             Top-up credits are added on top of your daily 300 and expire when your subscription renews or ends. Unused credits are not refunded.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {TOPUP_PACKS.map((pack) => (
-              <button
-                key={pack.id}
-                onClick={() => handleTopup(pack.id)}
-                disabled={topupLoading === pack.id}
-                className="flex flex-col rounded-xl border border-[var(--line-soft)] p-4 text-left transition hover:border-[var(--accent)] disabled:opacity-50"
-              >
-                <span className="font-mono text-[18px] font-semibold leading-none">{pack.credits}</span>
-                <span className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">credits</span>
-                <span className="mt-3 font-mono text-[13px] font-medium text-[var(--accent)]">
-                  {currencyLoading ? "…" : `₹${pack.inr}`}
-                </span>
-                <span className="mt-2 rounded-lg bg-[var(--accent)] py-1.5 text-center text-[11px] font-medium text-white transition hover:opacity-90">
-                  {topupLoading === pack.id ? "Redirecting…" : "Buy"}
-                </span>
-              </button>
-            ))}
+            {TOPUP_PACKS.map((pack) => {
+              const isLoading = checkoutLoading === pack.id || checkoutLoading === `${pack.id}_verifying`;
+              return (
+                <button
+                  key={pack.id}
+                  onClick={() => handleTopup(pack.id)}
+                  disabled={!!checkoutLoading}
+                  className="flex flex-col rounded-xl border border-[var(--line-soft)] p-4 text-left transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  <span className="font-mono text-[18px] font-semibold leading-none">{pack.credits}</span>
+                  <span className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">credits</span>
+                  <span className="mt-3 font-mono text-[13px] font-medium text-[var(--accent)]">
+                    {currencyLoading ? "…" : `₹${pack.inr}`}
+                  </span>
+                  <span className="mt-2 rounded-lg bg-[var(--accent)] py-1.5 text-center text-[11px] font-medium text-white transition hover:opacity-90">
+                    {isLoading ? "Processing…" : "Buy"}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -348,8 +442,9 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
           features={["100 credits / day", "1 autofill / day", "Standard resumes", "Pipeline tracking"]}
           locked={["Unlimited autofill", "Premium resumes", "Credit top-ups"]}
           cta={tier === "starter" ? "Current plan" : tier === "pro" ? "Downgrade" : "Get Starter"}
-          ctaHref={tier === "free" ? (checkoutUrl("starter", period, email) ?? undefined) : tier === "pro" && portalUrl ? portalUrl : undefined}
-          ctaDisabled={tier === "starter" || (tier === "pro" && !portalUrl)}
+          loading={checkoutLoading === `starter_${period}` || checkoutLoading === `starter_${period}_verifying`}
+          onCheckout={tier === "free" ? () => handleCheckout("starter", period) : undefined}
+          ctaDisabled={tier === "starter" || tier === "pro" || !!checkoutLoading}
         />
         <PlanCard
           name="Pro"
@@ -359,8 +454,9 @@ export function BillingPage({ tier, email, trialEndsAt, subscriptionStatus, rene
           current={tier === "pro"}
           features={["300 credits / day", "Unlimited autofill", "Premium resumes", "Credit top-ups"]}
           cta={tier === "pro" ? "Current plan" : "Go Pro"}
-          ctaHref={tier === "pro" ? undefined : (checkoutUrl("pro", period, email) ?? undefined)}
-          ctaDisabled={tier === "pro"}
+          loading={checkoutLoading === `pro_${period}` || checkoutLoading === `pro_${period}_verifying`}
+          onCheckout={tier === "free" || tier === "starter" ? () => handleCheckout("pro", period) : undefined}
+          ctaDisabled={tier === "pro" || !!checkoutLoading}
         />
       </div>
 
@@ -416,10 +512,10 @@ function UsageCell({ label, value, sub, warn, locked }: {
   );
 }
 
-function PlanCard({ name, price, priceSub, highlight, badge, current, features, locked, cta, ctaHref, ctaDisabled }: {
+function PlanCard({ name, price, priceSub, highlight, badge, current, features, locked, cta, onCheckout, ctaDisabled, loading }: {
   name: string; price: string; priceSub: string; highlight?: boolean; badge?: string;
   current?: boolean; features: string[]; locked?: string[]; cta?: string;
-  ctaHref?: string; ctaDisabled?: boolean;
+  onCheckout?: () => void; ctaDisabled?: boolean; loading?: boolean;
 }) {
   return (
     <div className={`flex flex-col rounded-2xl p-6 ${
@@ -447,17 +543,17 @@ function PlanCard({ name, price, priceSub, highlight, badge, current, features, 
           <li key={f} className="flex items-start gap-2 text-[13px] opacity-40"><LockIcon />{f}</li>
         ))}
       </ul>
-      {ctaHref ? (
-        <a href={ctaHref} className={`block rounded-xl py-2.5 text-center text-[13px] font-medium transition ${
-          highlight ? "bg-[var(--accent)] text-white hover:opacity-90" : "border border-[var(--line-soft)] text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
-        }`}>{cta}</a>
-      ) : (
-        <button disabled={ctaDisabled} className={`rounded-xl py-2.5 text-center text-[13px] font-medium transition ${
-          ctaDisabled ? "cursor-default opacity-40 border border-[var(--line-soft)] text-[var(--muted-foreground)]"
-          : highlight ? "bg-[var(--accent)] text-white hover:opacity-90"
-          : "border border-[var(--line-soft)] text-[var(--foreground)]"
-        }`}>{cta}</button>
-      )}
+      <button
+        onClick={onCheckout}
+        disabled={ctaDisabled || loading}
+        className={`rounded-xl py-2.5 text-center text-[13px] font-medium transition ${
+          ctaDisabled && !loading ? "cursor-default opacity-40 border border-[var(--line-soft)] text-[var(--muted-foreground)]"
+          : highlight ? "bg-[var(--accent)] text-white hover:opacity-90 disabled:opacity-60"
+          : "border border-[var(--line-soft)] text-[var(--foreground)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-60"
+        }`}
+      >
+        {loading ? "Processing…" : cta}
+      </button>
     </div>
   );
 }

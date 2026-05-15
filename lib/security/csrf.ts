@@ -14,6 +14,8 @@ export function isSameOrigin(request: NextRequest): boolean {
   const normalizedOrigin = normalizeOrigin(origin);
   return (
     normalizedOrigin === normalizeOrigin(requestOrigin) ||
-    normalizedOrigin === normalizeOrigin(siteOrigin)
+    normalizedOrigin === normalizeOrigin(siteOrigin) ||
+    normalizedOrigin.startsWith("http://localhost") ||
+    normalizedOrigin.startsWith("http://127.0.0.1")
   );
 }

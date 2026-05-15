@@ -15,7 +15,12 @@ function parseNum(raw: string | null): number | null {
   return isNaN(n) ? null : n;
 }
 
-export async function updateProfile(formData: FormData) {
+// ── Settings save — returns result instead of redirecting ────────────────────
+
+export async function updateProfile(
+  _prev: { ok: boolean; error?: string } | null,
+  formData: FormData,
+): Promise<{ ok: boolean; error?: string }> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
@@ -28,26 +33,35 @@ export async function updateProfile(formData: FormData) {
     return isNaN(n) ? def : n;
   };
 
-  const full_name           = get("full_name");
-  const base_cv             = get("base_cv");
-  const work_mode_raw       = get("work_mode");
-  const seniority_raw       = get("seniority");
+  const full_name              = get("full_name");
+  const work_mode_raw          = get("work_mode");
+  const seniority_raw          = get("seniority");
 
-  const years_experience    = parseNum(get("years_experience"));
-  const comp_min            = parseNum(get("comp_min"));
-  const comp_max            = parseNum(get("comp_max"));
-  const current_comp        = parseNum(get("current_comp"));
-  const preferred_language  = get("preferred_language") ?? "en";
-  const eval_score_apply    = getNum("eval_score_apply", 3.5);
-  const eval_score_watch    = getNum("eval_score_watch", 2.5);
-  const custom_eval_focus   = get("custom_eval_focus");
-  const custom_archetypes   = parseArr(get("custom_archetypes"));
+  const years_experience       = parseNum(get("years_experience"));
+  const comp_min               = parseNum(get("comp_min"));
+  const comp_max               = parseNum(get("comp_max"));
+  const current_comp           = parseNum(get("current_comp"));
+  const preferred_language     = get("preferred_language") ?? "en";
+  const eval_score_apply       = getNum("eval_score_apply", 3.5);
+  const eval_score_watch       = getNum("eval_score_watch", 2.5);
+  const custom_eval_focus      = get("custom_eval_focus");
+  const custom_archetypes      = parseArr(get("custom_archetypes"));
 
   const target_roles            = parseArr(get("target_roles"));
   const target_locations        = parseArr(get("target_locations"));
   const target_archetypes       = parseArr(get("target_archetypes"));
   const preferred_company_types = parseArr(get("preferred_company_types"));
   const languages               = parseArr(get("languages"));
+
+  // Contact & address
+  const phone         = get("phone");
+  const linkedin_url  = get("linkedin_url");
+  const github_url    = get("github_url");
+  const portfolio_url = get("portfolio_url");
+  const country       = get("country");
+  const state_province = get("state_province");
+  const city          = get("city");
+  const zip_postal    = get("zip_postal");
 
   // Validate enums
   const WORK_MODES = ["remote", "hybrid", "onsite"] as const;
@@ -72,7 +86,6 @@ export async function updateProfile(formData: FormData) {
       current_comp,
       target_roles,
       target_locations,
-      base_cv,
       target_archetypes,
       preferred_company_types,
       work_mode,
@@ -83,37 +96,24 @@ export async function updateProfile(formData: FormData) {
       eval_score_watch,
       custom_eval_focus,
       custom_archetypes,
+      phone,
+      linkedin_url,
+      github_url,
+      portfolio_url,
+      country,
+      state_province,
+      city,
+      zip_postal,
       updated_at: new Date().toISOString(),
     })
     .eq("id", user.id);
 
-  if (error) {
-    redirect(`/dashboard/settings?error=${encodeURIComponent(error.message)}`);
-  }
+  if (error) return { ok: false, error: error.message };
 
   revalidatePath("/dashboard/settings");
-  redirect("/dashboard/settings?message=Profile+saved");
-}
-
-export async function saveCV(formData: FormData) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
-  const base_cv = (formData.get("base_cv") as string)?.trim() || null;
-
-  const { error } = await supabase
-    .from("profiles")
-    .update({ base_cv, updated_at: new Date().toISOString() })
-    .eq("id", user.id);
-
-  if (error) {
-    redirect(`/dashboard/settings?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/profile");
   revalidatePath("/dashboard");
-  redirect("/dashboard/settings?message=CV+saved");
+  return { ok: true };
 }
 
 // ── Partial profile save — no redirect, used by onboarding wizard ─────────────
@@ -138,7 +138,6 @@ export async function saveProfileStep(fields: {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not authenticated" };
 
-  // Validate enums before passing to Supabase
   const work_mode = WORK_MODES_WIZ.includes(fields.work_mode as WorkModeWiz)
     ? (fields.work_mode as WorkModeWiz)
     : null;
@@ -160,5 +159,6 @@ export async function saveProfileStep(fields: {
 
   revalidatePath("/dashboard");
   revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/profile");
   return { ok: true };
 }
