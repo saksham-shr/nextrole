@@ -162,53 +162,78 @@ function BillingSection({
 // ─── Password section ─────────────────────────────────────────────────────────
 
 function PasswordSection({ email }: { email: string }) {
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const [current, setCurrent]   = useState("");
+  const [next, setNext]         = useState("");
+  const [confirm, setConfirm]   = useState("");
+  const [status, setStatus]     = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
 
-  async function sendReset() {
-    setStatus("sending");
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (next !== confirm) { setErrorMsg("New passwords do not match."); setStatus("error"); return; }
+    if (next.length < 8)  { setErrorMsg("Password must be at least 8 characters."); setStatus("error"); return; }
+
+    setStatus("saving");
+    setErrorMsg("");
     try {
       const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (error) { setErrorMsg(error.message); setStatus("error"); }
-      else setStatus("sent");
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: current });
+      if (signInError) { setErrorMsg("Current password is incorrect."); setStatus("error"); return; }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: next });
+      if (updateError) { setErrorMsg(updateError.message); setStatus("error"); return; }
+
+      setStatus("saved");
+      setCurrent(""); setNext(""); setConfirm("");
+      setTimeout(() => setStatus("idle"), 3000);
     } catch (e) {
       setErrorMsg(String(e));
       setStatus("error");
     }
   }
 
+  const inputCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)] transition placeholder:text-[var(--muted-foreground)]";
+
   return (
-    <Card id="password" title="Password" subtitle="Send a password-reset link to your inbox.">
-      {status === "sent" ? (
+    <Card id="password" title="Change Password" subtitle="Enter your current password to set a new one.">
+      {status === "saved" ? (
         <div className="flex items-center gap-2 rounded-lg border border-[var(--ok)] bg-[var(--ok-bg)] px-4 py-3 text-[13px] text-[var(--ok)]">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6 9 17l-5-5" />
           </svg>
-          Check your inbox — reset link sent to {email}
+          Password updated successfully.
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          <p className="text-[13px] text-[var(--muted-foreground)]">
-            We&apos;ll send a secure link to <strong>{email}</strong>. Follow it to set a new password.
-          </p>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3" autoComplete="off">
+          <div className="flex flex-col gap-1">
+            <label className="text-[11.5px] font-medium text-[var(--muted-foreground)]">Current password</label>
+            <input type="password" value={current} onChange={e => setCurrent(e.target.value)} placeholder="••••••••" required className={inputCls} autoComplete="current-password" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11.5px] font-medium text-[var(--muted-foreground)]">New password</label>
+            <input type="password" value={next} onChange={e => setNext(e.target.value)} placeholder="••••••••" required minLength={8} className={inputCls} autoComplete="new-password" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[11.5px] font-medium text-[var(--muted-foreground)]">Confirm new password</label>
+            <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="••••••••" required className={inputCls} autoComplete="new-password" />
+          </div>
+
           {status === "error" && (
             <div className="rounded-lg border border-[var(--bad)] bg-[var(--bad-bg)] px-4 py-3 text-[12.5px] text-[var(--bad)]">
               {errorMsg}
             </div>
           )}
-          <div>
+
+          <div className="pt-1">
             <button
-              onClick={sendReset}
-              disabled={status === "sending"}
-              className="rounded-lg border border-[var(--line-soft)] px-4 py-2 text-[13px] font-medium transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+              type="submit"
+              disabled={status === "saving"}
+              className="rounded-lg bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
             >
-              {status === "sending" ? "Sending…" : "Send reset email"}
+              {status === "saving" ? "Saving…" : "Update password"}
             </button>
           </div>
-        </div>
+        </form>
       )}
     </Card>
   );
@@ -276,12 +301,155 @@ function ActivitySection({ log }: { log: Array<{ id: string; task_type: string; 
   );
 }
 
+// ─── Browser extension tokens ────────────────────────────────────────────────
+// Lists the user's active extension tokens (issued via /api/extension/token)
+// and lets them revoke any token. Last-used time is shown for context.
+
+type ExtensionToken = {
+  id: string;
+  name: string;
+  last_used_at: string | null;
+  created_at: string;
+};
+
+function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void }) {
+  const [tokens, setTokens] = useState<ExtensionToken[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/extension/token", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load extension tokens");
+      const data = await res.json();
+      setTokens(data.tokens ?? []);
+      setError(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const revoke = async (id: string, name: string) => {
+    if (!confirm(`Revoke "${name}"? This will sign out any browser using this token.`)) return;
+    setRevoking(id);
+    try {
+      const res = await fetch("/api/extension/token", {
+        method: "DELETE",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (!res.ok) throw new Error("Failed to revoke token");
+      onToast(`Revoked "${name}"`);
+      await load();
+    } catch (err) {
+      alert((err as Error).message);
+    } finally {
+      setRevoking(null);
+    }
+  };
+
+  return (
+    <Card
+      id="extension"
+      title="Browser extension"
+      subtitle="Active extension installations connected to your NextRole account."
+    >
+      {loading && (
+        <p className="text-[13px] text-[var(--muted-foreground)]">Loading…</p>
+      )}
+
+      {error && !loading && (
+        <p className="text-[13px]" style={{ color: "var(--warn)" }}>{error}</p>
+      )}
+
+      {!loading && !error && tokens && tokens.length === 0 && (
+        <div className="rounded-lg border border-dashed border-[var(--line-soft)] p-5 text-center">
+          <p className="text-[13px] text-[var(--muted-foreground)]">
+            No extensions connected.
+          </p>
+          <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
+            Install the NextRole extension from the Chrome Web Store and click "Connect account".
+          </p>
+        </div>
+      )}
+
+      {!loading && !error && tokens && tokens.length > 0 && (
+        <div className="flex flex-col gap-2">
+          {tokens.map((token) => (
+            <div
+              key={token.id}
+              className="flex items-center justify-between gap-4 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-3"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-medium text-[var(--foreground)]">{token.name}</span>
+                  {token.last_used_at && isRecentlyActive(token.last_used_at) && (
+                    <Badge tone="ok">active</Badge>
+                  )}
+                </div>
+                <div className="mt-0.5 flex gap-3 font-mono text-[11px] text-[var(--muted-foreground)]">
+                  <span>created {formatRelativeDate(token.created_at)}</span>
+                  <span>·</span>
+                  <span>
+                    {token.last_used_at
+                      ? `last used ${formatRelativeDate(token.last_used_at)}`
+                      : "never used"}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => revoke(token.id, token.name)}
+                disabled={revoking === token.id}
+                className="rounded-[5px] border border-[var(--line-soft)] bg-transparent px-3 py-1.5 text-[12px] text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-50"
+                style={{ color: "var(--warn)" }}
+              >
+                {revoking === token.id ? "Revoking…" : "Revoke"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="mt-4 border-t border-[var(--line-soft)] pt-4 text-[12px] text-[var(--muted-foreground)]">
+        Revoking a token signs the extension out of your account on that browser.
+        The user will need to click "Connect account" again to reconnect.
+      </div>
+    </Card>
+  );
+}
+
+function isRecentlyActive(iso: string): boolean {
+  const dt = new Date(iso).getTime();
+  return Date.now() - dt < 7 * 24 * 60 * 60 * 1000; // within 7 days
+}
+
+function formatRelativeDate(iso: string): string {
+  const dt = new Date(iso);
+  const seconds = Math.max(0, (Date.now() - dt.getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = seconds / 60;
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`;
+  const hours = minutes / 60;
+  if (hours < 24) return `${Math.floor(hours)}h ago`;
+  const days = hours / 24;
+  if (days < 30) return `${Math.floor(days)}d ago`;
+  return dt.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
+
 // ─── Nav items ────────────────────────────────────────────────────────────────
 
 const NAV = [
-  { id: "billing",  label: "Billing" },
-  { id: "password", label: "Password" },
-  { id: "activity", label: "Activity log" },
+  { id: "billing",   label: "Billing" },
+  { id: "extension", label: "Browser extension" },
+  { id: "password",  label: "Password" },
+  { id: "activity",  label: "Activity log" },
 ];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -351,6 +519,8 @@ export function SettingsPageContent({
             subscriptionStatus={subscriptionStatus}
             portalUrl={portalUrl}
           />
+
+          <ExtensionTokensSection onToast={setToastMsg} />
 
           <PasswordSection email={email} />
 

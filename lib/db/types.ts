@@ -139,6 +139,13 @@ export type ProfileRow = {
   certifications: CertificationEntry[] | null;
   projects: ProjectEntry[] | null;
   skills: string[] | null;
+  // CTC + notice annotations (migration 20260515000001)
+  expected_salary_min: number | null;   // LPA
+  expected_salary_max: number | null;   // LPA
+  ctc_fixed: number | null;             // LPA, current fixed annual cash
+  ctc_variable: number | null;          // LPA, current variable / target
+  ctc_note: string | null;              // free-text annotation
+  notice_period_note: string | null;    // free-text annotation
   created_at: string;
   updated_at: string;
 };

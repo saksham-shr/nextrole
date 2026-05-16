@@ -67,6 +67,9 @@ export async function GET(req: NextRequest) {
       "gender", "pronouns", "race_ethnicity", "veteran_status", "disability_status",
       "work_experience", "education", "certifications", "projects", "skills",
       "dob", "work_authorization", "expected_salary",
+      // CTC + notice annotations (migration 20260515000001)
+      "expected_salary_min", "expected_salary_max",
+      "ctc_fixed", "ctc_variable", "ctc_note", "notice_period_note",
     ].join(", "))
     .eq("id", userId)
     .single();
@@ -169,6 +172,14 @@ export async function GET(req: NextRequest) {
     work_authorization: (p.work_authorization as string | null) ?? null,
     expected_salary: (p.expected_salary as number | null) ?? null,
     skills:          (p.skills as string[] | null)           ?? [],
+
+    // Indian-specific CTC + notice annotations (migration 20260515000001)
+    expected_salary_min: (p.expected_salary_min as number | null) ?? null,
+    expected_salary_max: (p.expected_salary_max as number | null) ?? null,
+    ctc_fixed:           (p.ctc_fixed as number | null)           ?? null,
+    ctc_variable:        (p.ctc_variable as number | null)        ?? null,
+    ctc_note:            (p.ctc_note as string | null)            ?? null,
+    notice_period_note:  (p.notice_period_note as string | null)  ?? null,
 
     // Tier gating
     tier,
