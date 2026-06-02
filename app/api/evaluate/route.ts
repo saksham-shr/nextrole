@@ -4,7 +4,10 @@ import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { requireFeature } from "@/lib/ai/guard";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
-import { CREDIT_COSTS } from "@/lib/ai/gates";
+import { CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
+import { reserveExtensionAiCharge, type ChargeReservation } from "@/lib/extension-ai";
+import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
+import { isSameOrigin } from "@/lib/security/csrf";
 
 export const maxDuration = 60;
 
@@ -35,6 +38,13 @@ function clampScore(score: unknown): number {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const ip = getClientIp(request);
+  const rl = await rateLimit(`evaluate:${ip}`, 10, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
   // Feature key "evaluate" maps to free daily limit: 5/day; starter/pro: credit-based
   const guard = await requireFeature("evaluate");
   if (guard instanceof NextResponse) return guard;
@@ -42,11 +52,12 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
 
-  const body = await request.json() as {
+  const body = await request.json().catch(() => null) as {
     job_id?: string;
     mode?: "api" | "manual" | "lite" | "full";
     raw_output?: string;
-  };
+  } | null;
+  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const { job_id: jobId, mode = "api" } = body;
 
   if (!jobId) return NextResponse.json({ error: "job_id required" }, { status: 400 });
@@ -113,15 +124,39 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Pre-flight credit check (no deduction yet — deduct only after AI succeeds)
+  // Pre-flight credit check — fast 402 so the user sees "no credits" before
+  // we pay the deduct_credit round-trip. The authoritative check happens
+  // in the atomic reservation below.
   if (!isLitePass && tier !== "free" && creditsRemaining < CREDIT_COSTS.evaluate) {
     return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
   }
 
-  const { data: taskRun } = await supabase.from("task_runs").insert({
-    user_id: userId, type: "evaluate", status: "running", linked_job_id: jobId,
-    input: { job_id: jobId, provider: route.provider, model: route.model, mode },
-  }).select("id").single();
+  // Atomic reservation BEFORE the provider call (only for billable runs —
+  // lite pass is free and not charged). Two parallel /evaluate calls now
+  // serialize on the deduct_credit RPC / increment_daily_usage RPC, so
+  // they can't both burn provider tokens and only race on credits after.
+  let reservation: ChargeReservation | null = null;
+  if (!isLitePass) {
+    try {
+      reservation = await reserveExtensionAiCharge(supabase, {
+        userId,
+        tier,
+        task: "evaluate",
+        freeUsageField: "evaluations",
+        freeDailyLimit: FREE_DAILY_LIMITS.evaluations,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "RESERVE_FAILED";
+      if (msg === "INSUFFICIENT_CREDITS") {
+        return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+      }
+      if (msg === "DAILY_LIMIT") {
+        return NextResponse.json({ error: "DAILY_LIMIT_REACHED", upgrade: true }, { status: 402 });
+      }
+      return NextResponse.json({ error: "Could not reserve credits" }, { status: 500 });
+    }
+  }
+
 
   const systemPrompt = buildSystemPrompt({
     applyThreshold: profile.eval_score_apply ?? 3.5,
@@ -152,39 +187,29 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
-    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: msg, updated_at: new Date().toISOString() }).eq("id", taskRun.id);
-    return NextResponse.json({ error: msg }, { status: 502 });
+    console.error("[evaluate] AI call failed:", msg);
+    if (reservation) await reservation.refund();
+
+    return NextResponse.json({ error: "Evaluation failed — please try again in a moment." }, { status: 502 });
   }
 
   let result: EvalResult;
   try { result = parseJSON(rawOutput) as EvalResult; }
   catch {
-    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: "AI returned invalid JSON", updated_at: new Date().toISOString() }).eq("id", taskRun.id);
-    return NextResponse.json({ error: "AI returned invalid JSON", raw: rawOutput }, { status: 502 });
+    console.error("[evaluate] model returned invalid JSON. First 300 chars:", rawOutput?.slice(0, 300));
+    if (reservation) await reservation.refund();
+
+    return NextResponse.json({ error: "Evaluation failed — please try again in a moment." }, { status: 502 });
   }
 
   const score = clampScore(result.score);
   const decision = (["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch") as "apply" | "watch" | "skip";
   const archetype = result.archetype ?? null;
-
-  // AI succeeded — NOW deduct credits / increment usage
-  if (!isLitePass) {
-    if (tier === "free") {
-      await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
-    } else {
-      const { data: ok, error } = await supabase.rpc("deduct_credit", {
-        p_user_id: userId,
-        p_amount: CREDIT_COSTS.evaluate,
-      });
-      if (error || ok !== true) {
-        return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
-      }
-    }
-  }
+  // Reservation was charged before the AI call. No post-success deduct.
 
   // Lite pass: return result without persisting a full evaluation row
   if (isLitePass) {
-    if (taskRun) await supabase.from("task_runs").update({ status: "completed", updated_at: new Date().toISOString() }).eq("id", taskRun.id);
+
     return NextResponse.json({ score, decision, archetype, blocks: result.blocks, lite: true });
   }
 
@@ -205,13 +230,10 @@ export async function POST(request: NextRequest) {
     task_type: "evaluate",
     model: route.model,
     credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
-    byok: false,
   });
 
   await supabase.from("jobs").update({ status: "evaluated", archetype: archetype ?? job.archetype, updated_at: new Date().toISOString() })
     .eq("id", jobId).eq("user_id", userId);
-
-  if (taskRun) await supabase.from("task_runs").update({ status: "completed", output: { evaluation_id: evaluation?.id, score, decision, archetype }, updated_at: new Date().toISOString() }).eq("id", taskRun.id);
 
   if (evaluation?.id) {
     await supabase.from("reports").insert({

@@ -16,7 +16,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-feedback:${ip}`, 60, 60_000); // 60 reports/min
+  const rl = await rateLimit(`ext-feedback:${ip}`, 60, 60_000); // 60 reports/min
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   // Auth is optional for feedback — we accept anonymous reports too.

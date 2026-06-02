@@ -12,10 +12,14 @@ export function isSameOrigin(request: NextRequest): boolean {
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? process.env.APP_URL ?? requestOrigin;
 
   const normalizedOrigin = normalizeOrigin(origin);
+  const isLocalhost =
+    normalizedOrigin === "http://localhost" ||
+    normalizedOrigin === "http://127.0.0.1" ||
+    /^http:\/\/localhost:\d+$/.test(normalizedOrigin) ||
+    /^http:\/\/127\.0\.0\.1:\d+$/.test(normalizedOrigin);
   return (
     normalizedOrigin === normalizeOrigin(requestOrigin) ||
     normalizedOrigin === normalizeOrigin(siteOrigin) ||
-    normalizedOrigin.startsWith("http://localhost") ||
-    normalizedOrigin.startsWith("http://127.0.0.1")
+    isLocalhost
   );
 }

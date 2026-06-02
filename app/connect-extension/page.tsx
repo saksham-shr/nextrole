@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { randomBytes, createHash } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ConnectExtensionLoginClient } from "./client";
+import { ConnectExtensionLoginClient, InstallExtensionPage } from "./client";
 
 export const metadata = { title: "Connect Extension — NextRole" };
 
@@ -27,18 +27,29 @@ function hashToken(token: string): string {
 export default async function ConnectExtensionPage({
   searchParams,
 }: {
-  searchParams: Promise<{ redirect_to?: string; error?: string }>;
+  searchParams: Promise<{ redirect_to?: string; error?: string; force_login?: string }>;
 }) {
-  const { redirect_to, error } = await searchParams;
+  const { redirect_to, error, force_login } = await searchParams;
 
   if (!isValidRedirectTo(redirect_to ?? null)) {
-    redirect("/dashboard");
+    const supabase2 = await createClient();
+    const { data: { user: u } } = await supabase2.auth.getUser();
+    if (u) return <InstallExtensionPage />;
+    redirect("/login");
   }
 
   const redirectTo = redirect_to as string;
 
-  // Check if user is already logged in (server-side, reads cookies)
   const supabase = await createClient();
+
+  // Switch-account flow: extension passes force_login=1 to force the login UI
+  // even if a session cookie is present (so the user can pick a different
+  // account before the new token is minted).
+  if (force_login === "1") {
+    await supabase.auth.signOut({ scope: "local" });
+    return <ConnectExtensionLoginClient redirectTo={redirectTo} error={error} />;
+  }
+
   const { data: { user } } = await supabase.auth.getUser();
 
   if (user) {

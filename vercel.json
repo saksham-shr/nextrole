@@ -1,8 +1,9 @@
 {
   "crons": [
     {
+      "//": "Daily credit reset at 00:00 UTC. Must match the time advertised to users in billing-page.tsx, pricing-client.tsx, public-pages.tsx, dashboard-home.tsx (countdown), and the Starter tailor limit message in app/api/extension/tailor/route.ts. If you change this schedule, update those copy locations together.",
       "path": "/api/cron/reset-credits",
-      "schedule": "0 2 * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }

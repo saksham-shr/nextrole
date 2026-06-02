@@ -21,14 +21,14 @@ const textareaCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(
 // ─── Section registry — drives the sidebar nav and the cards ──────────────────
 
 type SectionId =
-  | "cv" | "contact" | "preferences" | "job_targets" | "compensation" | "ai_eval"
+  | "cv" | "contact" | "preferences" | "job_targets" | "compensation"
   | "experience" | "education" | "skills"
   | "projects" | "certifications" | "address" | "demographics";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "cv",              label: "CV" },
   { id: "contact",         label: "Contact & Identity" },
-  { id: "preferences",     label: "Career" },
+  { id: "preferences",     label: "Availability" },
   { id: "job_targets",     label: "Job Targets" },
   { id: "compensation",    label: "Compensation" },
   { id: "experience",      label: "Work experience" },
@@ -38,7 +38,6 @@ const SECTIONS: { id: SectionId; label: string }[] = [
   { id: "certifications",  label: "Certifications" },
   { id: "address",         label: "Address" },
   { id: "demographics",    label: "Demographics" },
-  { id: "ai_eval",         label: "AI & Evaluation" },
 ];
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -56,7 +55,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 function Card({
   id, title, subtitle, action, children,
 }: {
-  id: SectionId; title: string; subtitle?: string;
+  id: string; title: string; subtitle?: string;
   action?: React.ReactNode; children: React.ReactNode;
 }) {
   return (
@@ -342,7 +341,7 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
 
   if (!editing) {
     return (
-      <Card id="preferences" title="Career" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+      <Card id="preferences" title="Availability" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
           <ViewField label="Work mode" value={p.work_mode} />
           <ViewField label="Seniority" value={p.seniority} />
@@ -356,7 +355,7 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
   }
 
   return (
-    <Card id="preferences" title="Career" subtitle="Used for fill suggestions on every application">
+    <Card id="preferences" title="Availability" subtitle="Used for fill suggestions on every application">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Work mode">
           <select className={selectCls} value={workMode} onChange={(e) => setWorkMode(e.target.value)}>
@@ -565,95 +564,7 @@ function CompensationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
   );
 }
 
-// ─── 1d. AI & Evaluation ──────────────────────────────────────────────────────
-
-function AIEvalCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy]       = useState(false);
-  const [lang, setLang]       = useState(p.preferred_language ?? "en");
-  const [applyThresh, setApplyThresh] = useState(p.eval_score_apply?.toString() ?? "3.5");
-  const [watchThresh, setWatchThresh] = useState(p.eval_score_watch?.toString() ?? "2.5");
-  const [focus, setFocus]     = useState(p.custom_eval_focus ?? "");
-  const [archetypes, setArchetypes] = useState<string[]>(p.custom_archetypes ?? []);
-  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
-
-  async function save() {
-    setBusy(true);
-    try {
-      const patch = {
-        preferred_language: lang,
-        eval_score_apply: applyThresh ? parseFloat(applyThresh) : 3.5,
-        eval_score_watch: watchThresh ? parseFloat(watchThresh) : 2.5,
-        custom_eval_focus: focus || null,
-        custom_archetypes: archetypes.length ? archetypes : null,
-      };
-      await savePatch(patch);
-      onSaved(patch as Partial<ProfileRow>);
-      setSaved();
-    } catch (e) { alert((e as Error).message); }
-    finally { setBusy(false); }
-  }
-
-  if (!editing) {
-    const LANGS: Record<string, string> = {
-      en: "English", hi: "Hindi", es: "Spanish", fr: "French", de: "German",
-      pt: "Portuguese", zh: "Chinese", ja: "Japanese", ar: "Arabic", ko: "Korean",
-      it: "Italian", nl: "Dutch",
-    };
-    return (
-      <Card id="ai_eval" title="AI & Evaluation" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <ViewField label="Output language" value={LANGS[lang] ?? lang} />
-          <ViewField label="Apply / Watch thresholds" value={`${applyThresh} / ${watchThresh}`} />
-          {focus && <ViewField label="Custom focus" value={focus} className="sm:col-span-2" />}
-          {archetypes.length > 0 && <ViewField label="Custom archetypes" value={archetypes.join(", ")} className="sm:col-span-2" />}
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <Card id="ai_eval" title="AI & Evaluation" subtitle="Customise how every AI workflow runs for you.">
-      <div className="flex flex-col gap-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Preferred output language">
-            <select className={selectCls} value={lang} onChange={(e) => setLang(e.target.value)}>
-              <option value="en">English</option><option value="hi">Hindi / हिन्दी</option>
-              <option value="es">Spanish / Español</option><option value="fr">French / Français</option>
-              <option value="de">German / Deutsch</option><option value="pt">Portuguese / Português</option>
-              <option value="zh">Chinese / 中文</option><option value="ja">Japanese / 日本語</option>
-              <option value="ar">Arabic / العربية</option><option value="ko">Korean / 한국어</option>
-              <option value="it">Italian / Italiano</option><option value="nl">Dutch / Nederlands</option>
-            </select>
-          </Field>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Apply threshold (default 3.5)">
-            <input className={inputCls} type="number" min={0} max={5} step={0.1} value={applyThresh} onChange={(e) => setApplyThresh(e.target.value)} />
-          </Field>
-          <Field label="Watch threshold (default 2.5)">
-            <input className={inputCls} type="number" min={0} max={5} step={0.1} value={watchThresh} onChange={(e) => setWatchThresh(e.target.value)} />
-          </Field>
-        </div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
-          Score ≥ Apply → apply · between thresholds → watch · below Watch → skip
-        </p>
-        <Field label="Custom evaluation focus (optional)">
-          <textarea className={textareaCls} rows={3} value={focus} onChange={(e) => setFocus(e.target.value)}
-            placeholder="e.g. Prioritise companies with strong remote culture. Weight AI/ML stack experience highly." />
-        </Field>
-        <Field label="Custom archetypes (optional — overrides defaults)">
-          <TagInput tags={archetypes} onChange={setArchetypes} placeholder="AI Infrastructure, Applied ML…" suggestions={ARCHETYPE_SUGGESTIONS} />
-        </Field>
-      </div>
-      <div className="mt-5 flex items-center gap-3">
-        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
-        <SaveStatus msg={savedMsg} />
-      </div>
-    </Card>
-  );
-}
+// AIEvalCard moved to Settings page. See components/nextrole/settings-page.tsx.
 
 // ─── 1e. CV upload ────────────────────────────────────────────────────────────
 
@@ -664,7 +575,7 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
     p.base_cv ? p.base_cv.split(/\s+/).filter(Boolean).length : null,
   );
   const inputRef = useRef<HTMLInputElement>(null);
-  const CV_ACCEPT = ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const CV_ACCEPT = ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
   async function uploadFile(file: File) {
     setUploading(true);
@@ -725,7 +636,7 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
           {uploading ? "Extracting text…" : hasCV ? "Replace CV" : "Upload your CV or resume"}
         </div>
         <div className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-          PDF, DOC, or DOCX · up to 5 MB
+          PDF or DOCX · up to 5 MB
         </div>
       </div>
 
@@ -763,6 +674,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(p.full_name ?? "");
+  const [middle, setMiddle] = useState((p as unknown as Record<string, string>).middle_name ?? "");
   const [phone, setPhone] = useState(p.phone ?? "");
   const [li, setLi] = useState(p.linkedin_url ?? "");
   const [gh, setGh] = useState(p.github_url ?? "");
@@ -774,6 +686,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
     try {
       const patch = {
         full_name: full || null,
+        middle_name: middle || null,
         phone: phone || null,
         linkedin_url: li || null,
         github_url: gh || null,
@@ -791,6 +704,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
       <Card id="contact" title="Contact & links" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
         <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
           <ViewField label="Full name" value={p.full_name} />
+          <ViewField label="Middle name" value={(p as unknown as Record<string, string>).middle_name} />
           <ViewField label="Email" value={p.email} />
           <ViewField label="Phone" value={p.phone} />
           <ViewField label="LinkedIn" value={p.linkedin_url} />
@@ -804,6 +718,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
     <Card id="contact" title="Contact & links">
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name"><input className={inputCls} value={full} onChange={(e) => setFull(e.target.value)} /></Field>
+        <Field label="Middle name (optional)" hint="Keka, Oracle, and some ATS require this"><input className={inputCls} value={middle} onChange={(e) => setMiddle(e.target.value)} placeholder="Middle name" /></Field>
         <Field label="Email" hint="Change in account settings"><input className={inputCls} value={p.email} disabled /></Field>
         <Field label="Phone" hint="Include country code, e.g. +91 9876543210">
           <input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+91 …" />
@@ -829,7 +744,10 @@ const COUNTRIES = [
   "Other",
 ];
 
+const WORK_AUTH_OPTIONS = ["Unrestricted", "OPT/CPT", "H-1B", "Other"] as const;
+
 function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const extra = p as unknown as Record<string, string | null>;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [country, setCountry] = useState(p.country ?? "India");
@@ -838,6 +756,9 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
   const [zip, setZip] = useState(p.zip_postal ?? "");
   const [street, setStreet] = useState(p.street_address ?? "");
   const [nationality, setNationality] = useState(p.nationality ?? "Indian");
+  const [dob, setDob] = useState(extra.dob ?? "");
+  const [workAuth, setWorkAuth] = useState(extra.work_authorization ?? "");
+  const [phoneCC, setPhoneCC] = useState(extra.phone_country_code ?? "+91");
   const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
 
   async function save() {
@@ -850,6 +771,9 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
         zip_postal: zip || null,
         street_address: street || null,
         nationality: nationality || null,
+        dob: dob || null,
+        work_authorization: workAuth || null,
+        phone_country_code: phoneCC || "+91",
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
@@ -868,6 +792,9 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
           <ViewField label="City" value={p.city} />
           <ViewField label="ZIP / postal code" value={p.zip_postal} />
           <ViewField label="Street address" value={p.street_address} className="sm:col-span-2" />
+          <ViewField label="Date of birth" value={extra.dob} />
+          <ViewField label="Work authorization" value={extra.work_authorization} />
+          <ViewField label="Phone country code" value={extra.phone_country_code} />
         </div>
       </Card>
     );
@@ -894,6 +821,18 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
         </Field>
         <Field label="Street address" hint="Optional — required by some Workday gov instances">
           <input className={inputCls} value={street} onChange={(e) => setStreet(e.target.value)} />
+        </Field>
+        <Field label="Date of birth (optional)" hint="Used for age-gated ATS forms (Oracle, some Workday)">
+          <input type="date" className={inputCls} value={dob} onChange={(e) => setDob(e.target.value)} />
+        </Field>
+        <Field label="Work authorization (optional)" hint="Ashby, Greenhouse international forms">
+          <select className={selectCls} value={workAuth} onChange={(e) => setWorkAuth(e.target.value)}>
+            <option value="">Not specified</option>
+            {WORK_AUTH_OPTIONS.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </Field>
+        <Field label="Phone country code" hint="TurboHire, MyNextHire store code separately">
+          <input className={inputCls} value={phoneCC} onChange={(e) => setPhoneCC(e.target.value)} placeholder="+91" />
         </Field>
       </div>
       <div className="mt-5 flex items-center gap-3">
@@ -1497,7 +1436,6 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
           <CertificationsCard p={profile} onSaved={handleSaved} />
           <AddressCard        p={profile} onSaved={handleSaved} />
           <DemographicsCard   p={profile} onSaved={handleSaved} />
-          <AIEvalCard         p={profile} onSaved={handleSaved} />
         </main>
       </div>
 

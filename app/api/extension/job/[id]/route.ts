@@ -11,14 +11,14 @@ import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { computeFollowupDueAt } from "@/lib/jobs";
 
-const VALID_STATUSES = new Set(["applied", "interview", "offer", "rejected", "archived"]);
+const VALID_STATUSES = new Set(["applied", "interview", "offer", "rejected", "archived", "withdrawn"]);
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-job:patch:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-job:patch:${ip}`, 60, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -43,10 +43,10 @@ export async function PATCH(
   const now = new Date().toISOString();
   const nextFollowup = body.status === "applied" ? computeFollowupDueAt(now) : null;
 
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("jobs")
     .update({
-      status: body.status as "applied" | "interview" | "offer" | "rejected" | "archived",
+      status: body.status as "applied" | "interview" | "offer" | "rejected" | "archived" | "withdrawn",
       updated_at: now,
       ...(body.status === "applied"
         ? {
@@ -57,10 +57,18 @@ export async function PATCH(
         : {}),
     })
     .eq("id", id)
-    .eq("user_id", resolved.userId);
+    .eq("user_id", resolved.userId)
+    .select("id");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  // Verify a row was actually mutated. PostgREST returns ok+0 rows when the
+  // (id, user_id) tuple doesn't match anything; without this check the
+  // extension thinks it succeeded and the user sees a stale "applied"
+  // state for a job that was never updated.
+  if (!updated || updated.length === 0) {
+    return NextResponse.json({ error: "Job not found" }, { status: 404 });
   }
 
   await supabase.from("job_events").insert({

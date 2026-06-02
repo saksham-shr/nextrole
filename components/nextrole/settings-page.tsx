@@ -448,9 +448,110 @@ function formatRelativeDate(iso: string): string {
 const NAV = [
   { id: "billing",   label: "Billing" },
   { id: "extension", label: "Browser extension" },
+  { id: "ai_eval",   label: "AI & Evaluation" },
   { id: "password",  label: "Password" },
   { id: "activity",  label: "Activity log" },
 ];
+
+// ─── AI & Evaluation ──────────────────────────────────────────────────────────
+
+type AiPrefs = {
+  preferred_language: string;
+  eval_score_apply: number;
+  eval_score_watch: number;
+  custom_eval_focus: string;
+  custom_archetypes: string[];
+  target_archetypes: string[];
+  preferred_company_types: string[];
+};
+
+const LANGS = ["English", "Hindi", "Hinglish", "Tamil", "Telugu", "Kannada", "Marathi", "Bengali", "Gujarati"];
+
+function AIEvalSection({ initial }: { initial: AiPrefs }) {
+  const [prefs, setPrefs] = useState<AiPrefs>(initial);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+
+  async function save() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          preferred_language: prefs.preferred_language,
+          eval_score_apply: prefs.eval_score_apply,
+          eval_score_watch: prefs.eval_score_watch,
+          custom_eval_focus: prefs.custom_eval_focus,
+          custom_archetypes: prefs.custom_archetypes,
+          target_archetypes: prefs.target_archetypes,
+          preferred_company_types: prefs.preferred_company_types,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json() as { error?: string };
+        setMsg(j.error ?? "Save failed");
+      } else {
+        setMsg("Saved");
+        setTimeout(() => setMsg(null), 2000);
+      }
+    } catch { setMsg("Save failed"); }
+    finally { setBusy(false); }
+  }
+
+  const inputCls = "w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--line)]";
+  const selectCls = "w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--line)]";
+
+  return (
+    <Card id="ai_eval" title="AI & Evaluation" subtitle="Customise how every AI workflow runs for you.">
+      <div className="flex flex-col gap-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Output language</div>
+            <select className={selectCls} value={prefs.preferred_language} onChange={(e) => setPrefs((p) => ({ ...p, preferred_language: e.target.value }))}>
+              {LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+              Apply threshold <span className="normal-case text-[var(--muted-foreground-2)]">(apply if score ≥)</span>
+            </div>
+            <input type="number" min={0} max={5} step={0.5} className={inputCls}
+              value={prefs.eval_score_apply}
+              onChange={(e) => setPrefs((p) => ({ ...p, eval_score_apply: parseFloat(e.target.value) }))} />
+          </div>
+          <div>
+            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+              Watch threshold <span className="normal-case text-[var(--muted-foreground-2)]">(watch if score ≥)</span>
+            </div>
+            <input type="number" min={0} max={5} step={0.5} className={inputCls}
+              value={prefs.eval_score_watch}
+              onChange={(e) => setPrefs((p) => ({ ...p, eval_score_watch: parseFloat(e.target.value) }))} />
+          </div>
+        </div>
+        <div>
+          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Custom eval focus</div>
+          <textarea rows={3} className={inputCls} placeholder="e.g. Prioritise roles with ML infra work over pure SWE…"
+            value={prefs.custom_eval_focus}
+            onChange={(e) => setPrefs((p) => ({ ...p, custom_eval_focus: e.target.value }))} />
+        </div>
+        <div className="mt-2 flex items-center gap-3">
+          <button
+            onClick={save}
+            disabled={busy}
+            className="rounded-[6px] bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[#fffdf8] transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? "Saving…" : "Save"}
+          </button>
+          {msg && (
+            <span className={`font-mono text-[11px] ${msg === "Saved" ? "text-[var(--ok)]" : "text-[var(--bad)]"}`}>{msg}</span>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
@@ -462,6 +563,7 @@ export function SettingsPageContent({
   subscriptionStatus,
   portalUrl,
   creditLog,
+  aiPrefs,
 }: {
   tier: UserTier;
   email: string;
@@ -470,6 +572,7 @@ export function SettingsPageContent({
   subscriptionStatus: string | null;
   portalUrl: string | null;
   creditLog: Array<{ id: string; task_type: string; credits_used: number; created_at: string }>;
+  aiPrefs?: AiPrefs;
 }) {
   const [activeSection, setActiveSection] = useState("billing");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
@@ -521,6 +624,8 @@ export function SettingsPageContent({
           />
 
           <ExtensionTokensSection onToast={setToastMsg} />
+
+          {aiPrefs && <AIEvalSection initial={aiPrefs} />}
 
           <PasswordSection email={email} />
 

@@ -16,7 +16,6 @@ export default async function DashboardPage() {
   const [
     { data: profile },
     { data: jobs },
-    { data: recentRuns },
   ] = await Promise.all([
     supabase.from("profiles").select("full_name, base_cv, tier, credits_remaining").eq("id", user.id).single(),
     supabase
@@ -24,12 +23,6 @@ export default async function DashboardPage() {
       .select(`id, title, company, status, archetype, evaluations(score, decision)`)
       .eq("user_id", user.id)
       .order("created_at", { ascending: false }),
-    supabase
-      .from("task_runs")
-      .select("id, type, status, progress_message, error, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(8),
   ]);
 
   const allJobs = jobs ?? [];
@@ -77,15 +70,6 @@ export default async function DashboardPage() {
       tone: "default",
     });
   }
-  const failedRuns = (recentRuns ?? []).filter((r) => r.status === "failed");
-  if (failedRuns.length > 0) {
-    attentionItems.push({
-      title: `${failedRuns.length} failed task ${failedRuns.length === 1 ? "run" : "runs"}`,
-      body: "Check the activity log to diagnose and retry.",
-      href: "/dashboard/activity",
-      tone: "warn",
-    });
-  }
 
   const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
   const tier = isAdmin ? "pro" : ((profile?.tier as "free" | "starter" | "pro") ?? "free");
@@ -113,7 +97,6 @@ export default async function DashboardPage() {
       }}
       attentionItems={attentionItems}
       topJobs={topJobs}
-      recentRuns={recentRuns ?? []}
     />
   );
 }

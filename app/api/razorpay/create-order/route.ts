@@ -7,16 +7,8 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { TOPUP_PACKS, type TopupPackId } from "@/lib/ai/gates";
-import { INR_PRICES } from "@/lib/hooks/use-currency";
 import { isSameOrigin } from "@/lib/security/csrf";
-
-const PLAN_AMOUNTS: Record<string, number> = {
-  starter_monthly: INR_PRICES.starter_monthly * 100,
-  starter_yearly:  INR_PRICES.starter_yearly  * 100,
-  pro_monthly:     INR_PRICES.pro_monthly     * 100,
-  pro_yearly:      INR_PRICES.pro_yearly      * 100,
-};
+import { getCommerceConfig, CommerceConfigUnavailableError } from "@/lib/commerce/config";
 
 async function createRazorpayOrder(payload: {
   amount: number;
@@ -63,12 +55,28 @@ export async function POST(req: NextRequest) {
     pack_id?: string;
   };
 
+  // Fail closed on commerce config failure — never sell against defaults
+  // if the admin overrides can't be loaded (BILL-04).
+  let commerce;
+  try {
+    commerce = await getCommerceConfig();
+  } catch (err) {
+    if (err instanceof CommerceConfigUnavailableError) {
+      console.error("[create-order] commerce config unavailable:", err.message);
+      return NextResponse.json({ error: "Billing temporarily unavailable" }, { status: 503 });
+    }
+    throw err;
+  }
+
   let amountPaise: number;
   let receipt: string;
   let notes: Record<string, string>;
 
   if (body.type === "topup") {
-    const pack = TOPUP_PACKS.find((p) => p.id === (body.pack_id as TopupPackId));
+    if (!commerce.flags.topups_enabled) {
+      return NextResponse.json({ error: "Top-ups are temporarily disabled" }, { status: 503 });
+    }
+    const pack = commerce.topupPacks.find((p) => p.id === body.pack_id);
     if (!pack) return NextResponse.json({ error: "Invalid top-up pack" }, { status: 400 });
 
     const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
@@ -95,9 +103,16 @@ export async function POST(req: NextRequest) {
     if (!body.plan || !body.period) {
       return NextResponse.json({ error: "plan and period required" }, { status: 400 });
     }
+    const planEnabled =
+      (body.plan === "starter" && commerce.flags.starter_enabled) ||
+      (body.plan === "pro"     && commerce.flags.pro_enabled);
+    if (!planEnabled) {
+      return NextResponse.json({ error: `${body.plan} plan is temporarily disabled` }, { status: 503 });
+    }
     const key = `${body.plan}_${body.period}`;
-    amountPaise = PLAN_AMOUNTS[key];
-    if (!amountPaise) return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
+    const inr = commerce.planPricesInr[key];
+    if (!inr) return NextResponse.json({ error: "Unknown plan" }, { status: 400 });
+    amountPaise = inr * 100;
 
     receipt = `sub-${body.plan}-${body.period}-${user.id.slice(0, 8)}-${Date.now()}`;
     notes   = { type: "subscription", plan: body.plan, period: body.period, user_id: user.id };
@@ -121,6 +136,6 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = (err as Error).message ?? String(err);
     console.error("[razorpay] create-order error:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return NextResponse.json({ error: "Payment provider unavailable — please try again in a moment." }, { status: 500 });
   }
 }

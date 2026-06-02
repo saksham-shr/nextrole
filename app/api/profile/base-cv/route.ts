@@ -1,23 +1,30 @@
 /**
  * POST /api/profile/base-cv
  *
- * Accepts a resume file (PDF / DOC / DOCX, ≤5 MB), extracts plain text,
- * and saves it to profiles.base_cv for the authenticated user.
+ * Accepts a resume file (PDF / DOCX, ≤5 MB), extracts plain text, and
+ * saves it to profiles.base_cv for the authenticated user.
+ *
+ * Legacy .doc (application/msword) is intentionally not accepted: mammoth
+ * only parses OOXML (.docx), and the previous "doc supported" claim
+ * silently produced junk text on real .doc uploads.
  *
  * Returns: { words: number }
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSameOrigin } from "@/lib/security/csrf";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
   "application/pdf",
-  "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
 export async function POST(req: NextRequest) {
+  if (!isSameOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const mime = file.type;
   if (!ALLOWED_MIME.has(mime)) {
-    return NextResponse.json({ error: "Unsupported file type. Use PDF, DOC or DOCX." }, { status: 415 });
+    return NextResponse.json({ error: "Unsupported file type. Use PDF or DOCX (legacy .doc not supported)." }, { status: 415 });
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
@@ -48,7 +55,7 @@ export async function POST(req: NextRequest) {
       const result = await pdfParse(buffer);
       text = result.text ?? "";
     } else {
-      // DOC / DOCX
+      // DOCX only — mammoth does not handle the legacy .doc binary format.
       const mammoth = await import("mammoth");
       const result = await mammoth.extractRawText({ buffer });
       text = result.value ?? "";
@@ -71,7 +78,8 @@ export async function POST(req: NextRequest) {
     .eq("id", user.id);
 
   if (dbError) {
-    return NextResponse.json({ error: dbError.message }, { status: 500 });
+    console.error("[profile/base-cv] DB write failed:", dbError.message);
+    return NextResponse.json({ error: "Could not save CV" }, { status: 500 });
   }
 
   const words = text.split(/\s+/).filter(Boolean).length;

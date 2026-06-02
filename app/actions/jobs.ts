@@ -99,6 +99,40 @@ export async function markFollowupSent(formData: FormData) {
   revalidatePath("/dashboard/followup");
 }
 
+export async function batchDeleteJobs(jobIds: string[]) {
+  if (!jobIds.length) return { deleted: 0 };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("jobs")
+    .delete()
+    .in("id", jobIds)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/pipeline");
+  return { deleted: jobIds.length };
+}
+
+export async function batchUpdateJobStatus(jobIds: string[], status: JobStatus) {
+  if (!jobIds.length) return { updated: 0 };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { error } = await supabase
+    .from("jobs")
+    .update({ status, updated_at: new Date().toISOString() })
+    .in("id", jobIds)
+    .eq("user_id", user.id);
+
+  if (error) return { error: error.message };
+  revalidatePath("/dashboard/pipeline");
+  return { updated: jobIds.length };
+}
+
 export async function deleteJob(formData: FormData) {
   const supabase = await createClient();
   const {

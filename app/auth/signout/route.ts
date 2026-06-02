@@ -25,7 +25,12 @@ function isSafeNext(next: string | null, origin: string): boolean {
 
 export async function GET(req: NextRequest) {
   const supabase = await createClient();
-  await supabase.auth.signOut({ scope: "global" });
+  // Default to local so convenience sign-outs (account switch, extension
+  // re-bind) don't kill the user's sessions on every other device. Callers
+  // that genuinely need a global sign-out can opt in with ?scope=global.
+  const scopeParam = req.nextUrl.searchParams.get("scope");
+  const scope = scopeParam === "global" ? "global" : "local";
+  await supabase.auth.signOut({ scope });
 
   // Belt-and-suspenders: explicitly delete every sb-* cookie.
   const cookieStore = await cookies();

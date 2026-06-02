@@ -9,6 +9,29 @@
 
 export type Provider = "openrouter" | "anthropic" | "openai" | "gemini" | "sarvam";
 
+// Hard upper-bound for any single provider call. Routes set maxDuration=60s, so
+// we cap at 55s to allow the route handler to format an error response.
+const PROVIDER_TIMEOUT_MS = 55_000;
+
+async function fetchWithTimeout(
+  input: string,
+  init: RequestInit,
+  providerLabel: string,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PROVIDER_TIMEOUT_MS);
+  try {
+    return await fetch(input, { ...init, signal: controller.signal });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error(`${providerLabel} timed out after ${PROVIDER_TIMEOUT_MS / 1000}s`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export interface CallOptions {
   provider: Provider;
   apiKey: string;
@@ -36,7 +59,7 @@ async function callAnthropic(opts: CallOptions): Promise<string> {
     ? [{ type: "text", text: system, cache_control: { type: "ephemeral" } }]
     : system;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetchWithTimeout("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -50,7 +73,7 @@ async function callAnthropic(opts: CallOptions): Promise<string> {
       system: systemContent,
       messages: [{ role: "user", content: user }],
     }),
-  });
+  }, "Anthropic");
 
   if (!res.ok) {
     const err = await res.text();
@@ -75,14 +98,14 @@ async function callOpenAI(opts: CallOptions): Promise<string> {
   };
   if (json) body.response_format = { type: "json_object" };
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
-  });
+  }, "OpenAI");
 
   if (!res.ok) {
     const err = await res.text();
@@ -114,7 +137,7 @@ async function callOpenRouterOnce(
   const body = { ...baseBody, model } as Record<string, unknown>;
   if (json && supportsJsonMode(model)) body.response_format = { type: "json_object" };
 
-  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -123,7 +146,7 @@ async function callOpenRouterOnce(
       "X-Title": "NextRole",
     },
     body: JSON.stringify(body),
-  });
+  }, `OpenRouter(${model})`);
 
   const text = await res.text();
   return { ok: res.ok, status: res.status, text };
@@ -183,7 +206,7 @@ async function callGemini(opts: CallOptions): Promise<string> {
   const { apiKey, model, system, user, maxTokens = 2048 } = opts;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -194,7 +217,7 @@ async function callGemini(opts: CallOptions): Promise<string> {
         responseMimeType: "application/json",
       },
     }),
-  });
+  }, "Gemini");
 
   if (!res.ok) {
     const err = await res.text();
@@ -211,7 +234,7 @@ async function callGemini(opts: CallOptions): Promise<string> {
 async function callSarvam(opts: CallOptions): Promise<string> {
   const { apiKey, model, system, user, maxTokens = 2048 } = opts;
 
-  const res = await fetch("https://api.sarvam.ai/v1/chat/completions", {
+  const res = await fetchWithTimeout("https://api.sarvam.ai/v1/chat/completions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -225,7 +248,7 @@ async function callSarvam(opts: CallOptions): Promise<string> {
         { role: "user", content: user },
       ],
     }),
-  });
+  }, "Sarvam");
 
   if (!res.ok) {
     const err = await res.text();

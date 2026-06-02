@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
-import { RESUME_SYSTEM_PROMPT, buildResumePrompt } from "@/lib/resume/prompt";
+import { RESUME_SYSTEM_PROMPT, buildResumePrompt, buildGenericResumePrompt } from "@/lib/resume/prompt";
 import { renderResumeHtml } from "@/lib/resume/template";
 import type { ResumeData } from "@/lib/resume/template";
 import { requireFeature } from "@/lib/ai/guard";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS, PREMIUM_RESUME_LIFETIME_CAP } from "@/lib/ai/gates";
+import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
+import { isSameOrigin } from "@/lib/security/csrf";
 
 export const maxDuration = 120;
 
@@ -15,11 +17,22 @@ const STANDARD_MAX_TOKENS = 2500;
 const PREMIUM_MAX_TOKENS  = 4000;
 
 export async function POST(request: NextRequest) {
-  const body = (await request.json()) as {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+  const ip = getClientIp(request);
+  const rl = await rateLimit(`resume:${ip}`, 5, 60_000);
+  if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+
+  const body = await request.json().catch(() => null) as {
     job_id?: string;
     evaluation_id?: string;
     premium?: boolean;
-  };
+    // Generic mode — no job_id required
+    target_role?: string;
+    target_company?: string;
+  } | null;
+  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
 
   const isPremium = !!body.premium;
   const featureKey = isPremium ? "resume_premium" : "resume_standard";
@@ -30,12 +43,21 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
 
-  const jobId = body.job_id;
-  if (!jobId) return NextResponse.json({ error: "job_id required" }, { status: 400 });
+  const jobId = body.job_id ?? null;
+  const isGeneric = !jobId;
 
-  const { data: job } = await supabase.from("jobs").select("*").eq("id", jobId).eq("user_id", userId).single();
-  if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
-  if (!job.description) return NextResponse.json({ error: "Job has no description — paste the JD first" }, { status: 400 });
+  // Generic mode requires target_role
+  if (isGeneric && !body.target_role?.trim()) {
+    return NextResponse.json({ error: "Provide job_id for a targeted resume or target_role for a generic one" }, { status: 400 });
+  }
+
+  let job: { title: string; company: string; description: string | null } | null = null;
+  if (jobId) {
+    const { data } = await supabase.from("jobs").select("title, company, description").eq("id", jobId).eq("user_id", userId).single();
+    if (!data) return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    if (!data.description) return NextResponse.json({ error: "Job has no description — paste the JD first" }, { status: 400 });
+    job = data;
+  }
 
   const { data: profile } = await supabase.from("profiles").select("base_cv, credits_remaining").eq("id", userId).single();
   if (!profile?.base_cv) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
@@ -52,18 +74,21 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Fetch prior eval data for delta tailoring
-  let evalData: { cv_match: Record<string, unknown> | null; personalization_guidance: Record<string, unknown> | null } | null = null;
-  if (body.evaluation_id) {
-    const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("id", body.evaluation_id).eq("user_id", userId).single();
-    evalData = data ?? null;
-  } else {
-    const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("job_id", jobId).eq("user_id", userId).order("created_at", { ascending: false }).limit(1).single();
-    evalData = data ?? null;
+  // Fetch prior eval data for delta tailoring (only for job-tied resumes)
+  let cvMatch: { strengths?: string[]; gaps?: string[] } | null = null;
+  let personGuidance: { angle?: string; tactics?: string[] } | null = null;
+  if (!isGeneric) {
+    let evalData: { cv_match: Record<string, unknown> | null; personalization_guidance: Record<string, unknown> | null } | null = null;
+    if (body.evaluation_id) {
+      const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("id", body.evaluation_id).eq("user_id", userId).single();
+      evalData = data ?? null;
+    } else if (jobId) {
+      const { data } = await supabase.from("evaluations").select("cv_match, personalization_guidance").eq("job_id", jobId).eq("user_id", userId).order("created_at", { ascending: false }).limit(1).single();
+      evalData = data ?? null;
+    }
+    cvMatch = evalData?.cv_match as { strengths?: string[]; gaps?: string[] } | null;
+    personGuidance = evalData?.personalization_guidance as { angle?: string; tactics?: string[] } | null;
   }
-
-  const cvMatch = evalData?.cv_match as { strengths?: string[]; gaps?: string[] } | null;
-  const personGuidance = evalData?.personalization_guidance as { angle?: string; tactics?: string[] } | null;
 
   // Resolve AI route based on premium vs standard
   let route: AIRoute;
@@ -82,17 +107,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data: taskRun } = await supabase.from("task_runs").insert({
-    user_id: userId, type: "pdf", status: "running", linked_job_id: jobId,
-    input: { job_id: jobId, provider: route.provider, model: route.model, premium: isPremium },
-  }).select("id").single();
-
-  const userPrompt = buildResumePrompt({
-    title: job.title, company: job.company, description: job.description,
-    base_cv: profile.base_cv,
-    eval_strengths: cvMatch?.strengths, eval_gaps: cvMatch?.gaps,
-    personalization_angle: personGuidance?.angle, personalization_tactics: personGuidance?.tactics,
-  });
+  const userPrompt = isGeneric
+    ? buildGenericResumePrompt({
+        target_role: body.target_role!,
+        target_company: body.target_company,
+        base_cv: profile.base_cv,
+      })
+    : buildResumePrompt({
+        title: job!.title, company: job!.company, description: job!.description!,
+        base_cv: profile.base_cv,
+        eval_strengths: cvMatch?.strengths, eval_gaps: cvMatch?.gaps,
+        personalization_angle: personGuidance?.angle, personalization_tactics: personGuidance?.tactics,
+      });
 
   let rawOutput: string;
   try {
@@ -107,15 +133,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "AI call failed";
-    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: message, updated_at: new Date().toISOString() }).eq("id", taskRun.id);
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.error("[resume] AI call failed:", message);
+    return NextResponse.json({ error: "Resume generation failed — please try again in a moment." }, { status: 502 });
   }
 
   let resumeData: ResumeData;
   try {
     resumeData = parseJSON(rawOutput) as ResumeData;
   } catch {
-    if (taskRun) await supabase.from("task_runs").update({ status: "failed", error: "AI returned invalid JSON", updated_at: new Date().toISOString() }).eq("id", taskRun.id);
     return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 });
   }
 
@@ -129,13 +154,6 @@ export async function POST(request: NextRequest) {
       p_amount: creditAmount,
     });
     if (error || ok !== true) {
-      if (taskRun) {
-        await supabase.from("task_runs").update({
-          status: "failed",
-          error: "NO_CREDITS",
-          updated_at: new Date().toISOString(),
-        }).eq("id", taskRun.id);
-      }
       return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
   }
@@ -143,27 +161,26 @@ export async function POST(request: NextRequest) {
   const html = renderResumeHtml(resumeData);
   const coverage = Math.max(0, Math.min(100, resumeData.coverage ?? 0));
 
+  const resumeTitle = isGeneric
+    ? body.target_company
+      ? `${body.target_role} at ${body.target_company}`
+      : `${body.target_role} (Generic)`
+    : `${job!.title} at ${job!.company}`;
+
   const { data: resume } = await supabase.from("resumes").insert({
     user_id: userId, job_id: jobId,
-    title: `${job.title} at ${job.company}`,
+    title: resumeTitle,
     content: JSON.stringify(resumeData), html, coverage,
     status: isPremium ? "final" : "draft",
+    source: isGeneric ? "custom" : "ai",
     version: 1,
   }).select("id").single();
-
-  if (taskRun) {
-    await supabase.from("task_runs").update({
-      status: "completed", output: { resume_id: resume?.id, coverage },
-      updated_at: new Date().toISOString(),
-    }).eq("id", taskRun.id);
-  }
 
   await supabase.from("usage_log").insert({
     user_id: userId,
     task_type: isPremium ? "resume_premium" : "resume_standard",
     model: route.model,
     credits_used: tier === "free" ? 0 : creditAmount,
-    byok: false,
   });
 
   return NextResponse.json({ resume_id: resume?.id, coverage, html });

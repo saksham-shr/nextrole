@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { batchDeleteResumes } from "@/app/actions/resumes";
 import { Badge } from "@/components/nextrole/ui";
 import type { ResumeRow, JobRow, UserTier } from "@/lib/db/types";
 import type { ResumeData } from "@/lib/resume/template";
@@ -211,8 +212,10 @@ function GeneratePanel({
           data.error === "PREMIUM_RESUME_CAP_REACHED" ? "Premium resume cap reached for your plan" :
           (data.error ?? "Generation failed"),
         );
+      } else if (data.resume_id) {
+        onGenerated(data.resume_id);
       } else {
-        onGenerated(data.resume_id!);
+        setError("Generation failed — no resume ID returned");
       }
     } catch {
       setError("Network error — please try again");
@@ -351,8 +354,32 @@ export function ResumesPageContent({
   const [showGenerate, setShowGenerate] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [displayCount, setDisplayCount] = useState(25);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [batchPending, startBatch] = useTransition();
 
   const selected = resumes.find((r) => r.id === selectedId) ?? null;
+  const visible = resumes.slice(0, displayCount);
+  const remaining = resumes.length - displayCount;
+
+  function toggleCheck(id: string) {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function handleBatchDelete() {
+    const ids = [...checkedIds];
+    startBatch(async () => {
+      await batchDeleteResumes(ids);
+      setCheckedIds(new Set());
+      if (ids.includes(selectedId ?? "")) setSelectedId(null);
+      router.refresh();
+    });
+  }
 
   function handleGenerated(resumeId: string) {
     setShowGenerate(false);
@@ -397,14 +424,33 @@ export function ResumesPageContent({
       {/* Split pane — sidebar on top on mobile, side-by-side on md+ */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
         {/* Sidebar list */}
-        <div className="shrink-0 overflow-auto rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-2 md:w-[300px]" style={{ maxHeight: "calc(50vh)" }}>
+        <div className="shrink-0 overflow-auto rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] md:w-[300px]" style={{ maxHeight: "calc(50vh)" }}>
+          {/* Batch toolbar */}
+          {checkedIds.size > 0 && (
+            <div className="flex items-center gap-2 border-b border-[var(--line-soft)] px-3 py-2">
+              <span className="flex-1 font-mono text-[10px] text-[var(--muted-foreground)]">{checkedIds.size} selected</span>
+              <button
+                type="button"
+                onClick={handleBatchDelete}
+                disabled={batchPending}
+                className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--bad)] hover:underline disabled:opacity-40"
+              >
+                Delete
+              </button>
+              <button type="button" onClick={() => setCheckedIds(new Set())} className="font-mono text-[10px] text-[var(--muted-foreground)] hover:underline">
+                Clear
+              </button>
+            </div>
+          )}
+          <div className="p-2">
           {resumes.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--muted-foreground)]">
               <p>No resumes yet</p>
               <button onClick={() => setShowGenerate(true)} className="text-[var(--accent)] hover:underline">Generate one</button>
             </div>
           ) : (
-            resumes.map((r) => {
+            <>
+            {visible.map((r) => {
               const active = r.id === selectedId;
               const company = r.jobs?.company ?? "";
               const isConfirming = confirmDeleteId === r.id;
@@ -418,9 +464,16 @@ export function ResumesPageContent({
                     border: `1px solid ${active ? "rgba(200,74,31,0.2)" : "transparent"}`,
                   }}
                 >
+                  <input
+                    type="checkbox"
+                    checked={checkedIds.has(r.id)}
+                    onChange={() => toggleCheck(r.id)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute left-2 top-3 h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
+                  />
                   <button
                     onClick={() => { setSelectedId(r.id); setShowGenerate(false); setConfirmDeleteId(null); }}
-                    className="w-full p-3 text-left"
+                    className="w-full p-3 pl-7 text-left"
                   >
                     <div className="mb-1 flex items-center gap-2">
                       {company && <CompanyLogo name={company} size={20} />}
@@ -474,8 +527,19 @@ export function ResumesPageContent({
                   )}
                 </div>
               );
-            })
+            })}
+            {remaining > 0 && (
+              <button
+                type="button"
+                onClick={() => setDisplayCount((c) => c + 25)}
+                className="mt-1 w-full rounded-[6px] py-2 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] hover:bg-[var(--surface-soft)] transition"
+              >
+                Show {Math.min(remaining, 25)} more ({remaining} remaining)
+              </button>
+            )}
+            </>
           )}
+          </div>
         </div>
 
         {/* Main preview */}

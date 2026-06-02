@@ -51,8 +51,10 @@ const OPTIONAL_FIELDS: FieldSpec[] = [
   { field: "state_province",      label: "State",                 category: "identity",     filled: (p) => isNonEmptyString(p.state_province) },
   { field: "zip_postal",          label: "PIN code",              category: "identity",     filled: (p) => isNonEmptyString(p.zip_postal) },
   { field: "street_address",      label: "Street address",        category: "identity",     filled: (p) => isNonEmptyString(p.street_address) },
+  { field: "middle_name",          label: "Middle name",           category: "identity",     filled: (p) => isNonEmptyString(p.middle_name) },
   { field: "dob",                 label: "Date of birth",         category: "identity",     filled: (p) => isNonEmptyString(p.dob) },
   { field: "work_authorization",  label: "Work authorisation",    category: "preferences",  filled: (p) => isNonEmptyString(p.work_authorization) },
+  { field: "phone_country_code",  label: "Phone country code",    category: "identity",     filled: (p) => isNonEmptyString(p.phone_country_code) },
   { field: "willing_to_relocate", label: "Willing to relocate",   category: "preferences",  filled: (p) => p.willing_to_relocate !== null && p.willing_to_relocate !== undefined },
   { field: "sponsorship_needed",  label: "Sponsorship needed",    category: "preferences",  filled: (p) => p.sponsorship_needed !== null && p.sponsorship_needed !== undefined },
   { field: "work_mode",           label: "Preferred work mode",   category: "preferences",  filled: (p) => isNonEmptyString(p.work_mode) },
@@ -72,7 +74,7 @@ const OPTIONAL_FIELDS: FieldSpec[] = [
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-profile-completion:${ip}`, 30, 60_000);
+  const rl = await rateLimit(`ext-profile-completion:${ip}`, 30, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -86,7 +88,7 @@ export async function GET(req: NextRequest) {
   const { data: profile, error } = await admin
     .from("profiles")
     .select([
-      "full_name", "email", "phone",
+      "full_name", "middle_name", "email", "phone", "phone_country_code",
       "linkedin_url", "github_url", "portfolio_url",
       "city", "state_province", "zip_postal", "street_address",
       "dob", "work_authorization",

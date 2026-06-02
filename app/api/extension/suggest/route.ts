@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/extension/suggest
  * Auth: Bearer <supabase_jwt>
  *
@@ -19,9 +19,9 @@ const SUGGEST_MAX_TOKENS = 600;
 
 /**
  * Credit model:
- *  Free    → blocked (canAccess = false)
- *  Starter → 2 credits per AI call; daily cap of 16 credits (8 suggestions/day)
- *  Pro     → 2 credits per AI call; no daily cap
+ *  Free    â†’ blocked (canAccess = false)
+ *  Starter â†’ 2 credits per AI call; daily cap of 16 credits (8 suggestions/day)
+ *  Pro     â†’ 2 credits per AI call; no daily cap
  */
 
 function buildPrompt(opts: {
@@ -36,11 +36,11 @@ function buildPrompt(opts: {
   const jobCtx     = jobTitle ? `\nJob: ${jobTitle} at ${company}${jobDescription ? `\nJD: ${jobDescription.slice(0, 1000)}` : ""}` : "";
   const profileCtx = [fullName && `Name: ${fullName}`, email && `Email: ${email}`, yearsExperience && `Experience: ${yearsExperience}yr`, seniority, targetRoles.length > 0 && `Roles: ${targetRoles.slice(0, 3).join(", ")}`].filter(Boolean).join(" | ");
 
-  const system = `You are a professional job application writer. Write concise, authentic first-person content for a form field. Return ONLY the text — no preamble, no quotes.`;
+  const system = `You are a professional job application writer. Write concise, authentic first-person content for a form field. Return ONLY the text â€” no preamble, no quotes.`;
 
   // "improve" mode: rewrite/expand what the user already wrote
   if (mode === "improve" && currentValue.length > 10) {
-    const userPrompt = `The user wrote this draft for the "${fieldLabel || fieldType}" field:\n\n"${currentValue.slice(0, 600)}"\n\nRewrite and improve it — make it more specific, professional, and tailored to the role. Keep the same voice but strengthen it. Do NOT repeat their text verbatim.\n${profileCtx}${jobCtx}`;
+    const userPrompt = `The user wrote this draft for the "${fieldLabel || fieldType}" field:\n\n"${currentValue.slice(0, 600)}"\n\nRewrite and improve it â€” make it more specific, professional, and tailored to the role. Keep the same voice but strengthen it. Do NOT repeat their text verbatim.\n${profileCtx}${jobCtx}`;
     return { system, userPrompt };
   }
 
@@ -65,7 +65,7 @@ function buildPrompt(opts: {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-suggest:${ip}`, 30, 60_000);
+  const rl = await rateLimit(`ext-suggest:${ip}`, 30, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -99,28 +99,91 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Autofill requires Starter plan or higher", upgrade: true }, { status: 402 });
   }
 
-  // ── Starter: 2 credits per call, daily cap of 16 credits ─────────────────
+  // â”€â”€ Starter preflight: best-effort fast 402 for the daily cap so users
+  // see "limit reached" without paying the deduct_credit round-trip first.
+  // The authoritative check happens in the atomic reservation below.
   let spentToday = 0;
   if (tier === "starter") {
-    // Check daily credit spend on autofill
     const { data: usageRow } = await admin
       .from("daily_usage").select("autofill_credits_used").eq("user_id", userId).eq("date", today).maybeSingle();
     spentToday = (usageRow as { autofill_credits_used?: number } | null)?.autofill_credits_used ?? 0;
     if (spentToday + CREDIT_COSTS.autofill > STARTER_DAILY_AUTOFILL_CREDIT_CAP) {
-      return NextResponse.json({ error: `Daily AI suggestion limit reached (${STARTER_DAILY_AUTOFILL_CREDIT_CAP} credits/day) — upgrade to Pro for unlimited`, upgrade: true }, { status: 402 });
+      return NextResponse.json({ error: `Daily AI suggestion limit reached (${STARTER_DAILY_AUTOFILL_CREDIT_CAP} credits/day) â€” upgrade to Pro for unlimited`, upgrade: true }, { status: 402 });
     }
-    // Check remaining credits
     const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
     if (creditsLeft < CREDIT_COSTS.autofill) {
-      return NextResponse.json({ error: "No credits remaining — top up or upgrade your plan", upgrade: true }, { status: 402 });
+      return NextResponse.json({ error: "No credits remaining â€” top up or upgrade your plan", upgrade: true }, { status: 402 });
     }
   }
 
-  // ── Pro: 2 credits per AI call, no daily cap ──────────────────────────────
   if (tier === "pro") {
     const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
     if (creditsLeft < CREDIT_COSTS.autofill) {
-      return NextResponse.json({ error: "No credits remaining — top up your plan", upgrade: true }, { status: 402 });
+      return NextResponse.json({ error: "No credits remaining â€” top up your plan", upgrade: true }, { status: 402 });
+    }
+  }
+
+  // Atomic reservation BEFORE the AI call. Both starter and pro deduct
+  // CREDIT_COSTS.autofill via deduct_credit (race-free); starter additionally
+  // increments autofill_credits_used and rolls back if the daily cap would
+  // be exceeded. Without this, two parallel /suggest requests can pass the
+  // read-only checks above and both burn provider tokens.
+  let credit_reservation: { refund: () => Promise<void>; charged: number } | null = null;
+  if (tier === "starter" || tier === "pro") {
+    const { data: deducted, error: deductErr } = await admin.rpc("deduct_credit", {
+      p_user_id: userId,
+      p_amount: CREDIT_COSTS.autofill,
+    });
+    if (deductErr || deducted !== true) {
+      return NextResponse.json({ error: "No credits remaining â€” top up your plan", upgrade: true }, { status: 402 });
+    }
+    const refundCredits = async () => {
+      try {
+        // refund_credit is added in 20260521000001 â€” DB typegen may not yet
+        // include it, so cast to bypass the rpc() type narrowing.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: rpcErr } = await (admin.rpc as any)("refund_credit", { p_user_id: userId, p_amount: CREDIT_COSTS.autofill });
+        if (!rpcErr) return;
+      } catch {}
+      try {
+        const { data } = await admin.from("profiles").select("credits_remaining").eq("id", userId).single();
+        const current = (data?.credits_remaining as number | null) ?? 0;
+        await admin.from("profiles").update({ credits_remaining: current + CREDIT_COSTS.autofill }).eq("id", userId);
+      } catch {}
+    };
+
+    if (tier === "starter") {
+      // Atomic check-and-set on the per-day autofill credit counter. The
+      // increment_autofill_credits RPC does the UPSERT + add in a single
+      // statement and returns the new total, so two parallel requests
+      // can't both read the same spentToday and lose one increment. If
+      // the new total exceeds the cap, we decrement atomically and
+      // refund the credit deduction.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: newSpend, error: usageErr } = await (admin.rpc as any)("increment_autofill_credits", {
+        p_user: userId,
+        p_amount: CREDIT_COSTS.autofill,
+      });
+      if (usageErr || typeof newSpend !== "number") {
+        await refundCredits();
+        return NextResponse.json({ error: "Could not reserve daily usage" }, { status: 500 });
+      }
+      if (newSpend > STARTER_DAILY_AUTOFILL_CREDIT_CAP) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (admin.rpc as any)("decrement_autofill_credits", { p_user: userId, p_amount: CREDIT_COSTS.autofill });
+        await refundCredits();
+        return NextResponse.json({ error: `Daily AI suggestion limit reached (${STARTER_DAILY_AUTOFILL_CREDIT_CAP} credits/day) â€” upgrade to Pro for unlimited`, upgrade: true }, { status: 402 });
+      }
+      credit_reservation = {
+        charged: CREDIT_COSTS.autofill,
+        refund: async () => {
+          await refundCredits();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin.rpc as any)("decrement_autofill_credits", { p_user: userId, p_amount: CREDIT_COSTS.autofill });
+        },
+      };
+    } else {
+      credit_reservation = { charged: CREDIT_COSTS.autofill, refund: refundCredits };
     }
   }
 
@@ -149,35 +212,19 @@ export async function POST(req: NextRequest) {
       json: false, fallbackModels: route.fallbackModels,
     });
   } catch (err) {
-    // AI failed — no credits deducted
+    if (credit_reservation) await credit_reservation.refund();
     return NextResponse.json({ error: err instanceof Error ? err.message : "AI error" }, { status: 502 });
   }
 
-  // ── AI succeeded — post-success accounting ────────────────────────────────
-  let creditsCharged = 0;
-
+  // Reservation was charged before the AI call. Only the autofills counter
+  // is still post-success because it's informational and not gated on.
   if (tier === "starter" || tier === "pro") {
-    // Deduct 2 credits per AI call for both tiers
-    const { data: ok, error } = await admin.rpc("deduct_credit", {
-      p_user_id: userId,
-      p_amount: CREDIT_COSTS.autofill,
-    });
-    if (error || ok !== true) {
-      return NextResponse.json({ error: "No credits remaining — top up your plan", upgrade: true }, { status: 402 });
-    }
     await admin.rpc("increment_daily_usage", { p_field: "autofills", p_user: userId });
-    // Track daily credit spend for Starter cap enforcement
-    if (tier === "starter") {
-      await admin.from("daily_usage")
-        .upsert({ user_id: userId, date: today, autofill_credits_used: spentToday + CREDIT_COSTS.autofill }, { onConflict: "user_id,date" })
-        .then(() => {});
-    }
-    creditsCharged = CREDIT_COSTS.autofill;
   }
 
   await admin.from("usage_log").insert({
     user_id: userId, task_type: "autofill", model: route.model,
-    credits_used: creditsCharged, byok: false,
+    credits_used: credit_reservation?.charged ?? 0,
   });
 
   return NextResponse.json({ suggestion: suggestion.trim() });

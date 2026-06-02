@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/extension/tailor
  * Auth: Bearer <extension token>
  *
@@ -6,8 +6,8 @@
  *
  * Request body:
  * {
- *   job_id?:        string   // optional — pulls evaluation + job_description from DB
- *   evaluation_id?: string   // optional — pulls eval strengths/gaps/personalization
+ *   job_id?:        string   // optional â€” pulls evaluation + job_description from DB
+ *   evaluation_id?: string   // optional â€” pulls eval strengths/gaps/personalization
  *   jobTitle?:      string   // fallback if no job_id
  *   company?:       string
  *   jobDescription?:string
@@ -19,16 +19,16 @@
  * {
  *   answers: { [field_type]: string },
  *   experience_bullets?: { [company]: string[] },  // tailored to JD
- *   skills_to_emphasize?: string[],                 // top 5–8 from profile matching JD
+ *   skills_to_emphasize?: string[],                 // top 5â€“8 from profile matching JD
  *   tier:    "starter" | "pro",
  *   tailor_sessions_today: number,
  *   credits_remaining?:    number
  * }
  *
  * Tier gating:
- *   free    → 403 with "upgrade" hint
- *   starter → 1 tailor session per UTC day (counter on daily_usage)
- *   pro     → CREDIT_COSTS.tailor credits per session (deduct_credit RPC)
+ *   free    â†’ 403 with "upgrade" hint
+ *   starter â†’ 1 tailor session per UTC day (counter on daily_usage)
+ *   pro     â†’ CREDIT_COSTS.tailor credits per session (deduct_credit RPC)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -38,7 +38,7 @@ import { callProvider } from "@/lib/ai/providers";
 import { resolveRoute } from "@/lib/ai/router";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { CREDIT_COSTS, STARTER_DAILY_TAILOR_CAP, canAccess } from "@/lib/ai/gates";
-import { chargeExtensionAiSuccess } from "@/lib/extension-ai";
+import { reserveExtensionAiCharge } from "@/lib/extension-ai";
 
 const ALLOWED_FIELDS = new Set([
   "cover_letter", "why_company", "about_yourself", "experience", "additional_info",
@@ -57,11 +57,11 @@ Return ONLY valid JSON. No markdown. No code fences.
 Use this exact shape (omit any key the caller didn't request):
 {
   "answers": {
-    "cover_letter":   "<3–4 paragraphs, under 280 words>",
-    "why_company":    "<2–3 sentences, specific to this company/role>",
-    "about_yourself": "<2–3 sentences professional intro>",
-    "experience":     "<2–4 sentences highlighting the most relevant past work>",
-    "additional_info":"<1–2 sentences with anything genuinely worth flagging>"
+    "cover_letter":   "<3â€“4 paragraphs, under 280 words>",
+    "why_company":    "<2â€“3 sentences, specific to this company/role>",
+    "about_yourself": "<2â€“3 sentences professional intro>",
+    "experience":     "<2â€“4 sentences highlighting the most relevant past work>",
+    "additional_info":"<1â€“2 sentences with anything genuinely worth flagging>"
   },
   "experience_bullets": {
     "<company name>": ["<rewritten bullet 1>", "<rewritten bullet 2>"]
@@ -70,10 +70,10 @@ Use this exact shape (omit any key the caller didn't request):
 }
 
 Rules:
-- experience_bullets: rewrite the candidate's 1–2 most relevant past jobs as JD-aligned bullets
-- skills_to_emphasize: pick 5–8 of the candidate's skills that match the JD keywords
-- cover_letter must NOT include placeholders like "[Company]" — use the real name
-- Speak as the candidate ("I'm a backend engineer with…")`;
+- experience_bullets: rewrite the candidate's 1â€“2 most relevant past jobs as JD-aligned bullets
+- skills_to_emphasize: pick 5â€“8 of the candidate's skills that match the JD keywords
+- cover_letter must NOT include placeholders like "[Company]" â€” use the real name
+- Speak as the candidate ("I'm a backend engineer withâ€¦")`;
 
 interface EvalContent {
   role_fit?: { strengths?: string[]; concerns?: string[] };
@@ -109,7 +109,7 @@ function buildUserPrompt(opts: {
   const recentWork = Array.isArray(profile.work_experience)
     ? (profile.work_experience as Record<string, unknown>[])
         .slice(0, 3)
-        .map((w) => `- ${w.role} @ ${w.company} (${w.start ?? "?"}–${w.current ? "Present" : (w.end ?? "?")}): ${w.description ?? ""}`)
+        .map((w) => `- ${w.role} @ ${w.company} (${w.start ?? "?"}â€“${w.current ? "Present" : (w.end ?? "?")}): ${w.description ?? ""}`)
         .join("\n")
     : "";
 
@@ -148,7 +148,7 @@ function buildUserPrompt(opts: {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-tailor:${ip}`, 10, 60_000);
+  const rl = await rateLimit(`ext-tailor:${ip}`, 10, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
 
   const { userId } = resolved;
 
-  // ── Parse + validate body ───────────────────────────────────────────────────
+  // â”€â”€ Parse + validate body â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   let body: Record<string, unknown>;
   try { body = (await req.json()) as Record<string, unknown>; }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
 
   const admin = createAdminClient();
 
-  // ── Tier check + daily/credit gating ────────────────────────────────────────
+  // â”€â”€ Tier check + daily/credit gating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: profile } = await admin
     .from("profiles")
     .select("tier, credits_remaining, full_name, seniority, years_experience, target_roles, skills, work_experience, base_cv")
@@ -227,7 +227,39 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Pull job + evaluation context if IDs were given ─────────────────────────
+  // Atomic reservation BEFORE the AI call. Starter increments
+  // tailor_sessions (capped at STARTER_DAILY_TAILOR_CAP); Pro deducts
+  // CREDIT_COSTS.tailor via deduct_credit. Either way, two parallel
+  // requests serialize on the same RPC instead of both passing the
+  // read-only checks above and both burning provider tokens.
+  let reservation;
+  try {
+    reservation = await reserveExtensionAiCharge(admin, {
+      userId,
+      tier,
+      task: "tailor",
+      starterUsageField: "tailor_sessions",
+      starterDailyLimit: STARTER_DAILY_TAILOR_CAP,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Could not reserve";
+    if (msg === "DAILY_LIMIT") {
+      return NextResponse.json({
+        error: `Daily tailor limit reached (${STARTER_DAILY_TAILOR_CAP}/day on Starter). Resets at midnight UTC. Upgrade to Pro for unlimited credit-bound tailoring.`,
+        cap_reached: true,
+        tailor_sessions_today: sessionsToday,
+      }, { status: 429 });
+    }
+    if (msg === "INSUFFICIENT_CREDITS") {
+      return NextResponse.json({
+        error: `Insufficient credits (${CREDIT_COSTS.tailor} required). Top up or wait for daily reset.`,
+        insufficient_credits: true,
+      }, { status: 402 });
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+
+  // â”€â”€ Pull job + evaluation context if IDs were given â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (jobId && (!jobTitle || !company || !jobDescription)) {
     const { data: job } = await admin
       .from("jobs")
@@ -258,7 +290,7 @@ export async function POST(req: NextRequest) {
       };
     }
   } else if (jobId) {
-    // No explicit eval — try to find the most recent for this job
+    // No explicit eval â€” try to find the most recent for this job
     const { data: evalRow } = await admin
       .from("evaluations")
       .select("role_fit, cv_match, personalization_guidance")
@@ -282,7 +314,7 @@ export async function POST(req: NextRequest) {
     }, { status: 400 });
   }
 
-  // ── Call AI ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Call AI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   try {
     const route = resolveRoute("tailor");
     const userPrompt = buildUserPrompt({
@@ -293,37 +325,40 @@ export async function POST(req: NextRequest) {
       fields,
     });
 
-    const raw = await callProvider({
-      provider:       route.provider,
-      apiKey:         route.apiKey,
-      model:          route.model,
-      system:         SYSTEM_PROMPT,
-      user:           userPrompt,
-      maxTokens:      1800,
-      json:           true,
-      fallbackModels: route.fallbackModels,
-    });
+    let raw: string;
+    try {
+      raw = await callProvider({
+        provider:       route.provider,
+        apiKey:         route.apiKey,
+        model:          route.model,
+        system:         SYSTEM_PROMPT,
+        user:           userPrompt,
+        maxTokens:      1800,
+        json:           true,
+        fallbackModels: route.fallbackModels,
+      });
+    } catch (err) {
+      await reservation.refund();
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: `Tailor failed: ${msg}` }, { status: 502 });
+    }
 
     let parsed: Record<string, unknown>;
     try { parsed = JSON.parse(raw); }
     catch {
       const m = raw.match(/\{[\s\S]*\}/);
-      parsed = m ? JSON.parse(m[0]) : {};
+      try { parsed = m ? JSON.parse(m[0]) : {}; }
+      catch {
+        await reservation.refund();
+        return NextResponse.json({ error: "AI returned an invalid response" }, { status: 502 });
+      }
     }
-
-    const creditsCharged = await chargeExtensionAiSuccess(admin, {
-      userId,
-      tier,
-      task: "tailor",
-      starterUsageField: "tailor_sessions",
-    });
 
     await admin.from("usage_log").insert({
       user_id: userId,
       task_type: "tailor",
       model: route.model,
-      credits_used: creditsCharged,
-      byok: false,
+      credits_used: reservation.charged,
     });
 
     return NextResponse.json({
@@ -335,6 +370,7 @@ export async function POST(req: NextRequest) {
       credits_remaining:     tier === "pro" ? Math.max(0, (profile.credits_remaining ?? 0) - CREDIT_COSTS.tailor) : undefined,
     });
   } catch (err) {
+    await reservation.refund();
     const msg = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: `Tailor failed: ${msg}` }, { status: 500 });
   }

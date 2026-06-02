@@ -10,10 +10,12 @@ export default async function ResumeDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) notFound();
 
   const [{ data: row }, { data: profile }] = await Promise.all([
-    supabase.from("resumes").select("*, jobs:job_id (title, company)").eq("id", id).single(),
-    supabase.from("profiles").select("base_cv").single(),
+    supabase.from("resumes").select("*, jobs:job_id (title, company)").eq("id", id).eq("user_id", user!.id).single(),
+    supabase.from("profiles").select("base_cv").eq("id", user!.id).single(),
   ]);
 
   if (!row) notFound();

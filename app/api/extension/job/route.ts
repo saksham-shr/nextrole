@@ -17,7 +17,7 @@ const JOB_SLOT_LIMITS: Record<string, number> = { free: 5, starter: 25, pro: -1 
 
 export async function GET(request: NextRequest) {
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-job:get:${ip}`, 120, 60_000);
+  const rl = await rateLimit(`ext-job:get:${ip}`, 120, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = request.headers.get("authorization") ?? "";
@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-job:post:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-job:post:${ip}`, 60, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }

@@ -41,11 +41,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# project-specific — local tooling and internal docs
+# project-specific — local tooling, internal docs, and proprietary code
+extension/
 graphify-out/
 .claude/
 docs/
 ROADMAP.md
 progress.md
+BUSINESS_PLAN.md
 nextrole-archive/
 nextrole-clean/
+
+# intern / research artifacts
+tools/

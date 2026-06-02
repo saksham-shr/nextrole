@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { isSameOrigin } from "@/lib/security/csrf";
 import type {
   WorkExperienceEntry,
   EducationEntry,
@@ -196,12 +197,39 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
     set("base_cv", body.base_cv.slice(0, 20000));
   }
 
+  // New ATS autofill fields
+  set("middle_name",        clampStr(body.middle_name, 100));
+  set("work_authorization", clampStr(body.work_authorization, 100));
+  set("phone_country_code", clampStr(body.phone_country_code, 10));
+  if (body.dob === null || (typeof body.dob === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dob))) {
+    set("dob", body.dob || null);
+  }
+
+  // AI & Evaluation preferences (saved from Settings page)
+  set("preferred_language", clampStr(body.preferred_language, 50));
+  set("custom_eval_focus",  clampStr(body.custom_eval_focus, 1000));
+  if (typeof body.eval_score_apply === "number") {
+    set("eval_score_apply", Math.max(0, Math.min(5, body.eval_score_apply)));
+  }
+  if (typeof body.eval_score_watch === "number") {
+    set("eval_score_watch", Math.max(0, Math.min(5, body.eval_score_watch)));
+  }
+  const ta = validateSkills(body.target_archetypes);
+  if (ta !== null) set("target_archetypes", ta);
+  const pct = validateSkills(body.preferred_company_types);
+  if (pct !== null) set("preferred_company_types", pct);
+  const ca = validateSkills(body.custom_archetypes);
+  if (ca !== null) set("custom_archetypes", ca);
+
   return patch as ProfileUpdate;
 }
 
 // ── Route ─────────────────────────────────────────────────────────────────────
 
 export async function PATCH(req: NextRequest) {
+  if (!isSameOrigin(req)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -226,7 +254,8 @@ export async function PATCH(req: NextRequest) {
     .eq("id", user.id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("[profile PATCH] update failed:", error.message);
+    return NextResponse.json({ error: "Could not save profile" }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true, updated: Object.keys(patch).length });
@@ -244,6 +273,9 @@ export async function GET() {
     .eq("id", user.id)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[profile GET] load failed:", error.message);
+    return NextResponse.json({ error: "Could not load profile" }, { status: 500 });
+  }
   return NextResponse.json(data);
 }

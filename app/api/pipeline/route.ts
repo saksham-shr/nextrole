@@ -1,10 +1,12 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { requireFeature, requireJobSlot } from "@/lib/ai/guard";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
-import { CREDIT_COSTS } from "@/lib/ai/gates";
+import { CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
+import { reserveExtensionAiCharge, type ChargeReservation } from "@/lib/extension-ai";
+import { isSameOrigin } from "@/lib/security/csrf";
 
 export const maxDuration = 120;
 
@@ -21,6 +23,9 @@ type PipelineJobInput = {
 };
 
 export async function POST(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   // Pipeline job creation is allowed for all tiers; evaluation step requires feature gate
   const guard = await requireJobSlot();
   if (guard instanceof NextResponse) return guard;
@@ -28,12 +33,13 @@ export async function POST(request: NextRequest) {
 
   const supabase = await createClient();
 
-  const body = (await request.json()) as {
+  const body = await request.json().catch(() => null) as {
     job_id?: string;
     job?: PipelineJobInput;
     steps?: PipelineStep[];
     mode?: "api" | "prompt_only";
-  };
+  } | null;
+  if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   const { steps = ["status_update"], mode = "api" } = body;
   let jobId = body.job_id;
 
@@ -100,29 +106,51 @@ export async function POST(request: NextRequest) {
           title: job.title, company: job.company, description: job.description, base_cv: profile?.base_cv ?? "",
         });
 
+        // Atomic reservation BEFORE the provider call so two parallel
+        // pipeline runs can't both burn tokens and only race on credits
+        // afterward. Refunded on AI / parse / persist failure.
+        let reservation: ChargeReservation | null;
         try {
-          const raw = await callProvider({
-            provider: route.provider,
-            apiKey: route.apiKey, model: route.model,
-            system: systemPrompt, user: userPrompt,
-            maxTokens: 3000, cache: route.provider === "anthropic",
-            json: true, fallbackModels: route.fallbackModels,
+          reservation = await reserveExtensionAiCharge(supabase, {
+            userId,
+            tier,
+            task: "evaluate",
+            freeUsageField: "evaluations",
+            freeDailyLimit: FREE_DAILY_LIMITS.evaluations,
           });
-          const evaluation = parseJSON(raw) as EvalResult;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "RESERVE_FAILED";
+          if (msg === "INSUFFICIENT_CREDITS") {
+            return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
+          }
+          if (msg === "DAILY_LIMIT") {
+            return NextResponse.json({ error: "DAILY_LIMIT_REACHED", upgrade: true }, { status: 402 });
+          }
+          return NextResponse.json({ error: "Could not reserve credits" }, { status: 500 });
+        }
+
+        try {
+          let raw: string;
+          try {
+            raw = await callProvider({
+              provider: route.provider,
+              apiKey: route.apiKey, model: route.model,
+              system: systemPrompt, user: userPrompt,
+              maxTokens: 3000, cache: route.provider === "anthropic",
+              json: true, fallbackModels: route.fallbackModels,
+            });
+          } catch (err) {
+            await reservation.refund();
+            throw err;
+          }
+          let evaluation: EvalResult;
+          try { evaluation = parseJSON(raw) as EvalResult; }
+          catch (err) {
+            await reservation.refund();
+            throw err;
+          }
           const score    = typeof evaluation?.score    === "number" ? evaluation.score : null;
           const decision = typeof evaluation?.decision === "string" ? evaluation.decision : null;
-
-          if (tier === "free") {
-            await supabase.rpc("increment_daily_usage", { p_field: "evaluations", p_user: userId });
-          } else {
-            const { data: ok, error } = await supabase.rpc("deduct_credit", {
-              p_user_id: userId,
-              p_amount: CREDIT_COSTS.evaluate,
-            });
-            if (error || ok !== true) {
-              return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
-            }
-          }
 
           await supabase.from("evaluations").insert({
             user_id: userId, job_id: jobId, score,
@@ -150,7 +178,6 @@ export async function POST(request: NextRequest) {
             task_type: "evaluate",
             model: route.model,
             credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
-            byok: false,
           });
         } catch (err) {
           results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
@@ -174,12 +201,15 @@ export async function POST(request: NextRequest) {
 
 // Allow status updates via PATCH (Pipeline page: change job status)
 export async function PATCH(request: NextRequest) {
+  if (!isSameOrigin(request)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = (await request.json()) as { job_id: string; status: string };
-  if (!body.job_id || !body.status) return NextResponse.json({ error: "job_id and status required" }, { status: 400 });
+  const body = await request.json().catch(() => null) as { job_id?: string; status?: string } | null;
+  if (!body || !body.job_id || !body.status) return NextResponse.json({ error: "job_id and status required" }, { status: 400 });
 
   const VALID_STATUSES = ["pending", "evaluated", "applied", "interview", "offer", "rejected", "archived"];
   if (!VALID_STATUSES.includes(body.status)) {
@@ -191,6 +221,9 @@ export async function PATCH(request: NextRequest) {
     .eq("id", body.job_id)
     .eq("user_id", user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[pipeline PATCH] status update failed:", error.message);
+    return NextResponse.json({ error: "Could not update job status" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true });
 }

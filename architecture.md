@@ -62,7 +62,7 @@ Both products share the same Supabase PostgreSQL backend and AI routing layer. T
 | File Storage | Supabase Storage (profile-files bucket) |
 | AI Routing | OpenRouter → Gemini 2.0 Flash (primary); Anthropic / OpenAI (fallback) |
 | AI SDK | @anthropic-ai/sdk, OpenRouter HTTP, Gemini HTTP |
-| Payments | Lemon Squeezy (subscriptions + top-ups) |
+| Payments | Razorpay (subscriptions + one-time top-ups); commerce config admin-mutable at runtime |
 | Email | Resend |
 | PDF Generation | @react-pdf/renderer |
 | Document Parsing | pdf-parse (PDF), mammoth (DOCX) |
@@ -75,7 +75,7 @@ Both products share the same Supabase PostgreSQL backend and AI routing layer. T
 ```
 nextrole/
 ├── app/                    # Next.js App Router pages + API routes + server actions
-│   ├── (public pages)      # landing, pricing, privacy, terms, early-access
+│   ├── (public pages)      # landing, pricing, privacy, terms
 │   ├── auth/               # /login, /signup, /verify-code, /forgot-password
 │   ├── onboarding/         # profile setup + tier activation
 │   ├── connect-extension/  # extension pairing page
@@ -154,10 +154,16 @@ All routes live under `app/api/`. Server-side routes use the Supabase service ro
 - `POST /api/profile/files` — upload resume or cover letter
 - `GET/DELETE /api/profile/files/[id]` — fetch or remove file
 
-**Billing**
-- `POST /api/topup` — create Lemon Squeezy checkout for credit top-up
-- `GET  /api/billing/portal` — redirect to LS customer portal
-- `POST /api/webhooks/lemonsqueezy` — handle subscription events
+**Billing (Razorpay)**
+- `POST /api/razorpay/create-order` — server-side order creation. Reads live commerce config (`flags.starter_enabled`, `flags.pro_enabled`, `flags.topups_enabled`, `planPricesInr`, `topupPacks`); returns 503 for disabled plans / packs.
+- `POST /api/razorpay/verify-payment` — client-side signature verify. Fetches the order back from Razorpay's API (never trusts client-supplied notes), checks `order.notes.user_id === user.id`, writes a sentinel `usage_log` row keyed by `razorpay_payment_id` for idempotency.
+- `POST /api/webhooks/razorpay` — Razorpay webhook handler. Hard-fails (500) when `RAZORPAY_WEBHOOK_SECRET` is unset (no silent bypass). Same dedup pattern for topup + subscription events.
+
+**Admin (admin-email only)**
+- `POST /api/invites` — issue tier-grant invite links (validates tier ∈ free/starter/pro)
+- `DELETE /api/invites` — remove an unused invite
+- `DELETE /api/invites/batch` — bulk remove unused invites
+- `GET /api/invites/check?code=…` — public-readable invite validity check (used by signup banner)
 
 **Extension API** (token-authenticated, not session-authenticated)
 - `POST /api/extension/token` — generate extension auth token
@@ -183,7 +189,8 @@ Server actions (marked `"use server"`) are co-located in `app/actions/` and call
 - `jobs.ts` — `createJob()`, `updateJobStatus()`, `deleteJob()`, `markFollowupSent()`
 - `profile.ts` — `saveProfileStep()`, `setDefaultFile()`, `deleteProfileFile()`
 - `tasks.ts` — `retryTaskRun()`
-- `admin.ts` — `deleteUserData()`, `inviteEmail()`, `acceptInvite()`
+- `admin.ts` — `deleteUser()`, `grantTier()`, `resetCredits()`, `updateCommerceConfig()` (all audit-logged)
+- `resumes.ts` — `batchDeleteResumes()`
 
 ### Components
 
@@ -269,8 +276,22 @@ provider_credentials User's own BYOK API keys (AES-256 encrypted)
 application_sessions Autofill activity tracking (started, filled, submitted)
 extension_feedback  User corrections to job detection ("not a job")
 team_members        Team collaboration (pending feature)
-invites             Early access invite codes
-waitlist            Pre-launch interest
+invites             Admin-issued tier-grant codes. NOT a public-launch gate —
+                    public signup works without an invite. Admins use these
+                    via /dashboard/admin → Invites to issue links that grant
+                    a specific tier (free/starter/pro) on first dashboard visit.
+waitlist            Legacy invite-era table. The /api/waitlist route and
+                    /early-access page have been removed (Track 7A). The
+                    DB_MIGRATION_INDIA.md runbook drops this table at cutover.
+admin_audit_log     Every mutable admin action — actor_email (durable),
+                    action, target, before/after JSON snapshots.
+commerce_config     Single-row JSON of admin-mutable pricing overrides +
+                    per-plan / topups feature flags. Read by both the public
+                    pricing page and /api/razorpay/create-order — single
+                    source of truth, no UI/server drift.
+usage_log_quarantine Duplicate usage_log rows caught by the payment-
+                    idempotency preflight migration. Ops reviews this post-
+                    migration to decide whether to debit double-credited users.
 ```
 
 ### Key PostgreSQL Functions
@@ -297,40 +318,57 @@ Access is folder-isolated: `{user_id}/{file_name}`. RLS policies restrict read/w
 
 ## Payment & Billing
 
-**Provider:** Lemon Squeezy
+**Provider:** Razorpay (India-first)
 
 ### Subscription Flow
 
 ```
-User clicks "Upgrade" in billing page
-  → /api/topup or direct LS checkout URL
-  → User completes payment on Lemon Squeezy
-  → LS sends webhook to POST /api/webhooks/lemonsqueezy
-  → Webhook handler verifies HMAC signature
-  → Updates profiles.tier, subscription_id, subscription_status
-  → Calls reset_credits_for_tier() to set credit limit
-  → Redirects user to /onboarding/activated
+User clicks "Upgrade" in /dashboard/billing
+  → POST /api/razorpay/create-order
+       reads commerce_config (planPricesInr, flags.starter_enabled, flags.pro_enabled)
+       returns 503 if the plan is disabled
+       creates a Razorpay order with notes={type, plan, period, user_id}
+  → Frontend opens Razorpay checkout modal with the returned order_id
+  → User completes payment on Razorpay
+  → Two paths fire (idempotent against each other):
+       (a) checkout success handler → POST /api/razorpay/verify-payment
+       (b) Razorpay webhook → POST /api/webhooks/razorpay (event: payment.captured)
+  → Both verify signature, then fetch the order from Razorpay's API to get
+    the canonical notes (never trust client body for entitlements)
+  → Both attempt to write a sentinel row to usage_log keyed by
+    razorpay_payment_id; the unique partial index ensures only ONE wins
+  → Winner updates profiles.tier, credits_remaining, subscription_status,
+    subscription_ends_at; loser short-circuits (already_processed=true)
 ```
 
 ### Webhook Events Handled
 
-- `subscription_created` — activate tier, set credits
-- `subscription_updated` — handle plan changes
-- `subscription_cancelled` — downgrade to Free at period end
-- `order_created` — handle one-time top-up credit packs
+- `payment.captured` — credit topup OR activate subscription (notes.type drives the branch)
+- `subscription.cancelled` — mark profile.subscription_status='cancelled'
+- `subscription.completed` — mark profile.subscription_status='expired', downgrade to free
+
+The webhook hard-fails (500) when `RAZORPAY_WEBHOOK_SECRET` is unset — there is no silent bypass.
+
+### Idempotency
+
+Both the synchronous verify-payment endpoint and the asynchronous webhook write a sentinel row to `usage_log` keyed by `razorpay_payment_id`. The unique partial index `usage_log_razorpay_payment_id_idx` guarantees only one writer can succeed per payment ID — even when both paths fire in parallel. See migrations `20260519000004_payment_idempotency.sql` (adds the column) and `20260520000002_payment_idempotency_dedupe.sql` (preflight quarantine + index creation, safe on dirty production data).
 
 ### Credit Top-Ups (Pro only)
 
-Pro users can buy additional credits beyond their daily reset:
+Pro users can buy additional credit packs (defaults — admin can override via Commerce tab):
 
-| Pack | Credits | 
-|---|---|
-| Mini | 100 |
-| Small | 300 |
-| Medium | 750 |
-| Large | 2000 |
+| Pack | Credits | Default INR |
+|---|---|---|
+| Mini   | 100  | ₹99 |
+| Small  | 300  | ₹249 |
+| Medium | 750  | ₹549 |
+| Large  | 2000 | ₹1299 |
 
-Credits from top-ups are added to `credits_remaining` and do not expire at midnight.
+Top-up credits are added to `credits_remaining` and persist until the subscription renews or ends.
+
+### Commerce config (admin-mutable)
+
+The `commerce_config` table holds JSON overrides on top of the hardcoded defaults in `lib/ai/gates.ts` and `lib/hooks/use-currency.ts`. Admins edit it via `/dashboard/admin` → Commerce tab. Reads are cached server-side for 30 seconds in [`lib/commerce/config.ts`](lib/commerce/config.ts). Both the billing UI and the order/verify/webhook code paths read from the same source — there is no drift between what the UI advertises and what the server enforces.
 
 ---
 
@@ -432,19 +470,13 @@ ANTHROPIC_API_KEY=
 GEMINI_API_KEY=
 OPENAI_API_KEY=
 
-# Lemon Squeezy
-LEMONSQUEEZY_WEBHOOK_SECRET=
-LEMONSQUEEZY_API_KEY=
-NEXT_PUBLIC_LS_STARTER_URL=
-NEXT_PUBLIC_LS_PRO_URL=
-NEXT_PUBLIC_LS_TOPUP_URL=
-LEMONSQUEEZY_VARIANT_STARTER_MONTHLY=
-LEMONSQUEEZY_VARIANT_PRO_MONTHLY=
-LEMONSQUEEZY_VARIANT_PRO_YEARLY=
-LEMONSQUEEZY_VARIANT_TOPUP_MINI=
-LEMONSQUEEZY_VARIANT_TOPUP_SMALL=
-LEMONSQUEEZY_VARIANT_TOPUP_MEDIUM=
-LEMONSQUEEZY_VARIANT_TOPUP_LARGE=
+# Razorpay
+RAZORPAY_KEY_ID=                       # server-side order creation
+RAZORPAY_KEY_SECRET=                   # signature verification
+NEXT_PUBLIC_RAZORPAY_KEY_ID=           # client-side checkout widget
+RAZORPAY_WEBHOOK_SECRET=               # REQUIRED in production — webhook hard-fails (500) without it
+# Pricing and topup packs live in commerce_config (admin-mutable). Defaults
+# are in lib/ai/gates.ts (TOPUP_PACKS) and lib/hooks/use-currency.ts (INR_PRICES).
 
 # Email
 RESEND_API_KEY=
@@ -546,7 +578,7 @@ Optional: user clicks "Tailor" on a field
 | Extension auth | SHA-256 hashed tokens with 7-day expiry; plaintext never stored |
 | BYOK key storage | AES-256 encrypted with `PROVIDER_ENCRYPTION_KEY` before DB write |
 | Cron endpoint | `CRON_SECRET` bearer token required |
-| Webhook integrity | HMAC-SHA256 signature verified against `LEMONSQUEEZY_WEBHOOK_SECRET` |
+| Webhook integrity | HMAC-SHA256 signature verified against `RAZORPAY_WEBHOOK_SECRET`. Webhook returns 500 (no silent bypass) if the secret is unset. |
 | CSRF | Custom CSRF token generation/validation for mutating server actions |
 | Rate limiting | Per-user rate limiting on AI endpoints (`lib/security/rate-limit.ts`) |
 | Credit atomicity | PostgreSQL `deduct_credit()` function prevents race conditions on credit deduction |

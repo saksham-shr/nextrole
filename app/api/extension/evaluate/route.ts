@@ -1,4 +1,4 @@
-/**
+﻿/**
  * POST /api/extension/evaluate
  * Auth: Bearer <supabase_jwt>
  *
@@ -15,7 +15,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
 import { resolveRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
-import { chargeExtensionAiSuccess } from "@/lib/extension-ai";
+import { reserveExtensionAiCharge } from "@/lib/extension-ai";
 
 export const maxDuration = 60;
 
@@ -28,7 +28,7 @@ function clampScore(score: unknown): number {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-eval:${ip}`, 5, 60_000);
+  const rl = await rateLimit(`ext-eval:${ip}`, 5, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -54,13 +54,13 @@ export async function POST(req: NextRequest) {
   if (!job) return NextResponse.json({ error: "Job not found" }, { status: 404 });
   if (!job.description) {
     return NextResponse.json(
-      { error: "Job has no description — paste the JD before evaluating" },
+      { error: "Job has no description â€” paste the JD before evaluating" },
       { status: 400 },
     );
   }
   if (!profile?.base_cv) {
     return NextResponse.json(
-      { error: "No CV in your profile — add it in Settings first" },
+      { error: "No CV in your profile â€” add it in Settings first" },
       { status: 400 },
     );
   }
@@ -76,7 +76,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Free tier: daily limit
+  // Preflight read-only checks â€” give a fast 402 before reserving anything,
+  // but the real authoritative check is the atomic reservation below.
   if (tier === "free") {
     const { data: usageRow } = await admin
       .from("daily_usage")
@@ -87,17 +88,41 @@ export async function POST(req: NextRequest) {
     const usedToday = (usageRow as { evaluations?: number } | null)?.evaluations ?? 0;
     if (usedToday >= FREE_DAILY_LIMITS.evaluations) {
       return NextResponse.json(
-        { error: "Daily evaluation limit reached — upgrade for more", upgrade: true },
+        { error: "Daily evaluation limit reached â€” upgrade for more", upgrade: true },
         { status: 402 },
       );
     }
   }
 
-  // Paid tier: pre-flight credit check (no deduction yet — charged only on success)
   if (tier !== "free" && credits < CREDIT_COSTS.evaluate) {
     return NextResponse.json(
       { error: "No credits remaining", upgrade: true },
       { status: 402 },
+    );
+  }
+
+  // Atomically reserve the credit / increment daily usage BEFORE calling the
+  // AI provider. Two parallel requests can both pass the read-only check
+  // above; the deduct_credit RPC and increment_daily_usage RPC serialize
+  // the actual write, so only one wins. The reservation is refunded if any
+  // step between here and the success response fails.
+  let reservation;
+  try {
+    reservation = await reserveExtensionAiCharge(admin, {
+      userId,
+      tier,
+      task: "evaluate",
+      freeUsageField: "evaluations",
+      freeDailyLimit: FREE_DAILY_LIMITS.evaluations,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Could not reserve credits";
+    const status = msg === "DAILY_LIMIT" || msg === "INSUFFICIENT_CREDITS" ? 402 : 500;
+    return NextResponse.json(
+      { error: msg === "INSUFFICIENT_CREDITS" ? "No credits remaining" :
+               msg === "DAILY_LIMIT" ? "Daily evaluation limit reached â€” upgrade for more" :
+               msg, upgrade: status === 402 },
+      { status },
     );
   }
 
@@ -142,7 +167,7 @@ export async function POST(req: NextRequest) {
       fallbackModels: route.fallbackModels,
     });
   } catch (err) {
-    // AI failed — no credits deducted
+    await reservation.refund();
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "AI call failed" },
       { status: 502 },
@@ -153,21 +178,13 @@ export async function POST(req: NextRequest) {
   let result: any;
   try { result = parseJSON(rawOutput); }
   catch {
-    // Parse failed — no credits deducted
+    await reservation.refund();
     return NextResponse.json({ error: "AI returned an invalid response" }, { status: 502 });
   }
 
   const score    = clampScore(result.score);
   const decision = (["apply", "watch", "skip"].includes(result.decision) ? result.decision : "watch") as "apply" | "watch" | "skip";
   const archetype = result.archetype ?? null;
-
-  // AI succeeded — NOW deduct credits / increment free usage
-  await chargeExtensionAiSuccess(admin, {
-    userId,
-    tier,
-    task: "evaluate",
-    freeUsageField: "evaluations",
-  });
 
   // Persist evaluation row
   const { data: evaluation } = await admin.from("evaluations").insert({
@@ -198,7 +215,6 @@ export async function POST(req: NextRequest) {
     task_type: "evaluate",
     model: route.model,
     credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
-    byok: false,
   });
 
   return NextResponse.json({

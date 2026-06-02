@@ -38,7 +38,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-evaluations:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-evaluations:${ip}`, 60, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";

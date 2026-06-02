@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { BillingPage } from "@/components/nextrole/billing-page";
-import type { UserTier } from "@/lib/db/types";
+import { getCommerceConfig, getCommerceDefaults, CommerceConfigUnavailableError } from "@/lib/commerce/config";
+import type { UserTier, PaymentRecord } from "@/lib/db/types";
 
 export const metadata = { title: "Plan & Credits — NextRole" };
 
@@ -15,7 +16,7 @@ export default async function Billing() {
   const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
   const today = new Date().toISOString().slice(0, 10);
 
-  const [{ data: profile }, { data: usageRow }, { data: creditLog }] = await Promise.all([
+  const [{ data: profile }, { data: usageRow }, { data: creditLog }, { data: paymentRecords }] = await Promise.all([
     supabase
       .from("profiles")
       .select("tier, credits_remaining, subscription_ends_at, subscription_status")
@@ -33,7 +34,28 @@ export default async function Billing() {
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30),
+    supabase
+      .from("payment_records")
+      .select("id, type, plan, period, pack_id, amount_paise, status, refunded_at, created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
+
+  // Pull the same effective commerce config that /api/razorpay/create-order
+  // enforces. Display-only fallback to defaults if unavailable — server
+  // routes still fail closed at order time.
+  let commerce;
+  try {
+    commerce = await getCommerceConfig();
+  } catch (err) {
+    if (err instanceof CommerceConfigUnavailableError) {
+      console.warn("[billing page] commerce config unavailable; rendering defaults:", err.message);
+      commerce = getCommerceDefaults();
+    } else {
+      throw err;
+    }
+  }
 
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
   const creditsRemaining = profile?.credits_remaining ?? 0;
@@ -51,7 +73,14 @@ export default async function Billing() {
         resumesToday:     usageRow?.resumes     ?? 0,
         autofillsToday:   usageRow?.autofills   ?? 0,
       }}
+      isAdmin={isAdmin}
       creditLog={creditLog ?? []}
+      paymentRecords={(paymentRecords ?? []) as PaymentRecord[]}
+      commerce={{
+        planPricesInr: commerce.planPricesInr,
+        topupPacks:    commerce.topupPacks,
+        flags:         commerce.flags,
+      }}
     />
   );
 }

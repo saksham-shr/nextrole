@@ -10,7 +10,7 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("onboarding_completed, subscription_ends_at")
+    .select("onboarding_completed, subscription_ends_at, tier")
     .eq("id", user.id)
     .single();
 
@@ -21,6 +21,7 @@ export default async function OnboardingPage() {
     <OnboardingPricing
       trialEndsAt={(profile?.subscription_ends_at as string | null) ?? null}
       email={user.email ?? ""}
+      currentTier={(profile?.tier as string | null) ?? "free"}
     />
   );
 }

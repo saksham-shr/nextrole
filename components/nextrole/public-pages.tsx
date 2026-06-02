@@ -1,6 +1,7 @@
 ﻿import Link from "next/link";
 import { BrandWordmark, BrandMark } from "@/components/nextrole/brand";
 import { PricingCards } from "@/components/nextrole/pricing-client";
+import { getCommerceConfig, getCommerceDefaults, CommerceConfigUnavailableError } from "@/lib/commerce/config";
 import {
   Badge,
   Button,
@@ -13,7 +14,6 @@ import {
   Surface,
   Timeline,
 } from "@/components/nextrole/ui";
-import { kpis } from "@/lib/nextrole-data";
 
 const capabilityCards = [
   {
@@ -492,6 +492,19 @@ export function LandingPage() {
         </div>
       </section>
 
+      {/* ── Social proof bar ── */}
+      <div style={{ borderTop: "1px solid var(--line-soft)", borderBottom: "1px solid var(--line-soft)", background: "var(--surface-soft)", height: 64 }} className="flex items-center px-4 sm:px-8 lg:px-14">
+        <div className="mx-auto flex max-w-[1100px] w-full items-center gap-6 text-[13px] overflow-x-auto">
+          <span className="shrink-0 text-[var(--muted-foreground-2)]">Trusted by engineers at</span>
+          {["Razorpay", "Swiggy", "Atlassian", "Zerodha", "Postman", "Freshworks"].map((co, i, arr) => (
+            <span key={co} className="flex shrink-0 items-center gap-6">
+              <span className="text-[var(--muted-foreground)]">{co}</span>
+              {i < arr.length - 1 && <span className="text-[var(--muted-foreground-2)]">·</span>}
+            </span>
+          ))}
+        </div>
+      </div>
+
       {/* ── Hero visual ── */}
       <section className="mx-auto max-w-[1100px] px-4 pb-14 sm:px-8 lg:px-14 lg:pb-20">
         <div className="overflow-hidden rounded-lg border border-[var(--line-soft)] bg-[var(--surface)]">
@@ -660,9 +673,9 @@ export function LandingPage() {
         <h2 className="mb-8 text-[26px] font-semibold tracking-[-0.02em] sm:text-[32px]">Three plans. Pay for what you use.</h2>
         <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
           {[
-            { name: "Free", price: "$0", sub: "per month", items: ["5 evaluations / day", "1 custom resume / day", "Unlimited saved jobs", "Browser extension"] },
-            { name: "Starter", price: "$9", sub: "per month", items: ["Everything in Free", "50 daily credits", "1 autofill / day · basic fields", "Refresh at midnight"] },
-            { name: "Pro", price: "$19", sub: "per month", recommended: true, items: ["Everything in Starter", "200 daily credits", "Unlimited autofill, all fields", "Direct resume upload to forms"] },
+            { name: "Free", price: "₹0", sub: "per month · no card needed", items: ["5 evaluations / day", "1 resume tailor / day", "Unlimited jobs in pipeline", "Browser extension included"] },
+            { name: "Starter", price: "₹749", sub: "per month · ₹7,200/year", items: ["Everything in Free", "100 credits / day", "Evaluations: 5 credits each", "Resume tailor: 10 credits each", "1 AI autofill session / day"] },
+            { name: "Pro", price: "₹1,999", sub: "per month · ₹17,999/year", recommended: true, items: ["Everything in Starter", "300 credits / day", "Unlimited AI autofill", "Premium resumes: 25 credits", "Credit top-ups available"] },
           ].map((p) => (
             <div key={p.name} className="relative rounded-lg p-6 lg:p-7" style={{ border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)" }}>
               {p.recommended && (
@@ -1010,7 +1023,28 @@ function CheckIcon() {
   );
 }
 
-export function PricingPage() {
+export async function PricingPage() {
+  // Pull the SAME effective commerce config that /api/razorpay/create-order
+  // enforces at order time, so the public pricing page never advertises a
+  // price or plan the server would reject. Cached 30 s in lib/commerce/config.
+  //
+  // Display-only fallback: if the config is unavailable and we have no
+  // last-known-good cache yet, render defaults rather than 500 the public
+  // page. The server-side create-order route fails closed (503) so a user
+  // can't actually buy at a wrong price — they'd see "Billing temporarily
+  // unavailable" at checkout.
+  let commerce;
+  try {
+    commerce = await getCommerceConfig();
+  } catch (err) {
+    if (err instanceof CommerceConfigUnavailableError) {
+      console.warn("[PricingPage] commerce config unavailable; rendering defaults:", err.message);
+      commerce = getCommerceDefaults();
+    } else {
+      throw err;
+    }
+  }
+
   return (
     <div className="min-h-screen text-[var(--foreground)]" style={{ background: "var(--background)" }}>
       <PublicHeader activePage="pricing" />
@@ -1028,7 +1062,7 @@ export function PricingPage() {
 
       {/* Plans grid */}
       <section className="mx-auto max-w-[1100px] px-4 pb-16 sm:px-8 lg:px-14">
-        <PricingCards />
+        <PricingCards commerce={{ planPricesInr: commerce.planPricesInr, flags: commerce.flags }} />
 
         {/* Credits explainer */}
         <div className="mt-10 rounded-lg bg-[var(--surface)] px-8 py-7" style={{ border: "1px solid var(--line-soft)" }}>

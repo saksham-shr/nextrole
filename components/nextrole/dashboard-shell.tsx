@@ -2,14 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
-import { BrandWordmark } from "@/components/nextrole/brand";
-import { quickActions } from "@/lib/nextrole-data";
+import { useEffect, useState, useRef, type ReactNode } from "react";
 import { signOut } from "@/app/actions/auth";
-import { useCommandLauncher } from "@/components/nextrole/command-launcher";
-import { canAccess, type Tier } from "@/lib/ai/gates";
-import { UpgradeModal } from "@/components/nextrole/upgrade-modal";
-import { DashboardTour, type DashboardTourHandle } from "@/components/nextrole/dashboard-tour";
 import type { UserTier } from "@/lib/db/types";
 
 function trialDaysLeft(endsAt: string | null): number | null {
@@ -18,38 +12,6 @@ function trialDaysLeft(endsAt: string | null): number | null {
   if (ms <= 0) return 0;
   return Math.ceil(ms / (1000 * 60 * 60 * 24));
 }
-
-type RequiredTier = "starter" | "pro";
-
-const TOP_NAV = [
-  { id: "home",     label: "Home",     href: "/dashboard" },
-  { id: "pipeline", label: "Pipeline", href: "/dashboard/pipeline" },
-  { id: "evaluate", label: "Evaluate", href: "/dashboard/evaluate" },
-  { id: "resume",   label: "Resume",   href: "/dashboard/resumes" },
-  { id: "settings", label: "Settings", href: "/dashboard/settings" },
-] as const;
-
-type NavId = typeof TOP_NAV[number]["id"];
-
-function getActiveNav(pathname: string): NavId {
-  if (pathname === "/dashboard") return "home";
-  if (pathname.startsWith("/dashboard/pipeline")) return "pipeline";
-  if (pathname.startsWith("/dashboard/evaluate")) return "evaluate";
-  if (pathname.startsWith("/dashboard/resumes")) return "resume";
-  if (
-    pathname.startsWith("/dashboard/settings") ||
-    pathname.startsWith("/dashboard/billing") ||
-    pathname.startsWith("/dashboard/admin") ||
-    pathname.startsWith("/dashboard/profile")
-  ) return "settings";
-  return "home";
-}
-
-const TIER_LABELS: Partial<Record<UserTier, string>> = {
-  free:    "Free",
-  starter: "Starter",
-  pro:     "Pro",
-};
 
 function NavigationProgress() {
   const pathname = usePathname();
@@ -61,7 +23,7 @@ function NavigationProgress() {
   );
 }
 
-function displayName(email: string) {
+function displayName(email: string): string {
   const local = email.split("@")[0] ?? email;
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
@@ -71,40 +33,277 @@ function useDarkMode() {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("nextrole-theme") === "dark";
   });
-
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
   }, [dark]);
-
   function toggle() {
     const next = !dark;
     setDark(next);
     localStorage.setItem("nextrole-theme", next ? "dark" : "light");
     document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
   }
-
   return { dark, toggle };
 }
 
-// Mobile icon for bottom nav
-function NavIcon({ id, size = 20 }: { id: NavId; size?: number }) {
-  const p = {
-    width: size, height: size, viewBox: "0 0 24 24", fill: "none" as const,
-    stroke: "currentColor" as const, strokeWidth: 1.7,
-    strokeLinecap: "round" as const, strokeLinejoin: "round" as const,
-  };
-  switch (id) {
-    case "home":
-      return <svg {...p}><path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/></svg>;
-    case "pipeline":
-      return <svg {...p}><rect x="3" y="5" width="18" height="3" rx="1"/><rect x="3" y="11" width="14" height="3" rx="1"/><rect x="3" y="17" width="10" height="3" rx="1"/></svg>;
-    case "evaluate":
-      return <svg {...p}><path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/></svg>;
-    case "resume":
-      return <svg {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg>;
-    case "settings":
-      return <svg {...p}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
-  }
+const NAV_PRIMARY = [
+  { label: "Home",      href: "/dashboard",          icon: HomeIcon },
+  { label: "Profile",   href: "/dashboard/profile",  icon: ProfileIcon },
+  { label: "Resumes",   href: "/dashboard/resumes",  icon: ResumeIcon },
+  { label: "Evaluate",  href: "/dashboard/evaluate", icon: EvalIcon },
+  { label: "Pipeline",  href: "/dashboard/pipeline", icon: PipelineIcon },
+] as const;
+
+const NAV_SECONDARY = [
+  { label: "Settings",          href: "/dashboard/settings",          icon: SettingsIcon },
+  { label: "Billing",           href: "/dashboard/billing",           icon: BillingIcon },
+  { label: "Connect Extension", href: "/connect-extension",           icon: ExtIcon },
+] as const;
+
+function isActive(href: string, pathname: string): boolean {
+  if (href === "/dashboard") return pathname === "/dashboard";
+  return pathname.startsWith(href);
+}
+
+function Sidebar({
+  email,
+  isAdmin,
+  tier,
+  creditsRemaining,
+  dark,
+  toggleDark,
+}: {
+  email: string;
+  isAdmin: boolean;
+  tier: UserTier;
+  creditsRemaining: number;
+  dark: boolean;
+  toggleDark: () => void;
+}) {
+  const pathname = usePathname();
+  const dailyMax = tier === "pro" ? 300 : tier === "starter" ? 100 : 0;
+  const creditPct = dailyMax > 0 ? Math.min(100, (creditsRemaining / dailyMax) * 100) : 0;
+  const initials = displayName(email).charAt(0).toUpperCase();
+  const name = displayName(email);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <aside
+      style={{
+        width: "var(--sidebar-w)",
+        flexShrink: 0,
+        background: "var(--surface)",
+        borderRight: "1px solid var(--line-soft)",
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflow: "hidden",
+      }}
+    >
+      {/* Brand */}
+      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--line-softer)" }}>
+        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+          <div
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 7,
+              background: "var(--accent)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+            </svg>
+          </div>
+          <span
+            style={{
+              fontFamily: "var(--font-display)",
+              fontSize: 17,
+              letterSpacing: "-0.01em",
+              color: "var(--foreground)",
+            }}
+          >
+            NextRole
+          </span>
+        </Link>
+      </div>
+
+      {/* Primary nav */}
+      <nav style={{ padding: "12px 10px 6px", flex: "0 0 auto" }}>
+        {NAV_PRIMARY.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={"nr-nav-item" + (isActive(href, pathname) ? " active" : "")}
+          >
+            <Icon size={15} />
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <div style={{ margin: "8px 10px", borderTop: "1px solid var(--line-softer)" }} />
+
+      {/* Secondary nav */}
+      <nav style={{ padding: "0 10px", flex: "0 0 auto" }}>
+        {NAV_SECONDARY.map(({ label, href, icon: Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            className={"nr-nav-item" + (isActive(href, pathname) ? " active" : "")}
+          >
+            <Icon size={15} />
+            {label}
+          </Link>
+        ))}
+        {isAdmin && (
+          <Link
+            href="/dashboard/admin"
+            className={"nr-nav-item" + (isActive("/dashboard/admin", pathname) ? " active" : "")}
+          >
+            <AdminIcon size={15} />
+            Admin
+          </Link>
+        )}
+      </nav>
+
+      <div style={{ flex: 1 }} />
+
+      {/* Credits pill */}
+      {(tier === "starter" || tier === "pro") && (
+        <div style={{ padding: "0 10px 10px" }}>
+          <Link
+            href="/dashboard/billing"
+            style={{
+              display: "block",
+              padding: "10px 12px",
+              borderRadius: 8,
+              background: "var(--background)",
+              border: "1px solid var(--line-soft)",
+              textDecoration: "none",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <span className="nr-small" style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>
+                Credits
+              </span>
+              <span className="nr-small" style={{ fontFamily: "var(--font-mono-stack)" }}>
+                {creditsRemaining}/{dailyMax}
+              </span>
+            </div>
+            <div className="nr-progress">
+              <div style={{ width: `${creditPct}%` }} />
+            </div>
+          </Link>
+        </div>
+      )}
+
+      {/* User footer */}
+      <div ref={menuRef} style={{ padding: "0 10px 12px", position: "relative" }}>
+        <div style={{ borderTop: "1px solid var(--line-softer)", paddingTop: 10 }}>
+          <button
+            onClick={() => setMenuOpen((v) => !v)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "6px 6px",
+              borderRadius: 6,
+              cursor: "pointer",
+              background: menuOpen ? "var(--surface-soft)" : "transparent",
+              border: "none",
+              transition: "background 0.12s",
+            }}
+            onMouseEnter={(e) => { if (!menuOpen) (e.currentTarget as HTMLElement).style.background = "var(--surface-soft)"; }}
+            onMouseLeave={(e) => { if (!menuOpen) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+          >
+            <div
+              className="nr-avatar"
+              style={{ width: 26, height: 26, fontSize: 11 }}
+            >
+              {initials}
+            </div>
+            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {name}
+              </div>
+              <div className="nr-small" style={{ fontSize: 10, textTransform: "capitalize" }}>
+                {tier}{isAdmin ? " · Admin" : ""}
+              </div>
+            </div>
+            <ChevronIcon size={12} />
+          </button>
+        </div>
+
+        {menuOpen && (
+          <div
+            className="nr-card"
+            style={{
+              position: "absolute",
+              bottom: "calc(100% - 4px)",
+              left: 10,
+              right: 10,
+              zIndex: 50,
+              padding: "4px 0",
+              boxShadow: "0 -4px 20px rgba(36,31,25,0.12)",
+            }}
+          >
+            <div style={{ padding: "8px 12px 8px", borderBottom: "1px solid var(--line-softer)", marginBottom: 4 }}>
+              <div style={{ fontSize: 12, color: "var(--muted-foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {email}
+              </div>
+            </div>
+            {[
+              { label: dark ? "Light mode" : "Dark mode", action: () => { toggleDark(); setMenuOpen(false); } },
+            ].map(({ label, action }) => (
+              <button
+                key={label}
+                onClick={action}
+                style={{
+                  display: "flex", width: "100%", padding: "7px 12px",
+                  fontSize: 13, color: "var(--foreground)", background: "none", border: "none",
+                  cursor: "pointer", textAlign: "left",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface-soft)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; }}
+              >
+                {label}
+              </button>
+            ))}
+            <form action={signOut}>
+              <button
+                type="submit"
+                style={{
+                  display: "flex", width: "100%", padding: "7px 12px",
+                  fontSize: 13, color: "var(--muted-foreground)", background: "none", border: "none",
+                  cursor: "pointer", textAlign: "left",
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface-soft)"; (e.currentTarget as HTMLElement).style.color = "var(--foreground)"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "transparent"; (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground)"; }}
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    </aside>
+  );
 }
 
 export function DashboardShell({
@@ -122,269 +321,152 @@ export function DashboardShell({
   creditsRemaining?: number;
   trialEndsAt?: string | null;
 }) {
-  const daysLeft = trialDaysLeft(trialEndsAt);
-  const inTrial = daysLeft !== null && daysLeft > 0 && !isAdmin;
-  const pathname = usePathname();
-  const activeNav = getActiveNav(pathname);
-  const { modal, triggerOpen } = useCommandLauncher(tier);
   const { dark, toggle: toggleDark } = useDarkMode();
-  const tourRef = useRef<DashboardTourHandle>(null);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  const [upgradeModal, setUpgradeModal] = useState<{ feature: string; requiredTier: RequiredTier } | null>(null);
-  const closeUpgradeModal = useCallback(() => setUpgradeModal(null), []);
-
-  // Close user menu on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setUserMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const initials = displayName(user.email).charAt(0).toUpperCase();
-  const tierLabel = TIER_LABELS[tier] ?? tier;
+  void trialDaysLeft(trialEndsAt); // reserved for future trial UI
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--background)" }}>
       <NavigationProgress />
-      {modal}
-      {upgradeModal && (
-        <UpgradeModal
-          feature={upgradeModal.feature}
-          requiredTier={upgradeModal.requiredTier}
-          onClose={closeUpgradeModal}
+
+      {/* Sidebar — hidden on mobile */}
+      <div className="hidden md:flex" style={{ height: "100%" }}>
+        <Sidebar
+          email={user.email}
+          isAdmin={isAdmin}
+          tier={tier}
+          creditsRemaining={creditsRemaining}
+          dark={dark}
+          toggleDark={toggleDark}
         />
-      )}
+      </div>
 
-      {/* ── Top nav ── */}
-      <header
-        className="shrink-0 border-b border-[var(--line-soft)] bg-[var(--background)]"
-        style={{ height: 56 }}
+      {/* Main content */}
+      <main
+        style={{
+          flex: 1,
+          overflow: "auto",
+          background: "var(--background)",
+          padding: 32,
+        }}
       >
-        <div className="flex h-full items-center gap-6 px-7">
-
-          {/* Left: Logo */}
-          <Link href="/dashboard" className="shrink-0">
-            <BrandWordmark size={20} />
-          </Link>
-
-          {/* Center: Nav links */}
-          <nav className="hidden flex-1 justify-center gap-1 md:flex">
-            {TOP_NAV.map((item) => {
-              const active = activeNav === item.id;
-              return (
-                <Link
-                  key={item.id}
-                  href={item.href}
-                  data-tour={
-                    item.id === "home"     ? "bucket-jobs"     :
-                    item.id === "pipeline" ? "bucket-track"    :
-                    item.id === "evaluate" ? "bucket-prep"     :
-                    item.id === "resume"   ? "bucket-resume"   :
-                    item.id === "settings" ? "bucket-settings" :
-                    undefined
-                  }
-                  className="rounded-[5px] px-3 py-[7px] text-[13.5px] font-medium transition"
-                  style={{
-                    color: active ? "var(--foreground)" : "var(--muted-foreground)",
-                    background: active ? "var(--surface)" : "transparent",
-                    border: active ? "1px solid var(--line-soft)" : "1px solid transparent",
-                  }}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Right: actions + avatar */}
-          <div className="ml-auto flex items-center gap-2.5">
-
-            {/* ⌘K trigger */}
-            <button
-              type="button"
-              onClick={triggerOpen}
-              data-tour="search-bar"
-              className="hidden items-center gap-2 rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-1.5 xl:flex"
-              style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, color: "var(--muted-foreground)", letterSpacing: "0.06em" }}
-            >
-              <span className="hidden lg:inline">⌘K</span>
-              <span className="hidden xl:inline">· Search…</span>
-            </button>
-
-            {/* Add job */}
-            <Link
-              href={quickActions[0]?.href ?? "/dashboard/pipeline"}
-              data-tour="add-job-btn"
-              className="flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-              Add job
-            </Link>
-
-            {/* Tour button */}
-            <button
-              onClick={() => tourRef.current?.open()}
-              title="Take a tour"
-              className="hidden rounded-full border border-[var(--line-soft)] px-2.5 py-1 text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] sm:block"
-              style={{ fontFamily: "var(--font-mono-stack)", fontSize: 10 }}
-            >
-              ?
-            </button>
-
-            {/* Avatar + menu */}
-            <div ref={menuRef} className="relative">
-              <button
-                onClick={() => setUserMenuOpen((v) => !v)}
-                className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-[rgba(200,74,31,0.2)] text-[var(--accent)] transition hover:border-[var(--accent)]"
-                style={{
-                  background: "var(--accent-soft)",
-                  fontFamily: "var(--font-mono-stack)",
-                  fontSize: 12,
-                  fontWeight: 500,
-                }}
-              >
-                {initials}
-              </button>
-
-              {userMenuOpen && (
-                <div
-                  className="absolute right-0 top-[calc(100%+6px)] z-50 min-w-[180px] rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] py-1"
-                  style={{ boxShadow: "var(--shadow-md)" }}
-                >
-                  <div className="border-b border-[var(--line-soft)] px-4 py-2.5">
-                    <div className="truncate text-[13px] font-medium text-[var(--foreground)]">
-                      {displayName(user.email)}
-                    </div>
-                    <div
-                      className="mt-0.5 uppercase text-[var(--muted-foreground)]"
-                      style={{ fontFamily: "var(--font-mono-stack)", fontSize: 9.5, letterSpacing: "0.1em" }}
-                    >
-                      {tierLabel} plan{isAdmin ? " · Admin" : ""}
-                    </div>
-                  </div>
-
-                  {/* Credits (paid tiers only — free tier has no credits) */}
-                  {(tier === "starter" || tier === "pro") && (() => {
-                    const dailyBase = tier === "pro" ? 300 : 100;
-                    const daily     = Math.min(creditsRemaining, dailyBase);
-                    const topup     = Math.max(0, creditsRemaining - dailyBase);
-                    const pct       = dailyBase > 0 ? Math.min(100, (daily / dailyBase) * 100) : 0;
-                    return (
-                      <div className="border-b border-[var(--line-soft)] px-4 py-2.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[12px] text-[var(--muted-foreground)]">Credits remaining</span>
-                          <span className="text-[var(--foreground)]" style={{ fontFamily: "var(--font-mono-stack)", fontSize: 12 }}>
-                            {creditsRemaining}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
-                          <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
-                        </div>
-                        <p className="mt-1 text-[10px] text-[var(--muted-foreground)]">
-                          resets daily · {dailyBase} per day
-                          {topup > 0 && <span className="ml-1.5 font-semibold text-[var(--ok)]">+{topup} top-up</span>}
-                        </p>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Trial countdown */}
-                  {inTrial && (
-                    <div className="border-b border-[var(--line-soft)] px-4 py-2.5">
-                      <p className="text-[12px] text-[var(--foreground)]">{daysLeft} {daysLeft === 1 ? "day" : "days"} left in trial</p>
-                      <Link
-                        href="/dashboard/billing"
-                        className="text-[12px] text-[var(--accent)] hover:underline"
-                        onClick={() => setUserMenuOpen(false)}
-                      >
-                        Upgrade →
-                      </Link>
-                    </div>
-                  )}
-
-                  <div className="px-1 pt-1">
-                    <Link
-                      href="/dashboard/profile"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center gap-2 rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
-                    >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                      My Profile
-                    </Link>
-                    {isAdmin && (
-                      <Link
-                        href="/dashboard/admin"
-                        onClick={() => setUserMenuOpen(false)}
-                        className="flex items-center gap-2 rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
-                      >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-                        Admin panel
-                      </Link>
-                    )}
-                    <Link
-                      href="/dashboard/billing"
-                      onClick={() => setUserMenuOpen(false)}
-                      className="flex items-center rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
-                    >
-                      {tier === "free" ? "Upgrade plan" : "Manage plan"}
-                    </Link>
-                    <button
-                      onClick={() => { toggleDark(); setUserMenuOpen(false); }}
-                      className="flex w-full items-center rounded-[4px] px-3 py-2 text-[13px] text-[var(--foreground)] transition hover:bg-[var(--surface-soft)]"
-                    >
-                      {dark ? "Light mode" : "Dark mode"}
-                    </button>
-                    <form action={signOut}>
-                      <button
-                        type="submit"
-                        className="flex w-full items-center rounded-[4px] px-3 py-2 text-[13px] text-[var(--muted-foreground)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--foreground)]"
-                      >
-                        Sign out
-                      </button>
-                    </form>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* ── Page content ── */}
-      <main className="flex-1 overflow-y-auto bg-[var(--surface)] px-4 py-5 pb-20 sm:px-6 sm:py-6 md:pb-6">
         {children}
       </main>
 
-      <DashboardTour ref={tourRef} />
-
-      {/* ── Mobile bottom nav ── */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 flex border-t border-[var(--line-soft)] bg-[var(--surface)] md:hidden">
-        {TOP_NAV.map((item) => {
-          const active = activeNav === item.id;
-          return (
-            <Link
-              key={item.id}
-              href={item.href}
-              className="flex flex-1 flex-col items-center gap-1 py-2.5 transition"
-              style={{ color: active ? "var(--accent)" : "var(--muted-foreground-2)" }}
-            >
-              <NavIcon id={item.id} size={20} />
-              <span
-                className="uppercase"
-                style={{ fontFamily: "var(--font-mono-stack)", fontSize: 8, letterSpacing: "0.15em" }}
-              >
-                {item.label}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Mobile bottom nav */}
+      <MobileNav />
     </div>
+  );
+}
+
+function MobileNav() {
+  const pathname = usePathname();
+  return (
+    <nav
+      style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 50,
+        display: "flex",
+        borderTop: "1px solid var(--line-soft)",
+        background: "var(--surface)",
+      }}
+      className="md:hidden"
+    >
+      {NAV_PRIMARY.map(({ label, href, icon: Icon }) => {
+        const active = isActive(href, pathname);
+        return (
+          <Link
+            key={href}
+            href={href}
+            style={{
+              flex: 1, display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 3, padding: "10px 0",
+              color: active ? "var(--accent)" : "var(--muted-foreground-2)",
+              textDecoration: "none",
+              transition: "color 0.12s",
+            }}
+          >
+            <Icon size={20} />
+            <span style={{
+              fontFamily: "var(--font-mono-stack)",
+              fontSize: 8, letterSpacing: "0.15em",
+              textTransform: "uppercase",
+            }}>
+              {label}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ── SVG Icons ─────────────────────────────────────────────── */
+function HomeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 11l9-7 9 7v9a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z"/>
+    </svg>
+  );
+}
+function ProfileIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+    </svg>
+  );
+}
+function ResumeIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/>
+    </svg>
+  );
+}
+function EvalIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M6.3 17.7l2.8-2.8M14.9 9.1l2.8-2.8"/>
+    </svg>
+  );
+}
+function PipelineIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="3" rx="1"/><rect x="3" y="11" width="14" height="3" rx="1"/><rect x="3" y="17" width="10" height="3" rx="1"/>
+    </svg>
+  );
+}
+function SettingsIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+  );
+}
+function BillingIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>
+    </svg>
+  );
+}
+function ExtIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z"/>
+    </svg>
+  );
+}
+function AdminIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+    </svg>
+  );
+}
+function ChevronIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6"/>
+    </svg>
   );
 }

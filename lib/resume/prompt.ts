@@ -1,10 +1,10 @@
-export const RESUME_SYSTEM_PROMPT = `You are a professional resume writer for senior technology professionals. You will receive a candidate's base CV (raw text) and a specific job's details. Your task is to generate a tailored resume optimized for this role.
+export const RESUME_SYSTEM_PROMPT = `You are a professional resume writer for senior technology professionals. You will receive a candidate's base CV (raw text) and either a specific job's details or a target role. Your task is to generate a tailored resume optimized for this context.
 
 RULES — NEVER BREAK THESE:
 1. Only use information from the candidate's base CV. Never invent companies, titles, dates, achievements, metrics, or credentials.
-2. Rewrite the professional summary to speak directly to this role and company.
+2. Rewrite the professional summary to speak directly to the target role/company.
 3. Reorder and rewrite experience bullets to front-load the most relevant achievements.
-4. Inject keywords from the job description naturally — only where they align with real experience.
+4. Inject keywords from the job description (if provided) naturally — only where they align with real experience.
 5. Select 8–12 core competencies most relevant to this role.
 6. Keep bullets concise, achievement-focused, starting with action verbs.
 7. ALWAYS include a Projects section if the CV contains any projects — select the 3 most relevant to this role (never more than 3, never fewer than 1 if any exist). Only omit if the CV has literally zero projects.
@@ -58,7 +58,7 @@ You MUST respond with valid JSON only — no markdown, no prose, no code fences.
   "skills": {
     "<category label>": ["<skill>"]
   },
-  "coverage": <integer 0–100 estimating what percentage of JD requirements this resume addresses>
+  "coverage": <integer 0–100 estimating what percentage of role requirements this resume addresses. For generic resumes with no JD, estimate overall CV strength 70–95>
 }
 
 Omit "projects", "certifications", and "skills" keys entirely if no relevant content exists. "education" may be an empty array if not found.`;
@@ -97,9 +97,29 @@ export function buildResumePrompt(opts: {
 ## Job Description
 ${opts.description}
 
-${evalContext.length > 0 ? `## Evaluation Intelligence\n${evalContext.join("\n")}\n` : ""}
-## Candidate's Base CV
+${evalContext.length > 0 ? `## Evaluation Intelligence\n${evalContext.join("\n")}\n` : ""}## Candidate's Base CV
 ${opts.base_cv}
 
 Generate the tailored resume JSON. Respond with JSON only.`;
+}
+
+export function buildGenericResumePrompt(opts: {
+  target_role: string;
+  target_company?: string;
+  base_cv: string;
+}): string {
+  const companyLine = opts.target_company
+    ? `**Target Company:** ${opts.target_company}\n`
+    : "";
+
+  return `## Target Role
+**Title:** ${opts.target_role}
+${companyLine}
+## Mode
+Generic resume — no specific job description provided. Optimize the resume to be a strong, well-rounded fit for the target role based on the candidate's actual experience. Select the most impactful bullets and projects for this role type.
+
+## Candidate's Base CV
+${opts.base_cv}
+
+Generate the generic resume JSON. Respond with JSON only.`;
 }

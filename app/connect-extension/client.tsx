@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { BrandMark } from "@/components/nextrole/brand";
+import Link from "next/link";
 
 function GoogleIcon() {
   return (
@@ -158,5 +159,85 @@ export function ConnectExtensionLoginClient({
         Don&apos;t have an account? Sign up
       </a>
     </Shell>
+  );
+}
+
+/* ── Install guide — shown when user clicks sidebar link without extension ── */
+export function InstallExtensionPage() {
+  const steps = [
+    {
+      n: 1, title: "Install",
+      content: (
+        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+          <a
+            href="https://chrome.google.com/webstore"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="nr-btn nr-btn-primary nr-btn-sm"
+            style={{ textDecoration: "none" }}
+          >
+            Add to Chrome
+          </a>
+          <button className="nr-btn nr-btn-ghost nr-btn-sm" disabled style={{ opacity: 0.5 }}>
+            Firefox (coming soon)
+          </button>
+        </div>
+      ),
+    },
+    {
+      n: 2, title: "Open",
+      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click the NextRole icon in your browser toolbar.</div>,
+    },
+    {
+      n: 3, title: "Sign in",
+      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click <strong>Connect to NextRole</strong> in the extension popup.</div>,
+    },
+    {
+      n: 4, title: "Done",
+      content: (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 10 }}>
+          <span style={{ width: 24, height: 24, borderRadius: "50%", background: "var(--success-surface)", color: "var(--ok)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12l5 5L20 7" />
+            </svg>
+          </span>
+          <span style={{ fontSize: 13, color: "var(--ok)", fontWeight: 500 }}>You&apos;re connected.</span>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div style={{ maxWidth: 600, margin: "0 auto", paddingTop: 40 }}>
+      <div style={{ marginBottom: 16 }}>
+        <BrandMark size={32} />
+      </div>
+      <h1 className="nr-display" style={{ fontSize: 26, marginBottom: 8 }}>Connect the NextRole Extension</h1>
+      <p style={{ fontSize: 14, color: "var(--muted-foreground)", marginBottom: 32 }}>
+        The extension autofills job applications and evaluates jobs from any site.
+      </p>
+
+      <div className="nr-card" style={{ padding: 0, marginBottom: 24 }}>
+        {steps.map((s, i) => (
+          <div key={s.n} style={{
+            display: "flex", padding: "20px 24px", gap: 16,
+            borderBottom: i < steps.length - 1 ? "1px solid var(--line-softer)" : "none",
+          }}>
+            <div className="nr-display" style={{ fontSize: 18, color: "var(--muted-foreground-2)", width: 20 }}>{s.n}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{s.title}</div>
+              {s.content}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="nr-small" style={{ marginBottom: 8, color: "var(--muted-foreground)" }}>
+        The extension re-authenticates in the background. If it ever shows as disconnected, click the extension icon and sign in again.
+      </div>
+      <Link href="/dashboard" style={{ fontSize: 13, color: "var(--accent)", textDecoration: "none" }}>
+        ← Back to dashboard
+      </Link>
+    </div>
   );
 }

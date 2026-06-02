@@ -24,7 +24,7 @@ function hashToken(token: string): string {
 //   Session cookie → list all tokens for the logged-in user (settings page)
 export async function GET(request: NextRequest) {
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-token:get:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-token:get:${ip}`, 60, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 
   if (bearerToken) {
     const tokenHash = hashToken(bearerToken);
-    const tokenRl = rateLimit(`ext-token:get:tk:${tokenHash}`, 30, 60_000);
+    const tokenRl = await rateLimit(`ext-token:get:tk:${tokenHash}`, 30, 60_000);
     if (!tokenRl.ok) {
       return NextResponse.json({ error: "Too many requests" }, { status: 429 });
     }
@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-token:post:${ip}`, 20, 60_000);
+  const rl = await rateLimit(`ext-token:post:${ip}`, 20, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   const admin = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const userRl = rateLimit(`ext-token:post:u:${user.id}`, 10, 60_000);
+  const userRl = await rateLimit(`ext-token:post:u:${user.id}`, 10, 60_000);
   if (!userRl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -127,7 +127,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   const ip = getClientIp(request);
-  const rl = rateLimit(`ext-token:delete:${ip}`, 20, 60_000);
+  const rl = await rateLimit(`ext-token:delete:${ip}`, 20, 60_000);
   if (!rl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
@@ -136,7 +136,7 @@ export async function DELETE(request: NextRequest) {
   const admin = createAdminClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const userRl = rateLimit(`ext-token:delete:u:${user.id}`, 10, 60_000);
+  const userRl = await rateLimit(`ext-token:delete:u:${user.id}`, 10, 60_000);
   if (!userRl.ok) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }

@@ -5,7 +5,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-app-session:post:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-app-session:post:${ip}`, 60, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -31,21 +31,8 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const now = new Date().toISOString();
 
-  let sessionId = body.session_id ?? null;
-  if (!sessionId && body.job_id && body.source_tab_id != null) {
-    const { data: existing } = await admin
-      .from("application_sessions")
-      .select("id")
-      .eq("user_id", resolved.userId)
-      .eq("job_id", body.job_id)
-      .eq("source_tab_id", body.source_tab_id)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    sessionId = existing?.id ?? null;
-  }
-
-  if (sessionId) {
+  // Update-by-id path: caller knows the exact session row to mutate.
+  if (body.session_id) {
     const { data, error } = await admin
       .from("application_sessions")
       .update({
@@ -61,15 +48,53 @@ export async function POST(req: NextRequest) {
         last_seen_at: now,
         updated_at: now,
       })
-      .eq("id", sessionId)
+      .eq("id", body.session_id)
       .eq("user_id", resolved.userId)
       .select("id, job_id, status, source_tab_id, target_url, ats_family, fill_started_at, submitted_at, failure_reason, last_seen_at")
       .single();
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      console.error("[extension/application-session] update failed:", error.message);
+      return NextResponse.json({ error: "Could not update session" }, { status: 500 });
+    }
     return NextResponse.json({ ok: true, session: data });
   }
 
+  // No session_id: atomic upsert on (user_id, job_id, source_tab_id). The
+  // partial unique index added in 20260521000001 enforces dedup at the DB
+  // level, so two parallel SET_APPLICATION_SESSION requests for the same
+  // logical apply attempt can't both insert a row.
+  if (body.job_id && body.source_tab_id != null) {
+    const { data, error } = await admin
+      .from("application_sessions")
+      .upsert(
+        {
+          user_id: resolved.userId,
+          job_id: body.job_id,
+          source_tab_id: body.source_tab_id,
+          source_url: body.source_url ?? null,
+          target_url: body.target_url ?? null,
+          ats_family: body.ats_family ?? null,
+          status: body.status ?? "intent",
+          fill_started_at: body.fill_started_at ?? null,
+          submitted_at: body.submitted_at ?? null,
+          failure_reason: body.failure_reason ?? null,
+          last_seen_at: now,
+          updated_at: now,
+        },
+        { onConflict: "user_id,job_id,source_tab_id" },
+      )
+      .select("id, job_id, status, source_tab_id, target_url, ats_family, fill_started_at, submitted_at, failure_reason, last_seen_at")
+      .single();
+
+    if (error) {
+      console.error("[extension/application-session] upsert failed:", error.message);
+      return NextResponse.json({ error: "Could not save session" }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, session: data });
+  }
+
+  // Fallback: not enough identity to dedupe. Insert a fresh row.
   const { data, error } = await admin
     .from("application_sessions")
     .insert({
@@ -88,6 +113,9 @@ export async function POST(req: NextRequest) {
     .select("id, job_id, status, source_tab_id, target_url, ats_family, fill_started_at, submitted_at, failure_reason, last_seen_at")
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    console.error("[extension/application-session] insert failed:", error.message);
+    return NextResponse.json({ error: "Could not create session" }, { status: 500 });
+  }
   return NextResponse.json({ ok: true, session: data });
 }

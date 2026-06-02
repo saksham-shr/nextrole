@@ -1,126 +1,95 @@
 /**
  * GET /api/cron/reset-credits
- * Runs nightly at midnight UTC via Vercel Cron.
+ * Runs nightly via Vercel Cron (see vercel.json for the schedule — the
+ * schedule shown in vercel.json is the single source of truth).
  *
- * Resets each active paid user's daily base credits:
- *   Starter → 100/day  (simple set — no top-ups on Starter)
- *   Pro     → 300/day  + any unused top-up credits from this billing month
+ * Calls the reset_paid_credits_batch() RPC, which in a single transactional
+ * SQL pass:
+ *   - Expires every paid user whose subscription_ends_at is in the past
+ *     (downgrades them to free, zeroes credits, clears billing anchors).
+ *   - Resets credits for surviving Starter users (flat 100).
+ *   - Resets credits for surviving Pro users to 300 + topup carryover
+ *     since billing_period_start (the carryover math respects each user's
+ *     real billing period — not a hardcoded 30-day window).
  *
- * Top-up credit tracking (Pro only):
- *   - Purchases are logged in usage_log with task_type="topup", credits_used=-N (negative = added)
- *   - At reset, we compute how many top-up credits remain this billing period:
- *       base_granted    = 300 × days elapsed this billing period
- *       topup_purchased = sum of topup entries since billing period start
- *       topup_consumed  = max(0, total_spent - base_granted)   ← base consumed first
- *       topup_remaining = max(0, topup_purchased - topup_consumed)
- *   - Top-up balance expires at end of billing period (subscription_ends_at).
- *     When subscription_expired fires the webhook zeroes credits, so no extra work here.
+ * PERF-01: doing this server-side avoids per-user network round-trips and
+ *   lets the job complete within the serverless function budget even with
+ *   tens of thousands of paid users.
+ *
+ * BILL-01: the billing-period anchor for top-up math is the user's real
+ *   billing_period_start (set at subscription create/renew time), not
+ *   subscription_ends_at minus 30 days. Yearly subscribers now keep their
+ *   purchased top-ups.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendExpiryWarningEmail } from "@/lib/email/send";
 
 export const maxDuration = 60;
 
-const BASE_CREDITS = { starter: 100, pro: 300 } as const;
-
 export async function GET(req: NextRequest) {
-  const secret = req.headers.get("authorization");
-  if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
+  const expected = process.env.CRON_SECRET;
+  // Fail closed: if the secret is unset, NO request is authorized.
+  // Previously this route accepted the literal "Bearer undefined" credential
+  // because the comparison was `Bearer ${process.env.CRON_SECRET}`.
+  if (!expected) {
+    console.error("[cron/reset-credits] CRON_SECRET is not configured — refusing all requests");
+    return NextResponse.json({ error: "Cron not configured" }, { status: 503 });
+  }
+  const provided = req.headers.get("authorization");
+  if (provided !== `Bearer ${expected}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const admin = createAdminClient();
+  const { data, error } = await admin.rpc("reset_paid_credits_batch");
 
-  const { data: users, error } = await admin
-    .from("profiles")
-    .select("id, tier, subscription_ends_at")
-    .in("tier", ["starter", "pro"])
-    .in("subscription_status", ["active", "past_due", "cancelled"]);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  if (!users || users.length === 0) return NextResponse.json({ reset: 0 });
-
-  let reset = 0;
-  let expired = 0;
-
-  for (const user of users) {
-    const tier = user.tier as "starter" | "pro";
-
-    // Expire subscriptions that have passed their end date
-    const endsAt = user.subscription_ends_at as string | null;
-    if (endsAt && new Date(endsAt) < new Date()) {
-      await admin.from("profiles").update({
-        tier:                 "free",
-        credits_remaining:    0,
-        subscription_status:  "expired",
-        subscription_ends_at: null,
-      }).eq("id", user.id);
-      expired++;
-      continue;
-    }
-
-    if (tier === "starter") {
-      await admin
-        .from("profiles")
-        .update({ credits_remaining: BASE_CREDITS.starter })
-        .eq("id", user.id);
-      reset++;
-      continue;
-    }
-
-    // Pro: 300 base + preserved top-up balance
-    // Billing period start = subscription_ends_at - 30 days (approximation)
-    const billingStart = endsAt
-      ? new Date(new Date(endsAt).getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
-      : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    const [{ data: topupLog }, { data: spendLog }] = await Promise.all([
-      admin
-        .from("usage_log")
-        .select("credits_used")
-        .eq("user_id", user.id)
-        .eq("task_type", "topup")
-        .gte("created_at", billingStart),
-      admin
-        .from("usage_log")
-        .select("credits_used")
-        .eq("user_id", user.id)
-        .neq("task_type", "topup")
-        .gte("created_at", billingStart),
-    ]);
-
-    const topupPurchased = (topupLog ?? []).reduce(
-      (s, r) => s + Math.abs((r as { credits_used: number }).credits_used),
-      0,
-    );
-
-    if (topupPurchased === 0) {
-      // No top-up this billing period — simple reset
-      await admin
-        .from("profiles")
-        .update({ credits_remaining: BASE_CREDITS.pro })
-        .eq("id", user.id);
-      reset++;
-      continue;
-    }
-
-    const totalSpent = (spendLog ?? []).reduce(
-      (s, r) => s + Math.max(0, (r as { credits_used: number }).credits_used),
-      0,
-    );
-
-    const daysElapsed  = Math.max(1, Math.floor((Date.now() - new Date(billingStart).getTime()) / 86_400_000));
-    const baseGranted  = BASE_CREDITS.pro * daysElapsed;
-    const topupConsumed  = Math.max(0, totalSpent - baseGranted);
-    const topupRemaining = Math.max(0, topupPurchased - topupConsumed);
-
-    await admin
-      .from("profiles")
-      .update({ credits_remaining: BASE_CREDITS.pro + topupRemaining })
-      .eq("id", user.id);
-    reset++;
+  if (error) {
+    console.error("[cron/reset-credits] RPC failed:", error.message);
+    return NextResponse.json({ error: "reset failed" }, { status: 500 });
   }
 
-  return NextResponse.json({ reset, expired });
+  // RPC returns one row { reset_count, expired_count }.
+  const row = Array.isArray(data) ? data[0] : data;
+
+  // Send expiry warning emails to users whose subscription ends in 1–3 days
+  // and who haven't been notified yet during this expiry window.
+  try {
+    const in3Days = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const { data: expiring } = await admin
+      .from("profiles")
+      .select("id, email, tier, subscription_ends_at, subscription_expiry_notified_at")
+      .eq("subscription_status", "active")
+      .neq("tier", "free")
+      .lte("subscription_ends_at", in3Days)
+      .gt("subscription_ends_at", new Date().toISOString());
+
+    if (expiring && expiring.length > 0) {
+      for (const u of expiring) {
+        // Skip if already notified during this expiry window
+        if (u.subscription_expiry_notified_at &&
+            new Date(u.subscription_expiry_notified_at) > new Date(u.subscription_ends_at as string)) {
+          continue;
+        }
+        const accessUntil = new Date(u.subscription_ends_at as string);
+        const daysLeft = Math.max(1, Math.ceil((accessUntil.getTime() - Date.now()) / 86_400_000));
+
+        await sendExpiryWarningEmail(u.email as string, u.tier as string, daysLeft, accessUntil);
+        await admin
+          .from("profiles")
+          .update({ subscription_expiry_notified_at: new Date().toISOString() })
+          .eq("id", u.id);
+      }
+      console.log(`[cron/reset-credits] sent expiry warnings to ${expiring.length} user(s)`);
+    }
+  } catch (emailErr) {
+    // Non-fatal — log and continue. The credit reset already succeeded.
+    console.error("[cron/reset-credits] expiry warning emails failed:", emailErr);
+  }
+
+  return NextResponse.json({
+    reset:   row?.reset_count   ?? 0,
+    expired: row?.expired_count ?? 0,
+  });
 }

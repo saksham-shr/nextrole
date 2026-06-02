@@ -32,17 +32,6 @@ export const quickActions = [
   { label: "Edit CV",                 href: "/dashboard/settings" },
 ] as const;
 
-export const kpis: Array<{
-  label: string;
-  value: string;
-  sublabel: string;
-  tone?: "default" | "accent" | "ok" | "warn" | "bad";
-}> = [
-  { label: "Jobs",        value: "—", sublabel: "in your pipeline" },
-  { label: "Active Apps", value: "—", sublabel: "applications in progress", tone: "accent" },
-  { label: "Interviews",  value: "—", sublabel: "scheduled" },
-  { label: "Avg Score",   value: "—", sublabel: "evaluated roles" },
-];
 
 const dashboardRouteInfo = {
   dashboard: {

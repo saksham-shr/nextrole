@@ -1,7 +1,6 @@
 export type Tier = "free" | "starter" | "pro";
 
 // Daily credits per plan — reset every midnight while subscription is active.
-// LemonSqueezy only tells us the tier; we manage this counter entirely internally.
 export const DAILY_CREDITS: Record<Tier, number> = {
   free:    0,
   starter: 100,

@@ -39,7 +39,7 @@ function extractContact(cv: string) {
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
-  const rl = rateLimit(`ext-profile:${ip}`, 60, 60_000);
+  const rl = await rateLimit(`ext-profile:${ip}`, 60, 60_000);
   if (!rl.ok) return NextResponse.json({ error: "Too many requests" }, { status: 429 });
 
   const auth = req.headers.get("authorization") ?? "";
@@ -67,6 +67,7 @@ export async function GET(req: NextRequest) {
       "gender", "pronouns", "race_ethnicity", "veteran_status", "disability_status",
       "work_experience", "education", "certifications", "projects", "skills",
       "dob", "work_authorization", "expected_salary",
+      "middle_name", "phone_country_code",
       // CTC + notice annotations (migration 20260515000001)
       "expected_salary_min", "expected_salary_max",
       "ctc_fixed", "ctc_variable", "ctc_note", "notice_period_note",
@@ -100,7 +101,13 @@ export async function GET(req: NextRequest) {
   const locations = (p.target_locations as string[] | null) ?? [];
   const location  = (p.city as string | null) ?? locations[0] ?? null;
 
-  const salary = p.comp_min ? String(p.comp_min) : null;
+  const salary = p.ctc_fixed
+    ? String(p.ctc_fixed)
+    : p.expected_salary_min
+      ? String(p.expected_salary_min)
+      : p.comp_min
+        ? String(p.comp_min)
+        : null;
 
   const fullName = (p.full_name as string | null) ?? "";
   const nameParts = fullName.trim().split(/\s+/);
@@ -180,6 +187,8 @@ export async function GET(req: NextRequest) {
     ctc_variable:        (p.ctc_variable as number | null)        ?? null,
     ctc_note:            (p.ctc_note as string | null)            ?? null,
     notice_period_note:  (p.notice_period_note as string | null)  ?? null,
+    middle_name:         (p.middle_name as string | null)         ?? null,
+    phone_country_code:  (p.phone_country_code as string | null)  ?? null,
 
     // Tier gating
     tier,
