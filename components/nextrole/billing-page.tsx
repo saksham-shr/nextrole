@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { UserTier, PaymentRecord } from "@/lib/db/types";
-import { useCurrency } from "@/lib/hooks/use-currency";
+import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
 
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
@@ -217,7 +217,8 @@ function PaymentHistory({ records }: { records: PaymentRecord[] }) {
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
       <h3 className="mb-4 text-[14px] font-semibold">Payment history</h3>
-      <div className="overflow-hidden rounded-xl border border-[var(--line-soft)]">
+      <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border border-[var(--line-soft)] min-w-[480px]">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-[var(--line-soft)] bg-[var(--surface-soft)]">
@@ -252,6 +253,7 @@ function PaymentHistory({ records }: { records: PaymentRecord[] }) {
           </tbody>
         </table>
       </div>
+      </div>
     </div>
   );
 }
@@ -276,7 +278,8 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
         <h3 className="text-[14px] font-semibold">Credit usage log</h3>
         <span className="font-mono text-[11px] text-[var(--muted-foreground)]">{totalSpent} spent · last {entries.length} actions</span>
       </div>
-      <div className="overflow-hidden rounded-xl border border-[var(--line-soft)]">
+      <div className="overflow-x-auto">
+      <div className="overflow-hidden rounded-xl border border-[var(--line-soft)] min-w-[360px]">
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-[var(--line-soft)] bg-[var(--surface-soft)]">
@@ -302,6 +305,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
           </tbody>
         </table>
       </div>
+      </div>
     </div>
   );
 }
@@ -316,7 +320,7 @@ export function BillingPage({
   const [period, setPeriod]               = useState<"monthly" | "yearly">("monthly");
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState(subscriptionStatus);
-  const { price, loading: currencyLoading } = useCurrency();
+  const { price } = useCurrency();
 
   useRazorpayScript();
 
@@ -387,10 +391,12 @@ export function BillingPage({
     );
   }
 
-  const starterInr      = commerce.planPricesInr[`starter_${period}`];
-  const proInr          = commerce.planPricesInr[`pro_${period}`];
-  const starterDisabled = !commerce.flags.starter_enabled || !starterInr;
-  const proDisabled     = !commerce.flags.pro_enabled || !proInr;
+  const starterInr      = commerce.planPricesInr[`starter_${period}`]
+    ?? (period === "monthly" ? INR_PRICES.starter_monthly : INR_PRICES.starter_yearly);
+  const proInr          = commerce.planPricesInr[`pro_${period}`]
+    ?? (period === "monthly" ? INR_PRICES.pro_monthly : INR_PRICES.pro_yearly);
+  const starterDisabled = !commerce.flags.starter_enabled;
+  const proDisabled     = !commerce.flags.pro_enabled;
 
   function planCta(plan: "starter" | "pro"): string {
     if (tier === plan) return "Current plan";
@@ -409,7 +415,7 @@ export function BillingPage({
   }
 
   return (
-    <div className="mx-auto max-w-[860px] px-6 py-8">
+    <div className="mx-auto max-w-[860px] px-4 sm:px-6 py-6 sm:py-8">
       <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Plan</div>
       <h1 className="mb-8 text-[24px] font-normal tracking-[-0.02em]">Plan & credits</h1>
 
@@ -426,7 +432,7 @@ export function BillingPage({
 
       {/* ── Current plan card ── */}
       <div className="mb-6 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Current plan</div>
             <div className="flex flex-wrap items-center gap-3">
@@ -512,7 +518,7 @@ export function BillingPage({
       {/* ── Top-up packs (Pro only) ── */}
       {tier === "pro" && commerce.flags.topups_enabled && commerce.topupPacks.length > 0 && (
         <div id="topup" className="mb-6 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
-          <div className="mb-1 flex items-center justify-between">
+          <div className="mb-1 flex flex-wrap items-center gap-2 justify-between">
             <h2 className="text-[15px] font-semibold">Buy extra credits</h2>
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Pro only · valid until renewal</span>
           </div>
@@ -528,7 +534,7 @@ export function BillingPage({
                   <span className="font-mono text-[18px] font-semibold leading-none">{pack.credits}</span>
                   <span className="mt-0.5 text-[11px] text-[var(--muted-foreground)]">credits</span>
                   <span className="mt-3 font-mono text-[13px] font-medium text-[var(--accent)]">
-                    {currencyLoading ? "…" : `₹${pack.inr}`}
+                    {price(pack.inr).display}
                   </span>
                   <span className="mt-2 rounded-lg bg-[var(--accent)] py-1.5 text-center text-[11px] font-medium text-white">
                     {isLoading ? "Processing…" : "Buy"}
@@ -541,19 +547,19 @@ export function BillingPage({
       )}
 
       {/* ── Plan switch ── */}
-      <div id="plans" className="mb-3 flex items-center justify-between">
+      <div id="plans" className="mb-3 flex flex-wrap items-center gap-3 justify-between">
         <h2 className="text-[15px] font-semibold">Switch plan</h2>
         <div className="flex rounded-lg border border-[var(--line-soft)] p-0.5 text-[12px]">
           {(["monthly", "yearly"] as const).map((p) => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={`rounded-md px-3 py-1 capitalize transition ${period === p ? "bg-[var(--accent)] text-white font-medium" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}>
-              {p}{p === "yearly" && <span className="ml-1.5 text-[10px] opacity-80">save up to 25%</span>}
+              className={`rounded-md px-3 py-1 capitalize transition whitespace-nowrap ${period === p ? "bg-[var(--accent)] text-white font-medium" : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"}`}>
+              {p}{p === "yearly" && <span className="ml-1.5 text-[10px] opacity-80">−25%</span>}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-6">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-6">
         {/* Free */}
         <PlanCard
           name="Free" price="₹0" priceSub="forever"
@@ -568,7 +574,7 @@ export function BillingPage({
         {commerce.flags.starter_enabled ? (
           <PlanCard
             name="Starter" highlight badge="Most popular"
-            price={currencyLoading ? "…" : (starterInr ? price(starterInr).display : "—")}
+            price={price(starterInr).display}
             priceSub={`/ ${period === "monthly" ? "month" : "month, billed yearly"}`}
             current={tier === "starter"}
             features={["100 credits / day", "1 autofill / day", "Standard resumes", "Pipeline tracking"]}
@@ -587,7 +593,7 @@ export function BillingPage({
         {commerce.flags.pro_enabled ? (
           <PlanCard
             name="Pro" badge="★ Full power"
-            price={currencyLoading ? "…" : (proInr ? price(proInr).display : "—")}
+            price={price(proInr).display}
             priceSub={`/ ${period === "monthly" ? "month" : "month, billed yearly"}`}
             current={tier === "pro"}
             features={["300 credits / day", "Unlimited autofill", "Premium resumes", "Credit top-ups"]}
@@ -658,17 +664,17 @@ function PlanCard({ name, price, priceSub, highlight, badge, current, features, 
   onCheckout?: () => void; ctaDisabled?: boolean; loading?: boolean;
 }) {
   return (
-    <div className={`flex flex-col rounded-2xl p-6 ${
+    <div className={`flex flex-col rounded-2xl p-4 sm:p-6 ${
       highlight ? "border-2 border-[var(--accent)] shadow-[0_4px_20px_rgba(200,74,31,0.10)]" : "border border-[var(--line-soft)]"
     } ${current ? "bg-[var(--accent)]/3" : "bg-[var(--surface)]"}`}>
-      <div className="mb-4 flex items-start justify-between">
+      <div className="mb-3 flex items-start justify-between gap-2 flex-wrap">
         <span className={`font-mono text-[10px] uppercase tracking-[0.16em] ${highlight ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{name}</span>
         {badge && <span className={`rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] ${highlight ? "bg-[var(--accent)] text-white" : "border border-[var(--line-soft)] text-[var(--muted-foreground)]"}`}>{badge}</span>}
       </div>
-      <div className="mb-1 flex items-baseline gap-1.5">
-        <span className="text-[28px] font-normal leading-none tracking-[-0.02em]">{price}</span>
+      <div className="mb-1 flex items-baseline gap-1.5 flex-wrap">
+        <span className="text-[24px] sm:text-[28px] font-normal leading-none tracking-[-0.02em] break-all">{price}</span>
       </div>
-      <div className="mb-5 text-[11px] text-[var(--muted-foreground)]">{priceSub}</div>
+      <div className="mb-4 sm:mb-5 text-[11px] text-[var(--muted-foreground)]">{priceSub}</div>
       <ul className="mb-5 flex-1 space-y-2">
         {features.map((f) => <li key={f} className="flex items-start gap-2 text-[13px]"><CheckIcon />{f}</li>)}
         {locked?.map((f) => <li key={f} className="flex items-start gap-2 text-[13px] opacity-40"><LockIcon />{f}</li>)}

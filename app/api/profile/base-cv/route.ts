@@ -49,10 +49,9 @@ export async function POST(req: NextRequest) {
 
   try {
     if (mime === "application/pdf") {
-      const pdfMod = await import("pdf-parse");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pdfParse = ((pdfMod as any).default ?? pdfMod) as (buf: Buffer) => Promise<{ text: string }>;
-      const result = await pdfParse(buffer);
+      const { PDFParse } = await import("pdf-parse");
+      const parser = new PDFParse({ data: buffer });
+      const result = await parser.getText();
       text = result.text ?? "";
     } else {
       // DOCX only — mammoth does not handle the legacy .doc binary format.

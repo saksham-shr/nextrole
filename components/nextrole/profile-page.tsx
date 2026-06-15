@@ -568,10 +568,18 @@ function CompensationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
 
 // ─── 1e. CV upload ────────────────────────────────────────────────────────────
 
-function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
-  const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging]   = useState(false);
-  const [wordCount, setWordCount] = useState<number | null>(
+function CVCard({ p, onSaved, onImport }: {
+  p: ProfileRow;
+  onSaved: (next: Partial<ProfileRow>) => void;
+  onImport: (data: Partial<ProfileRow>) => void;
+}) {
+  const [uploading, setUploading]     = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dragging, setDragging]       = useState(false);
+  const [filling, setFilling]         = useState(false);
+  const [fillError, setFillError]     = useState<string | null>(null);
+  const [fillDone, setFillDone]       = useState(false);
+  const [wordCount, setWordCount]     = useState<number | null>(
     p.base_cv ? p.base_cv.split(/\s+/).filter(Boolean).length : null,
   );
   const inputRef = useRef<HTMLInputElement>(null);
@@ -579,6 +587,9 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
 
   async function uploadFile(file: File) {
     setUploading(true);
+    setUploadError(null);
+    setFillDone(false);
+    setFillError(null);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -587,8 +598,28 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
       if (!res.ok) throw new Error(j.error ?? `Upload failed (${res.status})`);
       setWordCount(j.words ?? null);
       onSaved({ base_cv: "__uploaded__" } as Partial<ProfileRow>);
-    } catch (e) { alert((e as Error).message); }
-    finally { setUploading(false); }
+    } catch (e) {
+      setUploadError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function fillProfileFromCv() {
+    setFilling(true);
+    setFillError(null);
+    setFillDone(false);
+    try {
+      const res = await fetch("/api/extension/cv-structure-import", { method: "POST" });
+      const data = await res.json() as Partial<ProfileRow> & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Failed to fill profile");
+      onImport(data);
+      setFillDone(true);
+    } catch (e) {
+      setFillError((e as Error).message);
+    } finally {
+      setFilling(false);
+    }
   }
 
   function onDrop(e: React.DragEvent) {
@@ -640,8 +671,16 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
         </div>
       </div>
 
+      {/* Status row */}
       <div className="mt-3 flex items-center gap-2">
-        {hasCV ? (
+        {uploadError ? (
+          <>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--bad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            <span className="text-[12px] text-[var(--bad)]">{uploadError}</span>
+          </>
+        ) : hasCV ? (
           <>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20 6 9 17l-5-5" />
@@ -651,10 +690,59 @@ function CVCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Profile
           </>
         ) : (
           <span className="text-[12px] text-[var(--muted-foreground)]">
-            After uploading, use <strong>Import from CV</strong> at the top to auto-fill your profile.
+            Upload your CV — we extract text, then you can fill your profile from it.
           </span>
         )}
       </div>
+
+      {/* Fill profile button — only shown once a CV is uploaded */}
+      {hasCV && (
+        <div className="mt-4 pt-4 border-t border-[var(--line-softer)]">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[13px] font-medium">Fill profile from CV</p>
+              <p className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">
+                Pulls work experience, education, skills and certifications out of your CV and populates the sections below.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={fillProfileFromCv}
+              disabled={filling}
+              className="shrink-0 flex items-center gap-1.5 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-50"
+            >
+              {filling ? (
+                <>
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+                  Filling…
+                </>
+              ) : (
+                <>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
+                  </svg>
+                  Fill profile
+                </>
+              )}
+            </button>
+          </div>
+
+          {fillDone && (
+            <div className="mt-3 flex items-center gap-2 rounded-lg bg-[var(--ok-bg)] px-3 py-2">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              <span className="text-[12px] text-[var(--ok)] font-medium">Profile filled — review and adjust the sections below.</span>
+            </div>
+          )}
+
+          {fillError && (
+            <div className="mt-3 rounded-lg border border-[var(--bad)] bg-[var(--bad-bg)] px-3 py-2 text-[12px] text-[var(--bad)]">
+              {fillError}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -1370,61 +1458,19 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
     setProfile((prev) => ({ ...prev, ...patch }));
   }, []);
 
-  const [importing, setImporting] = useState(false);
-  async function importFromCv() {
-    if (!profile.base_cv?.trim()) {
-      alert("Upload your CV in the 'CV' section first.");
-      return;
-    }
-    if (!confirm("Import work experience, education and certifications from your CV?\n\nThis will REPLACE current entries.")) return;
-    setImporting(true);
-    try {
-      const res = await fetch("/api/extension/cv-structure-import", { method: "POST" });
-      if (!res.ok) throw new Error((await res.json()).error ?? "Import failed");
-      const data = await res.json() as Partial<ProfileRow>;
-      setProfile((prev) => ({ ...prev, ...data }));
-      alert("Imported! Review and adjust the new entries.");
-    } catch (e) { alert((e as Error).message); }
-    finally { setImporting(false); }
-  }
-
-  const hasCvText = !!profile.base_cv?.trim();
-  const importCardVisible = hasCvText && completion < 80;
-
   return (
     <div className="mx-auto max-w-7xl px-4 py-8">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-semibold">Application Profile</h1>
-          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-            One profile. Every job site. Fill any application in one click.
-          </p>
-        </div>
-        <GhostBtn onClick={importFromCv} disabled={importing}>
-          {importing ? "Importing…" : "Import from CV"}
-        </GhostBtn>
+      <header className="mb-6">
+        <h1 className="text-[22px] font-semibold">Application Profile</h1>
+        <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+          One profile. Every job site. Fill any application in one click.
+        </p>
       </header>
-
-      {importCardVisible && (
-        <div className="mb-6 rounded-xl border border-[var(--accent)] bg-[var(--accent)]/[0.06] p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div className="text-[15px] font-semibold">Import from CV</div>
-              <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
-                Pre-fill Work Experience, Education and Certifications from your uploaded CV. You can edit anything afterward.
-              </p>
-            </div>
-            <PrimaryBtn onClick={importFromCv} disabled={importing}>
-              {importing ? "Parsing…" : "Parse & fill profile"}
-            </PrimaryBtn>
-          </div>
-        </div>
-      )}
 
       <div className="flex gap-8">
         <ProfileSidebar profile={profile} completion={completion} />
         <main className="flex-1 min-w-0 flex flex-col gap-5">
-          <CVCard             p={profile} onSaved={handleSaved} />
+          <CVCard             p={profile} onSaved={handleSaved} onImport={handleSaved} />
           <ContactCard        p={profile} onSaved={handleSaved} />
           <PreferencesCard    p={profile} onSaved={handleSaved} />
           <JobTargetsCard     p={profile} onSaved={handleSaved} />

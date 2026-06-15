@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { OnboardingPricing } from "@/components/nextrole/onboarding-pricing";
+import { OnboardingFlow } from "@/components/nextrole/onboarding-flow";
 
 export default async function OnboardingPage() {
   const supabase = await createClient();
@@ -18,7 +18,7 @@ export default async function OnboardingPage() {
   if (profile?.onboarding_completed) redirect("/dashboard");
 
   return (
-    <OnboardingPricing
+    <OnboardingFlow
       trialEndsAt={(profile?.subscription_ends_at as string | null) ?? null}
       email={user.email ?? ""}
       currentTier={(profile?.tier as string | null) ?? "free"}

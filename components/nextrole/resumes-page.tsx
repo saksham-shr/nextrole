@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { batchDeleteResumes } from "@/app/actions/resumes";
@@ -159,6 +159,96 @@ function ResumePreview({ resume }: { resume: ResumeWithJob }) {
 // ── Generate panel ────────────────────────────────────────────────────────────
 
 type ResumeMode = "standard" | "premium";
+type ResumeSource = "job" | "role";
+
+const ROLE_CATEGORIES: { label: string; roles: string[] }[] = [
+  {
+    label: "Engineering",
+    roles: [
+      "Software Engineer",
+      "Frontend Engineer",
+      "Backend Engineer",
+      "Full Stack Engineer",
+      "iOS Engineer",
+      "Android Engineer",
+      "DevOps Engineer",
+      "Site Reliability Engineer",
+      "Platform Engineer",
+      "Embedded Systems Engineer",
+    ],
+  },
+  {
+    label: "Data & AI",
+    roles: [
+      "Data Scientist",
+      "Data Analyst",
+      "Machine Learning Engineer",
+      "AI Research Scientist",
+      "Business Intelligence Analyst",
+      "Data Engineer",
+    ],
+  },
+  {
+    label: "Product & Design",
+    roles: [
+      "Product Manager",
+      "Senior Product Manager",
+      "Product Designer",
+      "UX Designer",
+      "UX Researcher",
+      "UI Designer",
+    ],
+  },
+  {
+    label: "Leadership",
+    roles: [
+      "Engineering Manager",
+      "Tech Lead",
+      "VP of Engineering",
+      "Chief Technology Officer",
+      "Director of Product",
+    ],
+  },
+  {
+    label: "Business & Operations",
+    roles: [
+      "Business Analyst",
+      "Project Manager",
+      "Program Manager",
+      "Scrum Master",
+      "Operations Manager",
+    ],
+  },
+  {
+    label: "Marketing",
+    roles: [
+      "Growth Marketer",
+      "Content Marketer",
+      "SEO Specialist",
+      "Performance Marketer",
+      "Brand Manager",
+    ],
+  },
+  {
+    label: "Sales & Customer Success",
+    roles: [
+      "Account Executive",
+      "Sales Development Representative",
+      "Customer Success Manager",
+      "Solutions Engineer",
+    ],
+  },
+  {
+    label: "Finance",
+    roles: [
+      "Financial Analyst",
+      "Investment Analyst",
+      "Finance Manager",
+    ],
+  },
+];
+
+const ALL_ROLES = ROLE_CATEGORIES.flatMap((c) => c.roles);
 
 const MODE_META = {
   standard: {
@@ -188,22 +278,60 @@ function GeneratePanel({
   tier: UserTier;
   onGenerated: (resumeId: string) => void;
 }) {
+  const [source, setSource]               = useState<ResumeSource>("job");
   const [selectedJobId, setSelectedJobId] = useState("");
-  const [mode, setMode] = useState<ResumeMode>("standard");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const jobsWithDesc = jobs.filter((j) => !!j.description);
+  const [roleInput, setRoleInput]         = useState("");
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIdx, setHighlightedIdx]   = useState(-1);
+  const [targetCompany, setTargetCompany] = useState("");
+  const [mode, setMode]                   = useState<ResumeMode>("standard");
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
+
+  const roleInputRef    = useRef<HTMLInputElement>(null);
+  const suggestionsRef  = useRef<HTMLDivElement>(null);
+
+  const jobsWithDesc  = jobs.filter((j) => !!j.description);
   const canUsePremium = MODE_META.premium.tiers.includes(tier);
 
+  const suggestions = (() => {
+    const q = roleInput.trim().toLowerCase();
+    const filtered = q
+      ? ALL_ROLES.filter((r) => r.toLowerCase().includes(q))
+      : ALL_ROLES.slice(0, 8);
+    return filtered.slice(0, 8);
+  })();
+
+  const canGenerate = source === "job" ? !!selectedJobId : !!roleInput.trim();
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    function handlePointerDown(e: PointerEvent) {
+      if (
+        roleInputRef.current && !roleInputRef.current.contains(e.target as Node) &&
+        suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+        setHighlightedIdx(-1);
+      }
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, []);
+
   async function generate() {
-    if (!selectedJobId) return;
+    if (!canGenerate) return;
     setLoading(true);
     setError(null);
     try {
+      const body = source === "job"
+        ? { job_id: selectedJobId, premium: mode === "premium" }
+        : { target_role: roleInput.trim(), target_company: targetCompany.trim() || undefined, premium: mode === "premium" };
+
       const res = await fetch("/api/resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ job_id: selectedJobId, premium: mode === "premium" }),
+        body: JSON.stringify(body),
       });
       const data = (await res.json()) as { resume_id?: string; coverage?: number; error?: string };
       if (!res.ok || data.error) {
@@ -226,6 +354,7 @@ function GeneratePanel({
 
   return (
     <div className="flex flex-col rounded-xl border border-dashed border-[var(--line-soft)] bg-[var(--surface)] p-8">
+      {/* Header */}
       <div className="flex items-center gap-3 mb-5">
         <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)]">
           <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -234,15 +363,37 @@ function GeneratePanel({
           </svg>
         </div>
         <div>
-          <h2 className="text-[16px] font-semibold">Generate a tailored resume</h2>
-          <p className="text-[12.5px] text-[var(--muted-foreground)]">Pick a job and quality level — we&apos;ll tailor your CV to match.</p>
+          <h2 className="text-[16px] font-semibold">Generate a resume</h2>
+          <p className="text-[12.5px] text-[var(--muted-foreground)]">Tailored to a specific job or a role type — your choice.</p>
         </div>
+      </div>
+
+      {/* Source toggle */}
+      <div className="mb-5 flex rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-1 gap-1">
+        {([
+          { key: "job",  label: "For a job" },
+          { key: "role", label: "For a role" },
+        ] as { key: ResumeSource; label: string }[]).map(({ key, label }) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => { setSource(key); setError(null); }}
+            className="flex-1 rounded-md py-1.5 text-[13px] font-medium transition"
+            style={{
+              background: source === key ? "var(--surface)" : "transparent",
+              color: source === key ? "var(--foreground)" : "var(--muted-foreground)",
+              boxShadow: source === key ? "var(--shadow)" : "none",
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Mode selector */}
       <div className="mb-5 grid grid-cols-2 gap-3">
         {(["standard", "premium"] as ResumeMode[]).map((m) => {
-          const meta = MODE_META[m];
+          const meta   = MODE_META[m];
           const locked = !meta.tiers.includes(tier);
           const active = mode === m;
           return (
@@ -254,10 +405,10 @@ function GeneratePanel({
               className="relative flex flex-col rounded-xl border p-4 text-left transition"
               style={{
                 borderColor: active ? "var(--accent)" : "var(--line-soft)",
-                background: active ? "var(--accent-soft)" : locked ? "var(--surface-soft)" : "var(--surface)",
-                opacity: locked ? 0.6 : 1,
-                cursor: locked ? "not-allowed" : "pointer",
-                boxShadow: active ? "0 0 0 1px var(--accent)" : "none",
+                background:  active ? "var(--accent-soft)" : locked ? "var(--surface-soft)" : "var(--surface)",
+                opacity:     locked ? 0.6 : 1,
+                cursor:      locked ? "not-allowed" : "pointer",
+                boxShadow:   active ? "0 0 0 1px var(--accent)" : "none",
               }}
             >
               <div className="flex items-center justify-between mb-1.5">
@@ -275,9 +426,7 @@ function GeneratePanel({
               </div>
               <p className="text-[12px] text-[var(--muted-foreground)] leading-[1.5] mb-2">{meta.description}</p>
               <span className="font-mono text-[11px] text-[var(--accent)]">{meta.detail}</span>
-              {active && (
-                <div className="absolute right-3 top-3 h-2 w-2 rounded-full bg-[var(--accent)]" />
-              )}
+              {active && <div className="absolute right-3 top-3 h-2 w-2 rounded-full bg-[var(--accent)]" />}
             </button>
           );
         })}
@@ -291,49 +440,159 @@ function GeneratePanel({
         </div>
       )}
 
-      {jobsWithDesc.length === 0 ? (
-        <p className="text-center text-[13px] text-[var(--muted-foreground)]">
-          Add a job with a description first —{" "}
-          <Link href="/dashboard/pipeline" className="text-[var(--accent)] hover:underline">go to pipeline</Link>.
-        </p>
-      ) : (
-        <div className="flex flex-col gap-3">
-          <select
-            value={selectedJobId}
-            onChange={(e) => setSelectedJobId(e.target.value)}
-            className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)]"
-          >
-            <option value="">— choose a job —</option>
-            {jobsWithDesc.map((j) => (
-              <option key={j.id} value={j.id}>{j.title} at {j.company}</option>
-            ))}
-          </select>
-
-          {error && (
-            <p className="rounded-lg border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
-              {error}
+      {/* Source-specific inputs */}
+      <div className="flex flex-col gap-3">
+        {source === "job" ? (
+          jobsWithDesc.length === 0 ? (
+            <p className="text-center text-[13px] text-[var(--muted-foreground)]">
+              Add a job with a description first —{" "}
+              <Link href="/dashboard/pipeline" className="text-[var(--accent)] hover:underline">go to pipeline</Link>.
             </p>
-          )}
-
-          {loading ? (
-            <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line-soft)] py-3 text-[13px] text-[var(--muted-foreground)]">
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-              {mode === "premium" ? "Premium AI tailoring…" : "Tailoring resume…"}
-            </div>
           ) : (
-            <button
-              onClick={generate}
-              disabled={!selectedJobId}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
+            <select
+              value={selectedJobId}
+              onChange={(e) => setSelectedJobId(e.target.value)}
+              className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)]"
             >
-              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
-              </svg>
-              Generate {mode} resume · {MODE_META[mode].credits} cr
-            </button>
-          )}
-        </div>
-      )}
+              <option value="">— choose a job —</option>
+              {jobsWithDesc.map((j) => (
+                <option key={j.id} value={j.id}>{j.title} at {j.company}</option>
+              ))}
+            </select>
+          )
+        ) : (
+          <>
+            {/* Role combobox */}
+            <div>
+              <label className="block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-1.5">
+                Target role
+              </label>
+              <div className="relative">
+                <input
+                  ref={roleInputRef}
+                  type="text"
+                  value={roleInput}
+                  onChange={(e) => {
+                    setRoleInput(e.target.value);
+                    setHighlightedIdx(-1);
+                    setShowSuggestions(true);
+                  }}
+                  onFocus={() => setShowSuggestions(true)}
+                  onKeyDown={(e) => {
+                    if (!showSuggestions) return;
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setHighlightedIdx((i) => Math.min(i + 1, suggestions.length - 1));
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setHighlightedIdx((i) => Math.max(i - 1, -1));
+                    } else if (e.key === "Enter") {
+                      e.preventDefault();
+                      if (highlightedIdx >= 0 && suggestions[highlightedIdx]) {
+                        setRoleInput(suggestions[highlightedIdx]);
+                        setShowSuggestions(false);
+                        setHighlightedIdx(-1);
+                      }
+                    } else if (e.key === "Escape") {
+                      setShowSuggestions(false);
+                      setHighlightedIdx(-1);
+                    }
+                  }}
+                  placeholder="e.g. Software Engineer, Product Manager…"
+                  autoComplete="off"
+                  className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)] transition-colors"
+                />
+
+                {showSuggestions && suggestions.length > 0 && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-lg border border-[var(--line-soft)] bg-[var(--surface)]"
+                    style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                  >
+                    {suggestions.map((role, idx) => {
+                      const q = roleInput.trim().toLowerCase();
+                      const matchStart = q ? role.toLowerCase().indexOf(q) : -1;
+
+                      return (
+                        <button
+                          key={role}
+                          type="button"
+                          onPointerDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setRoleInput(role);
+                            setShowSuggestions(false);
+                            setHighlightedIdx(-1);
+                            roleInputRef.current?.focus();
+                          }}
+                          className="flex w-full items-center px-3 py-2 text-left text-[13px] transition-colors"
+                          style={{
+                            background: idx === highlightedIdx ? "var(--surface-soft)" : "transparent",
+                            color: "var(--foreground)",
+                          }}
+                        >
+                          {matchStart >= 0 ? (
+                            <>
+                              {role.slice(0, matchStart)}
+                              <span style={{ fontWeight: 600, color: "var(--accent)" }}>
+                                {role.slice(matchStart, matchStart + q.length)}
+                              </span>
+                              {role.slice(matchStart + q.length)}
+                            </>
+                          ) : role}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              <p className="mt-1.5 font-mono text-[10px] text-[var(--muted-foreground-2)]">
+                Type any role — pick a suggestion or use your own
+              </p>
+            </div>
+
+            {/* Company (optional) */}
+            <div>
+              <label className="block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-1.5">
+                Target company <span className="normal-case tracking-normal font-sans text-[11px]">(optional)</span>
+              </label>
+              <input
+                type="text"
+                value={targetCompany}
+                onChange={(e) => setTargetCompany(e.target.value)}
+                placeholder="e.g. Google, Stripe, any company name"
+                className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)] transition-colors"
+              />
+              <p className="mt-1.5 font-mono text-[10px] text-[var(--muted-foreground-2)]">
+                Including a company name adds a targeted angle to the summary
+              </p>
+            </div>
+          </>
+        )}
+
+        {error && (
+          <p className="rounded-lg border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
+            {error}
+          </p>
+        )}
+
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line-soft)] py-3 text-[13px] text-[var(--muted-foreground)]">
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
+            {mode === "premium" ? "Premium AI tailoring…" : "Generating resume…"}
+          </div>
+        ) : (
+          <button
+            onClick={generate}
+            disabled={!canGenerate}
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
+          >
+            <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
+            </svg>
+            Generate {mode} resume · {MODE_META[mode].credits} cr
+          </button>
+        )}
+      </div>
     </div>
   );
 }

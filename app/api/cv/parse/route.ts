@@ -59,9 +59,9 @@ async function extractText(file: Blob, ext: string): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
   if (ext === "md" || ext === "txt") return buffer.toString("utf-8");
   if (ext === "pdf") {
-    const pdfParse = await import("pdf-parse");
-    const parse = (pdfParse as unknown as { default: (b: Buffer) => Promise<{ text: string }> }).default ?? pdfParse;
-    const result = await (parse as (b: Buffer) => Promise<{ text: string }>)(buffer);
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: buffer });
+    const result = await parser.getText();
     return result.text;
   }
   if (ext === "docx") {

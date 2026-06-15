@@ -21,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   let profile = (await supabase
     .from("profiles")
-    .select("tier, credits_remaining, subscription_ends_at, onboarding_completed")
+    .select("tier, credits_remaining, subscription_ends_at, onboarding_completed, subscription_status, credits_reset_at")
     .eq("id", user.id)
     .single()).data;
 
@@ -81,10 +81,9 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           tier: grantTier,
           credits_remaining: grantCredits,
           subscription_ends_at: grantExpiry,
-          // The DashboardShell prop type only reads tier/credits/trialEndsAt
-          // so we don't need to widen `profile` to carry subscription_status;
-          // the DB write is what downstream code actually reads.
           onboarding_completed: profile?.onboarding_completed ?? false,
+          subscription_status: (profile?.subscription_status ?? null) as (typeof profile extends null ? null : NonNullable<typeof profile>["subscription_status"]),
+          credits_reset_at: profile?.credits_reset_at ?? "",
         };
       } else if (invite && !inviteFresh && invite.tier && !ALLOWED_INVITE_TIERS.has(String(invite.tier))) {
         // Defensive: if a malformed invite tier somehow landed in the table
@@ -107,7 +106,34 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
   const trialEndsAt: string | null = (profile?.subscription_ends_at as string | null) ?? null;
-  const creditsRemaining: number = profile?.credits_remaining ?? 0;
+  let creditsRemaining: number = profile?.credits_remaining ?? 0;
+
+  // If a paid user has 0 credits and the daily reset is overdue, top them
+  // up now. This handles new subscriptions (cron hasn't run yet today) and
+  // local dev environments where the cron never runs.
+  const DAILY_MAX: Record<string, number> = { pro: 300, starter: 100 };
+  const dailyMax = DAILY_MAX[tier] ?? 0;
+  if (!isAdmin && dailyMax > 0 && creditsRemaining === 0) {
+    const subStatus = profile?.subscription_status as string | null;
+    const resetAt   = profile?.credits_reset_at ? new Date(profile.credits_reset_at as string) : null;
+    const isActive  = subStatus === "active" || subStatus === "trialing";
+    const isOverdue = !resetAt || resetAt <= new Date();
+    if (isActive && isOverdue) {
+      try {
+        const adminCl = createAdminClient();
+        await adminCl
+          .from("profiles")
+          .update({
+            credits_remaining: dailyMax,
+            credits_reset_at:  new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          })
+          .eq("id", user.id);
+        creditsRemaining = dailyMax;
+      } catch {
+        // Non-fatal — next cron run will fix it
+      }
+    }
+  }
 
   return (
     <DashboardShell

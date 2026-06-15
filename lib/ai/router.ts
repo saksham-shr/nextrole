@@ -18,7 +18,7 @@ import { createClient } from "@/lib/supabase/server";
 // Gemini Flash Lite â€” cheapest stable paid model ($0.075/1M tokens).
 // Avoids :free experimental models that OpenRouter removes without notice.
 
-const OR_PRIMARY_MODEL = "google/gemini-2.0-flash-lite-001";
+const OR_PRIMARY_MODEL = "google/gemini-2.5-flash-lite";
 
 // â”€â”€ Fallback chain â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Tried in order on 429 / 503. Stable free community models first, paid last.
@@ -28,12 +28,11 @@ export const OR_FREE_FALLBACKS = [
   "deepseek/deepseek-chat-v3-0324:free",     // DeepSeek V3 â€” free, very capable
   "meta-llama/llama-3.3-70b-instruct:free",  // Llama 3.3 70B â€” free, stable
   "mistralai/mistral-7b-instruct:free",      // Mistral 7B â€” free, last resort
-  "google/gemini-2.0-flash-001",             // $0.10/1M â€” paid safety net
 ];
 
 // â”€â”€ Direct provider fallback models (used when OPENROUTER_API_KEY is absent) â”€â”€
 
-const DIRECT_GEMINI_MODEL    = "gemini-2.0-flash-lite";
+const DIRECT_GEMINI_MODEL    = "gemini-2.5-flash-lite";
 const DIRECT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
 const DIRECT_OPENAI_MODEL    = "gpt-4o-mini";
 

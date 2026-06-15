@@ -28,6 +28,20 @@ function displayName(email: string): string {
   return local.charAt(0).toUpperCase() + local.slice(1);
 }
 
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== "undefined" ? window.matchMedia("(pointer: fine)").matches : true
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(pointer: fine)");
+    setIsDesktop(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return isDesktop;
+}
+
 function useDarkMode() {
   const [dark, setDark] = useState(() => {
     if (typeof window === "undefined") return false;
@@ -64,6 +78,29 @@ function isActive(href: string, pathname: string): boolean {
   return pathname.startsWith(href);
 }
 
+function TopBar() {
+  return (
+    <div style={{
+      display: "flex", alignItems: "center", flexShrink: 0,
+      padding: "11px 20px",
+      background: "var(--surface)",
+      borderBottom: "1px solid var(--line-softer)",
+    }}>
+      <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: 7, background: "var(--accent)",
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+        }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+        </div>
+        <span style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--foreground)" }}>NextRole</span>
+      </Link>
+    </div>
+  );
+}
+
 function Sidebar({
   email,
   isAdmin,
@@ -71,6 +108,8 @@ function Sidebar({
   creditsRemaining,
   dark,
   toggleDark,
+  collapsed,
+  onToggle,
 }: {
   email: string;
   isAdmin: boolean;
@@ -78,6 +117,8 @@ function Sidebar({
   creditsRemaining: number;
   dark: boolean;
   toggleDark: () => void;
+  collapsed: boolean;
+  onToggle: () => void;
 }) {
   const pathname = usePathname();
   const dailyMax = tier === "pro" ? 300 : tier === "starter" ? 100 : 0;
@@ -100,7 +141,7 @@ function Sidebar({
   return (
     <aside
       style={{
-        width: "var(--sidebar-w)",
+        width: collapsed ? 60 : "var(--sidebar-w)",
         flexShrink: 0,
         background: "var(--surface)",
         borderRight: "1px solid var(--line-soft)",
@@ -108,11 +149,12 @@ function Sidebar({
         flexDirection: "column",
         height: "100%",
         overflow: "hidden",
+        transition: "width 0.2s ease",
       }}
     >
       {/* Brand */}
-      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--line-softer)" }}>
-        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
+      <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--line-softer)", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between" }}>
+        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", minWidth: 0 }}>
           <div
             style={{
               width: 28,
@@ -129,17 +171,35 @@ function Sidebar({
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
           </div>
-          <span
-            style={{
-              fontFamily: "var(--font-display)",
-              fontSize: 17,
-              letterSpacing: "-0.01em",
-              color: "var(--foreground)",
-            }}
-          >
-            NextRole
-          </span>
+          {!collapsed && (
+            <span
+              style={{
+                fontFamily: "var(--font-display)",
+                fontSize: 17,
+                letterSpacing: "-0.01em",
+                color: "var(--foreground)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              NextRole
+            </span>
+          )}
         </Link>
+        <button
+          onClick={onToggle}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            width: 24, height: 24, borderRadius: 5, flexShrink: 0,
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--muted-foreground-2)",
+            marginLeft: collapsed ? 0 : 4,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface-soft)"; (e.currentTarget as HTMLElement).style.color = "var(--foreground)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; (e.currentTarget as HTMLElement).style.color = "var(--muted-foreground-2)"; }}
+        >
+          <CollapseIcon collapsed={collapsed} size={13} />
+        </button>
       </div>
 
       {/* Primary nav */}
@@ -148,10 +208,12 @@ function Sidebar({
           <Link
             key={href}
             href={href}
+            title={collapsed ? label : undefined}
             className={"nr-nav-item" + (isActive(href, pathname) ? " active" : "")}
+            style={collapsed ? { justifyContent: "center", padding: "8px 0" } : {}}
           >
             <Icon size={15} />
-            {label}
+            {!collapsed && label}
           </Link>
         ))}
       </nav>
@@ -164,19 +226,23 @@ function Sidebar({
           <Link
             key={href}
             href={href}
+            title={collapsed ? label : undefined}
             className={"nr-nav-item" + (isActive(href, pathname) ? " active" : "")}
+            style={collapsed ? { justifyContent: "center", padding: "8px 0" } : {}}
           >
             <Icon size={15} />
-            {label}
+            {!collapsed && label}
           </Link>
         ))}
         {isAdmin && (
           <Link
             href="/dashboard/admin"
+            title={collapsed ? "Admin" : undefined}
             className={"nr-nav-item" + (isActive("/dashboard/admin", pathname) ? " active" : "")}
+            style={collapsed ? { justifyContent: "center", padding: "8px 0" } : {}}
           >
             <AdminIcon size={15} />
-            Admin
+            {!collapsed && "Admin"}
           </Link>
         )}
       </nav>
@@ -184,7 +250,7 @@ function Sidebar({
       <div style={{ flex: 1 }} />
 
       {/* Credits pill */}
-      {(tier === "starter" || tier === "pro") && (
+      {!collapsed && !isAdmin && (tier === "starter" || tier === "pro") && (
         <div style={{ padding: "0 10px 10px" }}>
           <Link
             href="/dashboard/billing"
@@ -217,12 +283,14 @@ function Sidebar({
         <div style={{ borderTop: "1px solid var(--line-softer)", paddingTop: 10 }}>
           <button
             onClick={() => setMenuOpen((v) => !v)}
+            title={collapsed ? `${name} (${tier})` : undefined}
             style={{
               display: "flex",
               alignItems: "center",
               gap: 8,
               width: "100%",
-              padding: "6px 6px",
+              padding: collapsed ? "6px 0" : "6px 6px",
+              justifyContent: collapsed ? "center" : undefined,
               borderRadius: 6,
               cursor: "pointer",
               background: menuOpen ? "var(--surface-soft)" : "transparent",
@@ -238,15 +306,19 @@ function Sidebar({
             >
               {initials}
             </div>
-            <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
-              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {name}
-              </div>
-              <div className="nr-small" style={{ fontSize: 10, textTransform: "capitalize" }}>
-                {tier}{isAdmin ? " · Admin" : ""}
-              </div>
-            </div>
-            <ChevronIcon size={12} />
+            {!collapsed && (
+              <>
+                <div style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: "var(--foreground)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {name}
+                  </div>
+                  <div className="nr-small" style={{ fontSize: 10, textTransform: "capitalize" }}>
+                    {tier}{isAdmin ? " · Admin" : ""}
+                  </div>
+                </div>
+                <ChevronIcon size={12} />
+              </>
+            )}
           </button>
         </div>
 
@@ -322,38 +394,60 @@ export function DashboardShell({
   trialEndsAt?: string | null;
 }) {
   const { dark, toggle: toggleDark } = useDarkMode();
+  const isDesktop = useIsDesktop();
   void trialDaysLeft(trialEndsAt); // reserved for future trial UI
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() =>
+    typeof window !== "undefined" && localStorage.getItem("nextrole-sidebar-collapsed") === "true"
+  );
+
+  function toggleSidebar() {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    localStorage.setItem("nextrole-sidebar-collapsed", next ? "true" : "false");
+  }
+
+  const showTopBar = !isDesktop || sidebarCollapsed;
 
   return (
     <div style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--background)" }}>
       <NavigationProgress />
 
-      {/* Sidebar — hidden on mobile */}
-      <div className="hidden md:flex" style={{ height: "100%" }}>
-        <Sidebar
-          email={user.email}
-          isAdmin={isAdmin}
-          tier={tier}
-          creditsRemaining={creditsRemaining}
-          dark={dark}
-          toggleDark={toggleDark}
-        />
+      {/* Sidebar — desktop only (mouse/pointer: fine), collapsible */}
+      {isDesktop && (
+        <div style={{ height: "100%" }}>
+          <Sidebar
+            email={user.email}
+            isAdmin={isAdmin}
+            tier={tier}
+            creditsRemaining={creditsRemaining}
+            dark={dark}
+            toggleDark={toggleDark}
+            collapsed={sidebarCollapsed}
+            onToggle={toggleSidebar}
+          />
+        </div>
+      )}
+
+      {/* Right pane */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        {/* Top bar — shows on mobile/tablet and on desktop when sidebar is collapsed */}
+        {showTopBar && <TopBar />}
+
+        <main
+          style={{
+            flex: 1,
+            overflow: "auto",
+            background: "var(--background)",
+            padding: 32,
+            paddingBottom: !isDesktop ? 80 : 32,
+          }}
+        >
+          {children}
+        </main>
       </div>
 
-      {/* Main content */}
-      <main
-        style={{
-          flex: 1,
-          overflow: "auto",
-          background: "var(--background)",
-          padding: 32,
-        }}
-      >
-        {children}
-      </main>
-
-      {/* Mobile bottom nav */}
-      <MobileNav />
+      {/* Bottom nav — mobile/tablet only (touch devices) */}
+      {!isDesktop && <MobileNav />}
     </div>
   );
 }
@@ -368,7 +462,6 @@ function MobileNav() {
         borderTop: "1px solid var(--line-soft)",
         background: "var(--surface)",
       }}
-      className="md:hidden"
     >
       {NAV_PRIMARY.map(({ label, href, icon: Icon }) => {
         const active = isActive(href, pathname);
@@ -467,6 +560,16 @@ function ChevronIcon({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 9l6 6 6-6"/>
+    </svg>
+  );
+}
+function CollapseIcon({ collapsed, size = 14 }: { collapsed: boolean; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {collapsed
+        ? <path d="M9 18l6-6-6-6"/>
+        : <path d="M15 18l-6-6 6-6"/>
+      }
     </svg>
   );
 }
