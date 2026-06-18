@@ -143,9 +143,10 @@ export function LoginPage({ error, message }: { error?: string; message?: string
 
   async function handleGoogle() {
     const supabase = createClient();
+    const callbackBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${callbackBase}/auth/callback` },
     });
   }
 
@@ -232,9 +233,10 @@ export function SignupPage({ error }: { error?: string }) {
 
   async function handleGoogle() {
     const supabase = createClient();
+    const callbackBase = process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin;
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: `${callbackBase}/auth/callback` },
     });
   }
 
@@ -245,15 +247,20 @@ export function SignupPage({ error }: { error?: string }) {
     setLoading(true);
     setErr("");
     const supabase = createClient();
-    const { error: signUpErr } = await supabase.auth.signUp({
+    const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? window.location.origin}/auth/callback` },
     });
     if (signUpErr) {
       setErr(signUpErr.message);
       setLoading(false);
+    } else if (signUpData.session) {
+      // Email confirmation disabled — session is live immediately.
+      router.push("/onboarding");
+      router.refresh();
     } else {
+      // Email confirmation enabled — user must click the link.
       setDone(true);
     }
   }
