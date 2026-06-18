@@ -971,6 +971,8 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<WorkExperienceEntry | null>(null);
+  const draftRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (editIdx !== null) draftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [editIdx]);
 
   function openNew() {
     setDraft({ role: "", company: "", start: "", end: "", current: false, description: "" });
@@ -1043,7 +1045,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
       )}
 
       {editIdx !== null && draft && (
-        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+        <div ref={draftRef} className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
           <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add experience" : "Edit experience"}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Role / job title">
@@ -1099,6 +1101,8 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<EducationEntry | null>(null);
+  const draftRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (editIdx !== null) draftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [editIdx]);
 
   function openNew() { setDraft({ degree: "", institution: "", field: "", start: "", end: "", grade: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i] }); setEditIdx(i); }
@@ -1150,7 +1154,7 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
         </div>
       )}
       {editIdx !== null && draft && (
-        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+        <div ref={draftRef} className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
           <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add education" : "Edit education"}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Degree"><SuggestionInput field="degree" className={inputCls} value={draft.degree} onChange={(v) => setDraft({ ...draft, degree: v })} placeholder="B.Tech, M.Sc, Class XII, …" /></Field>
@@ -1199,9 +1203,9 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
 
   if (!editing) {
     return (
-      <Card id="skills" title="Key skills" action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}>
+      <Card id="skills" title="Key skills" action={<LinkBtn onClick={() => setEditing(true)}>+ Add skill</LinkBtn>}>
         {(p.skills ?? []).length === 0 ? (
-          <div className="text-[13px] text-[var(--muted-foreground)]">No skills added.</div>
+          <div className="text-[13px] text-[var(--muted-foreground)]">No skills added. <LinkBtn onClick={() => setEditing(true)}>+ Add</LinkBtn></div>
         ) : (
           <div className="flex flex-wrap gap-2">
             {(p.skills ?? []).map((s, i) => (
@@ -1233,6 +1237,8 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<ProjectEntry | null>(null);
+  const draftRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (editIdx !== null) draftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [editIdx]);
 
   function openNew() { setDraft({ title: "", description: "", tech: [], url: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i], tech: entries[i].tech ?? [] }); setEditIdx(i); }
@@ -1287,7 +1293,7 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
         </div>
       )}
       {editIdx !== null && draft && (
-        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+        <div ref={draftRef} className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
           <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add project" : "Edit project"}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Title"><input className={inputCls} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></Field>
@@ -1319,6 +1325,8 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<CertificationEntry | null>(null);
+  const draftRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (editIdx !== null) draftRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [editIdx]);
 
   function openNew() { setDraft({ title: "", issuer: "", year: "", url: "" }); setEditIdx(-1); }
   function openEdit(i: number) { setDraft({ ...entries[i] }); setEditIdx(i); }
@@ -1366,7 +1374,7 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
         </div>
       )}
       {editIdx !== null && draft && (
-        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+        <div ref={draftRef} className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
           <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add certification" : "Edit certification"}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Title"><SuggestionInput field="certification" className={inputCls} value={draft.title} onChange={(v) => setDraft({ ...draft, title: v })} placeholder="AWS Solutions Architect" /></Field>

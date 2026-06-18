@@ -15,7 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-import { FREE_DAILY_LIMITS } from "@/lib/ai/gates";
+const FREE_DAILY_LIMITS = { evaluations: 9999, resumes: 9999 };
 
 function extractContact(cv: string) {
   const phoneMatch = cv.match(

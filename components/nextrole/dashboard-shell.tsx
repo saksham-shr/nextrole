@@ -315,6 +315,7 @@ function Sidebar({
   isAdmin,
   tier,
   creditsRemaining,
+  creditGrantsGiven,
   dark,
   toggleDark,
   collapsed,
@@ -325,6 +326,7 @@ function Sidebar({
   isAdmin: boolean;
   tier: UserTier;
   creditsRemaining: number;
+  creditGrantsGiven: Record<string, boolean>;
   dark: boolean;
   toggleDark: () => void;
   collapsed: boolean;
@@ -333,7 +335,11 @@ function Sidebar({
 }) {
   const pathname = usePathname();
   const dailyMax = tier === "pro" ? 300 : tier === "starter" ? 100 : 0;
-  const creditPct = dailyMax > 0 ? Math.min(100, (creditsRemaining / dailyMax) * 100) : 0;
+  // Free tier earns up to 100 credits via actions; use that as the display cap
+  const freeCap = 100;
+  const creditPct = dailyMax > 0
+    ? Math.min(100, (creditsRemaining / dailyMax) * 100)
+    : Math.min(100, (creditsRemaining / freeCap) * 100);
   const initials = displayName(email).charAt(0).toUpperCase();
   const name = displayName(email);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -494,11 +500,11 @@ function Sidebar({
         </div>
       )}
 
-      {/* Credits pill */}
-      {!collapsed && !isAdmin && (tier === "starter" || tier === "pro") && (
+      {/* Credits pill — shown for all tiers (free earns via actions, paid get daily refresh) */}
+      {!collapsed && !isAdmin && (
         <div style={{ padding: "0 10px 10px" }}>
           <Link
-            href="/dashboard/billing"
+            href={tier === "free" ? "/dashboard" : "/dashboard/billing"}
             style={{
               display: "block",
               padding: "10px 12px",
@@ -513,7 +519,7 @@ function Sidebar({
                 Credits
               </span>
               <span className="nr-small" style={{ fontFamily: "var(--font-mono-stack)" }}>
-                {creditsRemaining}/{dailyMax}
+                {tier === "free" ? creditsRemaining : `${creditsRemaining}/${dailyMax}`}
               </span>
             </div>
             <div className="nr-progress">
@@ -636,6 +642,7 @@ export function DashboardShell({
   creditsRemaining = 0,
   trialEndsAt = null,
   referralCode = null,
+  creditGrantsGiven = {},
 }: {
   children: ReactNode;
   user: { email: string };
@@ -644,6 +651,7 @@ export function DashboardShell({
   creditsRemaining?: number;
   trialEndsAt?: string | null;
   referralCode?: string | null;
+  creditGrantsGiven?: Record<string, boolean>;
 }) {
   const { dark, toggle: toggleDark } = useDarkMode();
   const isDesktop = useIsDesktop();
@@ -672,6 +680,7 @@ export function DashboardShell({
             isAdmin={isAdmin}
             tier={tier}
             creditsRemaining={creditsRemaining}
+            creditGrantsGiven={creditGrantsGiven}
             dark={dark}
             toggleDark={toggleDark}
             collapsed={sidebarCollapsed}

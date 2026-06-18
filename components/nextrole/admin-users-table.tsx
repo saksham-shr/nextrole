@@ -13,6 +13,7 @@ export type AdminUserRow = {
   tier: UserTier;
   credits: number;
   subscriptionEndsAt: string | null;
+  referredBy?: string | null;
 };
 
 function formatDate(value: string | null | undefined) {
@@ -67,7 +68,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
         <table className="min-w-full border-collapse">
           <thead className="bg-[var(--surface-soft)]">
             <tr>
-              {["Email", "Tier", "Credits", "Signed up", "Last seen", ""].map((h) => (
+              {["Email", "Tier", "Credits", "Referred by", "Signed up", "Last seen", ""].map((h) => (
                 <th
                   key={h}
                   className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
@@ -80,7 +81,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
           <tbody>
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-[13px] text-[var(--muted-foreground)]">
+                <td colSpan={7} className="px-4 py-8 text-center text-[13px] text-[var(--muted-foreground)]">
                   No users match this search.
                 </td>
               </tr>
@@ -89,6 +90,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 <td className="px-4 py-3 text-[13px] font-medium">{u.email}</td>
                 <td className="px-4 py-3">{tierBadge(u.tier)}</td>
                 <td className="px-4 py-3 font-mono text-[12px]">{u.credits}</td>
+                <td className="px-4 py-3 font-mono text-[11px] text-[var(--muted-foreground)]">{u.referredBy ?? "—"}</td>
                 <td className="px-4 py-3 text-[12px] text-[var(--muted-foreground)]">{formatDate(u.createdAt)}</td>
                 <td className="px-4 py-3 text-[12px] text-[var(--muted-foreground)]">{formatDate(u.lastSignInAt)}</td>
                 <td className="px-4 py-3 text-right">

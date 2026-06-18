@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { CreditsEarnTracker } from "@/components/nextrole/credits-earn-tracker";
 
 type TopJob = {
   id: string;
@@ -73,6 +75,7 @@ export function DashboardHome({
   kpis,
   attentionItems: _attentionItems,
   topJobs,
+  creditGrantsGiven = {},
 }: {
   userName: string;
   hasCV: boolean;
@@ -89,7 +92,9 @@ export function DashboardHome({
   };
   attentionItems: Array<{ title: string; body: string; href: string; tone: "warn" | "default" }>;
   topJobs: TopJob[];
+  creditGrantsGiven?: Record<string, boolean>;
 }) {
+  const [creditsOpen, setCreditsOpen] = useState(false);
   const dailyMax = tier === "pro" ? 300 : tier === "starter" ? 100 : 0;
   const creditPct = dailyMax > 0 ? Math.min(100, (creditsRemaining / dailyMax) * 100) : 0;
   const isEmpty = !hasJobs;
@@ -101,6 +106,26 @@ export function DashboardHome({
         <h1 className="nr-display" style={{ fontSize: 26 }}>Welcome back, {userName}</h1>
         <span className="nr-small" style={{ marginLeft: "auto" }} suppressHydrationWarning>{dateLabel()}</span>
       </header>
+
+      {/* Upgrade banner — free tier only */}
+      {tier === "free" && (
+        <div style={{
+          display: "flex", alignItems: "center", gap: 14,
+          padding: "11px 16px", marginBottom: 20,
+          background: "var(--accent-soft)", border: "1px solid var(--accent-border)",
+          borderRadius: 8,
+        }}>
+          <div style={{ flex: 1, fontSize: 13 }}>
+            You&apos;re on the free plan — earn up to 100 credits via profile actions, or upgrade for 100–300 credits/day.
+          </div>
+          <Link href="/dashboard/billing" style={{
+            flexShrink: 0, fontSize: 13, fontWeight: 600,
+            color: "var(--accent)", textDecoration: "none", whiteSpace: "nowrap",
+          }}>
+            Upgrade →
+          </Link>
+        </div>
+      )}
 
       {/* Extension nudge — only for new users */}
       {isEmpty && (
@@ -146,9 +171,10 @@ export function DashboardHome({
           {tier === "free" ? (
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span className="nr-display" style={{ fontSize: 36 }}>—</span>
+                <span className="nr-display" style={{ fontSize: 36 }}>{creditsRemaining}</span>
                 <span className="nr-pill nr-pill-soft" style={{ fontSize: 11 }}>Free</span>
               </div>
+              <div className="nr-small" style={{ marginBottom: 6 }}>Earn up to 100 cr via actions</div>
               <Link href="/dashboard/billing" style={{ fontSize: 13, color: "var(--accent)" }}>Upgrade for daily credits →</Link>
             </>
           ) : (
@@ -230,6 +256,51 @@ export function DashboardHome({
               })}
             </tbody>
           </table>
+        )}
+      </div>
+
+      {/* Earn credits tracker — free tier only */}
+      {tier === "free" && (
+        <CreditsEarnTracker creditGrantsGiven={creditGrantsGiven} />
+      )}
+
+      {/* How credits work — collapsible */}
+      <div className="nr-card" style={{ marginBottom: 16, overflow: "hidden" }}>
+        <button
+          type="button"
+          onClick={() => setCreditsOpen(v => !v)}
+          style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            width: "100%", padding: "13px 20px", textAlign: "left",
+            background: "none", border: "none", cursor: "pointer",
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 600 }}>How credits work</span>
+          <svg
+            width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="2"
+            style={{ transform: creditsOpen ? "rotate(180deg)" : undefined, transition: "transform 0.2s" }}
+          >
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        {creditsOpen && (
+          <div style={{ borderTop: "1px solid var(--line-softer)", padding: "14px 20px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+              {[
+                { tier: "Free", desc: "Earn up to 100 credits by completing profile actions. Never resets." },
+                { tier: "Starter", desc: "100 credits refreshed daily while your subscription is active." },
+                { tier: "Pro", desc: "300 credits refreshed daily + buy top-up packs anytime." },
+              ].map(t => (
+                <div key={t.tier} style={{ background: "var(--surface-soft)", borderRadius: 8, padding: "12px 14px" }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--font-mono-stack)", marginBottom: 4 }}>{t.tier}</div>
+                  <div className="nr-small">{t.desc}</div>
+                </div>
+              ))}
+            </div>
+            <div className="nr-small" style={{ color: "var(--muted-foreground)" }}>
+              Credit costs: Evaluate 5 cr · Tailor resume 8 cr · Autofill 2 cr · Standard resume 10 cr
+            </div>
+          </div>
         )}
       </div>
 

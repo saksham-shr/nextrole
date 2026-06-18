@@ -3,14 +3,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { BrandWordmark } from "@/components/nextrole/brand";
-import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
-import { useToast } from "@/components/nextrole/toast";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-type Period = "monthly" | "yearly";
-type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
-type TierId = "free" | "starter" | "pro";
+type Step = 1 | 3 | 4 | 5 | 6 | 7;
 type CvStage = "upload" | "uploading" | "parsing" | "review" | "paste";
 
 interface CvExtracted {
@@ -21,66 +17,7 @@ interface CvExtracted {
   work_experience?: Array<{ start?: string | null; end?: string | null }>;
 }
 
-// ── Razorpay ─────────────────────────────────────────────────────────────────
-
-const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
-
-interface RzpSubscriptionOptions {
-  key: string; subscription_id: string;
-  name: string; description: string; prefill: { email: string };
-  theme: { color: string };
-  handler: (res: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => void;
-  modal: { ondismiss: () => void };
-}
-interface RzpOrderOptions {
-  key: string; amount: number; currency: string; order_id: string;
-  name: string; description: string; prefill: { email: string };
-  theme: { color: string };
-  handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
-  modal: { ondismiss: () => void };
-}
-declare global { interface Window { Razorpay: new (o: RzpSubscriptionOptions | RzpOrderOptions) => { open(): void } } }
-
-// ── Plan data ─────────────────────────────────────────────────────────────────
-
-const TIERS = [
-  {
-    id: "free" as TierId,
-    name: "Free",
-    inrMonthly: 0,
-    inrYearly: 0,
-    badge: null,
-    features: ["AI job scoring", "Job tracker", "CV management", "Browser extension", "5 job slots"],
-    cta: "Select Free",
-    primary: false,
-  },
-  {
-    id: "starter" as TierId,
-    name: "Starter",
-    inrMonthly: INR_PRICES.starter_monthly,
-    inrYearly: INR_PRICES.starter_yearly,
-    badge: null,
-    features: ["Everything in Free", "100 credits / day", "25 job slots", "Tailored resumes", "Job evaluation"],
-    cta: "Select Starter",
-    primary: false,
-  },
-  {
-    id: "pro" as TierId,
-    name: "Pro",
-    inrMonthly: INR_PRICES.pro_monthly,
-    inrYearly: INR_PRICES.pro_yearly,
-    badge: "Most Popular",
-    features: ["Everything in Starter", "300 credits / day", "Unlimited autofill", "Premium resumes", "Unlimited job slots"],
-    cta: "Select Pro",
-    primary: true,
-  },
-] as const;
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function yearlyDiscount(monthly: number, yearly: number) {
-  return Math.round(((monthly - yearly / 12) / monthly) * 100);
-}
 
 function trialDaysLeft(endsAt: string | null): number | null {
   if (!endsAt) return null;
@@ -173,7 +110,6 @@ function ChipInput({ chips, onAdd, onRemove, placeholder }: {
         value={input}
         onChange={e => setInput(e.target.value)}
         onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); } }}
-        onBlur={commit}
         placeholder={chips.length === 0 ? (placeholder ?? "Add an item…") : "Add more…"}
         style={{ flex: 1, minWidth: 120, height: 28, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--foreground)" }}
       />
@@ -202,6 +138,118 @@ function ScoreBar({ applyThreshold, watchThreshold }: { applyThreshold: number; 
   );
 }
 
+// ── Module-level layout primitives (stable references = no remount on re-render) ──
+
+const dotGrid = {
+  backgroundColor: "var(--background)",
+  backgroundImage: "radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px)",
+  backgroundSize: "6px 6px",
+};
+
+function PageShell({ children, daysLeft }: { children: ReactNode; daysLeft: number | null }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10" style={dotGrid}>
+      {daysLeft !== null && (
+        <span className="mb-5 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+          {daysLeft}d trial active
+        </span>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function BrandRow({ displayStep }: { displayStep: number }) {
+  return (
+    <div className="flex items-center justify-between mb-3.5">
+      <BrandWordmark size={24} />
+      <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--muted-foreground-2)]">Step {displayStep} of 6</span>
+    </div>
+  );
+}
+
+function ProgressBar({ displayStep }: { displayStep: number }) {
+  return (
+    <div className="h-[3px] w-full rounded-full overflow-hidden mb-8" style={{ background: "rgba(42,38,32,0.08)" }}>
+      <div className="h-full rounded-full transition-all" style={{ width: `${(displayStep / 6) * 100}%`, background: "var(--accent)" }} />
+    </div>
+  );
+}
+
+// Type B — centered single column with top bar + progress + heading
+function TypeB({ width, title, subtitle, children, footer, daysLeft, displayStep }: {
+  width: number; title: string; subtitle: string; children: ReactNode; footer: ReactNode;
+  daysLeft: number | null; displayStep: number;
+}) {
+  return (
+    <PageShell daysLeft={daysLeft}>
+      <div style={{ width, maxWidth: "100%" }}>
+        <BrandRow displayStep={displayStep} />
+        <ProgressBar displayStep={displayStep} />
+        <h1 className="nr-display text-center text-[36px] mb-2">{title}</h1>
+        <p className="text-center text-sm mb-6" style={{ color: "var(--muted-foreground)" }}>{subtitle}</p>
+        <div className="rounded-[20px] border p-6" style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+          {children}
+        </div>
+        <div className="flex items-center justify-between mt-5.5">
+          {footer}
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+// Type A — 40/60 split panel card
+function TypeA({ ghost, leftBody, rightLabel, children, cta, daysLeft }: {
+  ghost: string; leftBody: ReactNode; rightLabel?: string; children: ReactNode; cta: ReactNode;
+  daysLeft: number | null;
+}) {
+  return (
+    <PageShell daysLeft={daysLeft}>
+      <div
+        className="w-full flex flex-col md:flex-row overflow-hidden rounded-[20px] border"
+        style={{ maxWidth: 980, minHeight: 0, borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
+      >
+        <div className="flex-none md:basis-[40%] relative overflow-hidden flex flex-col p-9 md:p-10" style={{ background: "#1a1814", color: "#fffdf8" }}>
+          <span className="nr-display absolute pointer-events-none select-none" style={{ top: 4, left: 28, fontSize: 72, lineHeight: 1, color: "rgba(255,255,255,0.05)" }}>{ghost}</span>
+          <div className="relative z-10">
+            <BrandWordmark size={24} />
+          </div>
+          <div className="relative z-10 mt-auto pt-10">
+            {leftBody}
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col p-9 md:p-11" style={dotGrid}>
+          {rightLabel && (
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-5" style={{ color: "var(--muted-foreground)" }}>{rightLabel}</div>
+          )}
+          <div className="flex-1 flex flex-col justify-center">
+            {children}
+          </div>
+          <div className="flex justify-end mt-4">
+            {cta}
+          </div>
+        </div>
+      </div>
+    </PageShell>
+  );
+}
+
+// Stable text input — at module scope so it never remounts on parent re-render
+function TextInput({ value, onChange, placeholder, type = "text" }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
+}) {
+  return (
+    <input
+      type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      className="w-full h-[38px] px-3 text-sm rounded-[6px] outline-none transition-colors"
+      style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }}
+      onFocus={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"; }}
+      onBlur={e => { e.currentTarget.style.borderColor = "rgba(42,38,32,0.18)"; e.currentTarget.style.boxShadow = "none"; }}
+    />
+  );
+}
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface Props {
@@ -212,9 +260,8 @@ interface Props {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Props) {
+export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free" }: Props) {
   const router = useRouter();
-  const toast = useToast();
   const hasPlan = currentTier !== "free";
 
   const [step, setStep]   = useState<Step>(hasPlan ? 3 : 1);
@@ -223,14 +270,8 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   const [skipped, setSkipped] = useState<{ cv?: boolean; prefs?: boolean; thresholds?: boolean }>({});
 
   const daysLeft = trialDaysLeft(trialEndsAt);
-
-  // Step 2 — Plan
-  const [period, setPeriod]     = useState<Period>("monthly");
-  const [selectedPlan, setSelectedPlan] = useState<TierId>("pro");
-  const [planLoading, setPlanLoading] = useState<TierId | null>(null);
-  const scriptLoaded = useRef(false);
-  const { price, currency, loading: currencyLoading } = useCurrency();
-  const toggleDiscount = yearlyDiscount(INR_PRICES.pro_monthly, INR_PRICES.pro_yearly);
+  // step 1→1, step 3→2, step 4→3, step 5→4, step 6→5, step 7→6
+  const displayStep = step === 1 ? 1 : step - 1;
 
   // Step 3 — CV upload
   const [cvStage, setCvStage]         = useState<CvStage>("upload");
@@ -253,13 +294,6 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   const [applyScore, setApplyScore] = useState(3.5);
   const [watchScore, setWatchScore] = useState(2.5);
 
-  useEffect(() => {
-    if (scriptLoaded.current || document.getElementById("rzp-script")) { scriptLoaded.current = true; return; }
-    const s = document.createElement("script");
-    s.id = "rzp-script"; s.src = "https://checkout.razorpay.com/v1/checkout.js"; s.async = true;
-    document.body.appendChild(s); scriptLoaded.current = true;
-  }, []);
-
   // ── API helpers ────────────────────────────────────────────────────────────
 
   async function patchProfile(data: Record<string, unknown>) {
@@ -275,7 +309,6 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   }
 
   async function completeOnboarding() {
-    // Auto-apply referral code from signup link
     const refCode = typeof window !== "undefined" ? localStorage.getItem("nr_referral_code") : null;
     if (refCode) {
       await fetch("/api/referral/apply", {
@@ -284,60 +317,10 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
       }).catch(() => {});
       localStorage.removeItem("nr_referral_code");
     }
-
     await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
   }
 
-  // ── Step 2: Plan handlers ──────────────────────────────────────────────────
-
-  async function handleFree() {
-    setPlanLoading("free");
-    setStep(3);
-    setPlanLoading(null);
-  }
-
-  async function handlePaidTier(tierId: "starter" | "pro") {
-    setPlanLoading(tierId);
-    try {
-      const res = await fetch("/api/razorpay/create-order", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "subscription", plan: tierId, period }),
-      });
-      const data = await res.json() as { subscription_id?: string; key_id?: string; error?: string };
-      if (!data.subscription_id) { toast.error(data.error ?? "Could not create subscription"); setPlanLoading(null); return; }
-
-      const rzp = new window.Razorpay({
-        key: data.key_id ?? RZP_KEY,
-        subscription_id: data.subscription_id,
-        name: "NextRole",
-        description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
-        prefill: { email }, theme: { color: "#c84a1f" },
-        handler: async (paymentRes) => {
-          const verify = await fetch("/api/razorpay/verify-payment", {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...paymentRes, type: "subscription", plan: tierId, period }),
-          });
-          const result = await verify.json() as { ok?: boolean; error?: string };
-          if (result.ok) {
-            setStep(3);
-            setPlanLoading(null);
-          } else {
-            toast.error(result.error ?? "Payment verification failed");
-            setPlanLoading(null);
-          }
-        },
-        modal: { ondismiss: () => setPlanLoading(null) },
-      } as RzpSubscriptionOptions);
-      rzp.open();
-    } catch { setPlanLoading(null); }
-  }
-
-  function handlePlanContinue() {
-    if (selectedPlan === "free") void handleFree();
-    else void handlePaidTier(selectedPlan);
-  }
-
-  // ── Step 3: CV upload / parse — mirrors the Profile page's CV card ────────
+  // ── Step 3: CV upload / parse ─────────────────────────────────────────────
 
   async function parseCv() {
     setCvStage("parsing");
@@ -447,96 +430,13 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     router.push("/dashboard");
   }
 
-  // ── Shared layout pieces ──────────────────────────────────────────────────
-
-  const dotGrid = { backgroundColor: "var(--background)", backgroundImage: "radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "6px 6px" };
-
-  function PageShell({ children }: { children: ReactNode }) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10" style={dotGrid}>
-        {daysLeft !== null && (
-          <span className="mb-5 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
-            {daysLeft}d trial active
-          </span>
-        )}
-        {children}
-      </div>
-    );
+  async function handleCompleteAndGo(href: string) {
+    setBusy(true);
+    await completeOnboarding();
+    router.push(href);
   }
 
-  function BrandRow() {
-    return (
-      <div className="flex items-center justify-between mb-3.5">
-        <BrandWordmark size={24} />
-        <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--muted-foreground-2)]">Step {step} of 7</span>
-      </div>
-    );
-  }
-
-  function ProgressBar() {
-    return (
-      <div className="h-[3px] w-full rounded-full overflow-hidden mb-8" style={{ background: "rgba(42,38,32,0.08)" }}>
-        <div className="h-full rounded-full transition-all" style={{ width: `${(step / 7) * 100}%`, background: "var(--accent)" }} />
-      </div>
-    );
-  }
-
-  // Type B — centered single column with top bar + progress + heading
-  function TypeB({ width, title, subtitle, children, footer }: {
-    width: number; title: string; subtitle: string; children: ReactNode; footer: ReactNode;
-  }) {
-    return (
-      <PageShell>
-        <div style={{ width, maxWidth: "100%" }}>
-          <BrandRow />
-          <ProgressBar />
-          <h1 className="nr-display text-center text-[36px] mb-2">{title}</h1>
-          <p className="text-center text-sm mb-6" style={{ color: "var(--muted-foreground)" }}>{subtitle}</p>
-          <div className="rounded-[20px] border p-6" style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
-            {children}
-          </div>
-          <div className="flex items-center justify-between mt-5.5">
-            {footer}
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
-
-  // Type A — 40/60 split panel card
-  function TypeA({ ghost, leftBody, rightLabel, children, cta }: {
-    ghost: string; leftBody: ReactNode; rightLabel?: string; children: ReactNode; cta: ReactNode;
-  }) {
-    return (
-      <PageShell>
-        <div
-          className="w-full flex flex-col md:flex-row overflow-hidden rounded-[20px] border"
-          style={{ maxWidth: 980, minHeight: 0, borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
-        >
-          <div className="flex-none md:basis-[40%] relative overflow-hidden flex flex-col p-9 md:p-10" style={{ background: "#1a1814", color: "#fffdf8" }}>
-            <span className="nr-display absolute pointer-events-none select-none" style={{ top: 4, left: 28, fontSize: 72, lineHeight: 1, color: "rgba(255,255,255,0.05)" }}>{ghost}</span>
-            <div className="relative z-10">
-              <BrandWordmark size={24} />
-            </div>
-            <div className="relative z-10 mt-auto pt-10">
-              {leftBody}
-            </div>
-          </div>
-          <div className="flex-1 flex flex-col p-9 md:p-11" style={dotGrid}>
-            {rightLabel && (
-              <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-5" style={{ color: "var(--muted-foreground)" }}>{rightLabel}</div>
-            )}
-            <div className="flex-1 flex flex-col justify-center">
-              {children}
-            </div>
-            <div className="flex justify-end mt-4">
-              {cta}
-            </div>
-          </div>
-        </div>
-      </PageShell>
-    );
-  }
+  // ── Inner UI helpers (no interactive inputs — safe to define inside) ───────
 
   function PrimaryButton({ children, onClick, disabled }: { children: ReactNode; onClick?: () => void; disabled?: boolean }) {
     return (
@@ -577,20 +477,6 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     );
   }
 
-  function TextInput({ value, onChange, placeholder, type = "text" }: {
-    value: string; onChange: (v: string) => void; placeholder?: string; type?: string;
-  }) {
-    return (
-      <input
-        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-        className="w-full h-[38px] px-3 text-sm rounded-[6px] outline-none transition-colors"
-        style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }}
-        onFocus={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"; }}
-        onBlur={e => { e.currentTarget.style.borderColor = "rgba(42,38,32,0.18)"; e.currentTarget.style.boxShadow = "none"; }}
-      />
-    );
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
   // STEP 1 — Welcome (Type A)
   // ═══════════════════════════════════════════════════════════════════════════
@@ -605,6 +491,7 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
       <TypeA
         ghost="01"
         rightLabel="What you get"
+        daysLeft={daysLeft}
         leftBody={
           <>
             <div className="relative h-[120px] mb-7 hidden sm:block">
@@ -629,7 +516,7 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>Your AI-powered job search co-pilot.</p>
           </>
         }
-        cta={<PrimaryButton onClick={() => setStep(hasPlan ? 3 : 2)}>Get started</PrimaryButton>}
+        cta={<PrimaryButton onClick={() => setStep(3)}>Get started</PrimaryButton>}
       >
         <div className="flex flex-col gap-5">
           {[
@@ -652,105 +539,6 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 2 — Choose your plan (Type B)
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  if (step === 2) {
-    return (
-      <TypeB
-        width={900}
-        title="Choose your plan"
-        subtitle="Start free. Upgrade whenever you need more credits."
-        footer={
-          <>
-            <TextButton onClick={() => setStep(1)}>Back</TextButton>
-            <PrimaryButton onClick={handlePlanContinue} disabled={!!planLoading}>
-              {planLoading ? "Processing…" : `Continue with ${TIERS.find(t => t.id === selectedPlan)?.name}`}
-            </PrimaryButton>
-          </>
-        }
-      >
-        <div className="flex justify-center mb-6">
-          <div className="inline-flex rounded-full p-[3px]" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>
-            {(["monthly", "yearly"] as Period[]).map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                className="h-[30px] px-4.5 rounded-full text-[13px] font-medium transition"
-                style={{ background: period === p ? "var(--surface)" : "transparent", color: period === p ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                {p === "monthly" ? "Monthly" : (
-                  <>Yearly <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold ml-1" style={{ background: "var(--ok-bg)", color: "var(--ok)" }}>-{toggleDiscount}%</span></>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {TIERS.map(tier => {
-            const selected = selectedPlan === tier.id;
-            let displayPrice: ReactNode;
-            let displaySub = "";
-
-            if (tier.inrMonthly === 0) {
-              displayPrice = "₹0";
-            } else if (period === "yearly") {
-              const perMo = Math.round(tier.inrYearly / 12);
-              displayPrice = currencyLoading ? <span className="animate-pulse" style={{ color: "var(--muted-foreground-2)" }}>—</span> : price(perMo).display;
-              displaySub = currencyLoading ? "/mo · yearly" : `/mo · ${price(tier.inrYearly).display}/yr`;
-            } else {
-              displayPrice = currencyLoading ? <span className="animate-pulse" style={{ color: "var(--muted-foreground-2)" }}>—</span> : price(tier.inrMonthly).display;
-              displaySub = "/mo";
-            }
-
-            return (
-              <div key={tier.id} onClick={() => setSelectedPlan(tier.id)}
-                className="relative flex flex-col rounded-[20px] p-6 cursor-pointer transition-colors"
-                style={{
-                  background: "var(--surface)",
-                  border: `1px solid ${selected ? "rgba(200,74,31,0.55)" : "var(--line-soft)"}`,
-                  boxShadow: tier.primary ? "0 4px 12px rgba(0,0,0,0.07)" : "0 1px 3px rgba(0,0,0,0.08)",
-                }}>
-                {tier.badge && (
-                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em]"
-                    style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)", color: "var(--muted-foreground)" }}>
-                    {tier.badge}
-                  </span>
-                )}
-                <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3.5" style={{ color: "var(--muted-foreground)" }}>{tier.name}</p>
-                <div className="flex items-baseline gap-1">
-                  <span className="text-[32px] font-bold" style={{ color: "var(--foreground)" }}>{displayPrice}</span>
-                  {tier.inrMonthly > 0 && <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{displaySub}</span>}
-                </div>
-                <div className="h-3.5 mt-0.5 font-mono text-[11px]" style={{ color: "var(--muted-foreground-2)" }}>
-                  {!currencyLoading && currency.code !== "INR" && tier.inrMonthly > 0 ? "approx" : " "}
-                </div>
-                <hr className="my-4" style={{ borderColor: "var(--line-soft)" }} />
-                <ul className="flex-1 flex flex-col gap-2.5">
-                  {tier.features.map(f => (
-                    <li key={f} className="flex items-center gap-2.5 text-[13px]" style={{ color: "var(--foreground)" }}>
-                      <CheckBullet />{f}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  className="mt-5 h-[42px] rounded-full text-sm font-medium transition"
-                  style={tier.primary
-                    ? { background: "var(--accent)", color: "#fffdf8", border: "none", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)" }
-                    : { background: "var(--surface)", color: "var(--foreground)", border: "1px solid var(--line-soft)" }}
-                >
-                  {selected ? "Selected" : tier.cta}
-                </button>
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-center font-mono text-[10px] uppercase tracking-[0.14em] mt-6" style={{ color: "var(--muted-foreground-2)" }}>
-          No credit card required · Cancel anytime
-        </p>
-      </TypeB>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
   // STEP 3 — Upload your CV (Type B)
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -767,6 +555,8 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
         width={640}
         title="Upload your CV"
         subtitle="We'll read it once and pre-fill your profile and preferences."
+        daysLeft={daysLeft}
+        displayStep={displayStep}
         footer={
           <>
             <TextButton onClick={() => { setSkipped(s => ({ ...s, cv: true })); setStep(4); }}>Skip for now</TextButton>
@@ -904,6 +694,8 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
         width={640}
         title="Job preferences"
         subtitle="Tell us what you're looking for so the AI scores the right jobs."
+        daysLeft={daysLeft}
+        displayStep={displayStep}
         footer={
           <>
             <TextButton onClick={handlePrefsSkip}>Skip for now</TextButton>
@@ -961,6 +753,8 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
         width={760}
         title="How AI scores jobs"
         subtitle="Every job is scored 1 to 5 across five dimensions."
+        daysLeft={daysLeft}
+        displayStep={displayStep}
         footer={
           <>
             <TextButton onClick={handleThresholdsSkip}>Use defaults</TextButton>
@@ -1054,6 +848,7 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     return (
       <TypeA
         ghost="06"
+        daysLeft={daysLeft}
         leftBody={
           <>
             <div className="flex flex-col gap-2.5 mb-7">
@@ -1094,8 +889,8 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
             </div>
           ))}
           <div className="rounded-[10px] px-4 py-3.5 mt-1" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>
-            <div className="font-mono text-[10px] tracking-[0.16em] uppercase mb-1.5" style={{ color: "var(--muted-foreground)" }}>Credits reset daily</div>
-            <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Free: 5 evaluations/day · Starter: 100 credits/day · Pro: 300 credits/day</div>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase mb-1.5" style={{ color: "var(--muted-foreground)" }}>Credits</div>
+            <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Earn up to 100 free credits · Starter: 100 credits/day · Pro: 300 credits/day</div>
           </div>
         </div>
       </TypeA>
@@ -1123,6 +918,7 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   return (
     <TypeA
       ghost="07"
+      daysLeft={daysLeft}
       leftBody={
         <>
           <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6.5" style={{ background: "var(--ok)" }}>
@@ -1158,16 +954,22 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
       </div>
       <div className="grid grid-cols-2 gap-2.5">
         {quickActions.map(a => (
-          <a key={a.label} href={a.href} className="rounded-xl p-4 block no-underline transition-shadow"
-            style={{ background: "var(--surface)", border: "1px solid var(--line-soft)" }}
+          <button
+            key={a.label}
+            type="button"
+            onClick={() => void handleCompleteAndGo(a.href)}
+            disabled={busy}
+            className="rounded-xl p-4 text-left transition-shadow disabled:opacity-50"
+            style={{ background: "var(--surface)", border: "1px solid var(--line-soft)", cursor: "pointer" }}
             onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)")}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}>
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
+          >
             <div className="flex items-center justify-between">
               <span className="text-[13px] font-semibold" style={{ color: "var(--foreground)" }}>{a.label}</span>
               <span style={{ color: "var(--accent)" }}>→</span>
             </div>
             <div className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{a.desc}</div>
-          </a>
+          </button>
         ))}
       </div>
     </TypeA>

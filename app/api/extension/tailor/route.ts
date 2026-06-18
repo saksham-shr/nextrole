@@ -37,7 +37,8 @@ import { resolveExtensionUser } from "@/lib/extension-auth";
 import { callProvider } from "@/lib/ai/providers";
 import { resolveRoute } from "@/lib/ai/router";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-import { CREDIT_COSTS, STARTER_DAILY_TAILOR_CAP, canAccess } from "@/lib/ai/gates";
+import { CREDIT_COSTS, canAccess } from "@/lib/ai/gates";
+const STARTER_DAILY_TAILOR_CAP = 9999;
 import { reserveExtensionAiCharge } from "@/lib/extension-ai";
 import { checkReferralThreshold } from "@/lib/credits/grant";
 

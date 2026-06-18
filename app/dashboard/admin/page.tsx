@@ -128,7 +128,7 @@ export default async function AdminDashboardPage({
     admin.from("jobs").select("*", { count: "exact", head: true }),
     admin.from("evaluations").select("*", { count: "exact", head: true }),
     admin.from("resumes").select("*", { count: "exact", head: true }),
-    admin.from("profiles").select("id, tier, daily_credits, topup_credits, subscription_ends_at"),
+    admin.from("profiles").select("id, tier, daily_credits, topup_credits, subscription_ends_at, referred_by"),
     admin.from("invites").select("*").order("created_at", { ascending: false }),
     admin.from("admin_audit_log").select("*").order("created_at", { ascending: false }).limit(200),
     admin.from("profiles").select("created_at").gte("created_at", sevenDaysAgo),
@@ -138,12 +138,13 @@ export default async function AdminDashboardPage({
   ]);
 
   // ── Build user list joined with profile data ─────────────────────────────
-  const profilesById = new Map<string, { tier: UserTier; credits: number; subscriptionEndsAt: string | null }>();
+  const profilesById = new Map<string, { tier: UserTier; credits: number; subscriptionEndsAt: string | null; referredBy: string | null }>();
   for (const p of (profilesResult.data ?? [])) {
     profilesById.set(p.id, {
       tier: (p.tier as UserTier) ?? "free",
       credits: (p.daily_credits ?? 0) + (p.topup_credits ?? 0),
       subscriptionEndsAt: (p.subscription_ends_at as string | null) ?? null,
+      referredBy: (p.referred_by as string | null) ?? null,
     });
   }
 
@@ -160,6 +161,7 @@ export default async function AdminDashboardPage({
         tier: p?.tier ?? "free",
         credits: p?.credits ?? 0,
         subscriptionEndsAt: p?.subscriptionEndsAt ?? null,
+        referredBy: p?.referredBy ?? null,
       };
     });
 

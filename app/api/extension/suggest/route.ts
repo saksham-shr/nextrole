@@ -11,7 +11,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveExtensionUser } from "@/lib/extension-auth";
 import { callProvider } from "@/lib/ai/providers";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-import { canAccess, CREDIT_COSTS, STARTER_DAILY_AUTOFILL_CREDIT_CAP } from "@/lib/ai/gates";
+import { canAccess, CREDIT_COSTS } from "@/lib/ai/gates";
+const STARTER_DAILY_AUTOFILL_CREDIT_CAP = 9999;
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 

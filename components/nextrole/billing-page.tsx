@@ -672,11 +672,10 @@ export function BillingPage({
 
         {/* Usage grid */}
         {tier === "free" ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <UsageCell label="Evaluations today" value={`${Math.max(0, 5 - usage.evaluationsToday)} / 5`} sub="5 free per day" warn={usage.evaluationsToday >= 5} />
-            <UsageCell label="Resumes today"     value={`${Math.max(0, 1 - usage.resumesToday)} / 1`}     sub="1 free per day" warn={usage.resumesToday >= 1} />
-            <UsageCell label="Bonus credits"     value={String(signupCredits)}                             sub="Earned via actions" />
-            <UsageCell label="Autofill"           value="—"                                                sub="Starter required" locked />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <UsageCell label="Credits earned"    value={String(signupCredits)}           sub="Via profile actions (up to 100)" />
+            <UsageCell label="Credits remaining" value={String(usage.creditsRemaining)}  sub="Available to spend" />
+            <UsageCell label="Autofill"          value="—"                               sub="Starter required" locked />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -771,7 +770,7 @@ export function BillingPage({
         <PlanCard
           name="Free" price="₹0" priceSub="forever"
           current={tier === "free"}
-          features={["5 evaluations / day", "1 resume / day", "Unlimited pipeline", "Browser extension"]}
+          features={["Up to 100 earned credits", "Unlimited pipeline", "Browser extension"]}
           locked={["Daily credits", "Autofill forms", "Premium resume"]}
           cta={tier === "free" ? "Current plan" : undefined}
           ctaDisabled

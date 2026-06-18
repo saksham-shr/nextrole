@@ -18,27 +18,6 @@ export const CREDIT_COSTS = {
 
 export type CreditTask = keyof typeof CREDIT_COSTS;
 
-// Free-tier daily hard limits (no credit system — just usage counters)
-export const FREE_DAILY_LIMITS = {
-  evaluations: 5,
-  resumes:     1,   // standard only; premium not available on free
-  autofills:   0,
-} as const;
-
-// Starter daily autofill credit cap (resets at midnight)
-// 16 credits = up to 8 AI suggestions per day at 2cr each
-export const STARTER_DAILY_AUTOFILL_CREDIT_CAP = 16;
-
-// Starter-tier daily hard limits (on top of the credit balance).
-// `autofills` here is the credits-used cap, matching the column on daily_usage.
-export const STARTER_DAILY_LIMITS = {
-  autofills: STARTER_DAILY_AUTOFILL_CREDIT_CAP,
-} as const;
-
-// Starter daily tailor cap (one full multi-field tailor session per day).
-// Pro is credit-bound: each tailor session deducts CREDIT_COSTS.tailor.
-export const STARTER_DAILY_TAILOR_CAP = 1;
-
 // Premium resume lifetime cap per user (regardless of tier)
 export const PREMIUM_RESUME_LIFETIME_CAP = 10;
 

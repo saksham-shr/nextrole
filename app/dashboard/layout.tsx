@@ -21,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   let profile = (await supabase
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, subscription_ends_at, onboarding_completed, subscription_status, daily_credits_reset_at, referral_code")
+    .select("tier, daily_credits, topup_credits, signup_credits, credit_grants_given, subscription_ends_at, onboarding_completed, subscription_status, daily_credits_reset_at, referral_code")
     .eq("id", user.id)
     .single()).data;
 
@@ -81,6 +81,8 @@ export default async function DashboardLayout({ children }: { children: ReactNod
           tier: grantTier,
           daily_credits: grantCredits,
           topup_credits: profile?.topup_credits ?? 0,
+          signup_credits: profile?.signup_credits ?? 0,
+          credit_grants_given: (profile?.credit_grants_given ?? {}) as Record<string, string>,
           subscription_ends_at: grantExpiry,
           onboarding_completed: profile?.onboarding_completed ?? false,
           subscription_status: (profile?.subscription_status ?? null) as (typeof profile extends null ? null : NonNullable<typeof profile>["subscription_status"]),
@@ -108,7 +110,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
 
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
   const trialEndsAt: string | null = (profile?.subscription_ends_at as string | null) ?? null;
-  let creditsRemaining: number = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
+  let creditsRemaining: number = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0) + (profile?.signup_credits ?? 0);
 
   // If a paid user has 0 credits and the daily reset is overdue, top them
   // up now. This handles new subscriptions (cron hasn't run yet today) and
@@ -144,6 +146,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
   }
 
   const referralCode = (profile?.referral_code as string | null) ?? null;
+  const creditGrantsGiven = (profile?.credit_grants_given ?? {}) as unknown as Record<string, boolean>;
 
   return (
     <DashboardShell
@@ -153,6 +156,7 @@ export default async function DashboardLayout({ children }: { children: ReactNod
       creditsRemaining={creditsRemaining}
       trialEndsAt={trialEndsAt}
       referralCode={referralCode}
+      creditGrantsGiven={creditGrantsGiven}
     >
       {children}
     </DashboardShell>

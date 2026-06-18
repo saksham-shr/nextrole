@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { canAccess, FREE_DAILY_LIMITS, STARTER_DAILY_LIMITS, type Tier } from "@/lib/ai/gates";
+import { canAccess, type Tier } from "@/lib/ai/gates";
 import { NextResponse } from "next/server";
 
 type SubStatus = "active" | "cancelled" | "past_due" | "expired" | "paused" | null;
@@ -15,17 +15,6 @@ export interface GuardResult {
 type GuardError = NextResponse;
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
-
-// Map feature keys to the daily_usage column they consume
-const FEATURE_USAGE_COL: Record<string, keyof typeof FREE_DAILY_LIMITS> = {
-  evaluate:        "evaluations",
-  resume_standard: "resumes",
-  autofill:        "autofills",
-};
-
-const STARTER_USAGE_COL: Record<string, keyof typeof STARTER_DAILY_LIMITS> = {
-  autofill: "autofills",
-};
 
 /**
  * Gate every protected AI API route.
@@ -46,13 +35,13 @@ export async function requireFeature(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, subscription_status")
+    .select("tier, daily_credits, topup_credits, signup_credits, subscription_status")
     .eq("id", user.id)
     .single();
 
   const tier    = (isAdmin ? "pro" : (profile?.tier ?? "free")) as Tier;
   const status  = (profile?.subscription_status ?? null) as SubStatus;
-  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
+  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0) + (profile?.signup_credits ?? 0);
 
   if (!isAdmin && status === "paused") {
     return NextResponse.json({ error: "SUBSCRIPTION_PAUSED", currentTier: tier }, { status: 402 });
@@ -62,57 +51,9 @@ export async function requireFeature(
     return NextResponse.json({ error: "UPGRADE_REQUIRED", feature, currentTier: tier }, { status: 403 });
   }
 
-  // Paid tiers: check daily credit balance (100 Starter / 300 Pro, resets at midnight)
-  // Admin is exempt — the admin account never carries a real purchased balance.
-  if (!isAdmin && tier !== "free" && credits <= 0) {
+  // All tiers: check credit balance. Admin is exempt — admin account carries no real balance.
+  if (!isAdmin && credits <= 0) {
     return NextResponse.json({ error: "NO_CREDITS", currentTier: tier }, { status: 402 });
-  }
-
-  // Free tier: enforce daily hard limits via daily_usage table
-  if (tier === "free") {
-    const usageCol = FEATURE_USAGE_COL[feature];
-    if (usageCol !== undefined) {
-      const limit = FREE_DAILY_LIMITS[usageCol];
-      if (limit === 0) {
-        return NextResponse.json({ error: "UPGRADE_REQUIRED", feature, currentTier: tier }, { status: 403 });
-      }
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: usage } = await supabase
-        .from("daily_usage")
-        .select(usageCol)
-        .eq("user_id", user.id)
-        .eq("date", today)
-        .maybeSingle();
-      const used = (usage as Record<string, number> | null)?.[usageCol] ?? 0;
-      if (used >= limit) {
-        return NextResponse.json(
-          { error: "DAILY_LIMIT_REACHED", feature, limit, currentTier: tier },
-          { status: 429 },
-        );
-      }
-    }
-  }
-
-  // Starter tier: enforce per-feature daily limits on top of daily credits
-  if (tier === "starter") {
-    const usageCol = STARTER_USAGE_COL[feature];
-    if (usageCol !== undefined) {
-      const limit = STARTER_DAILY_LIMITS[usageCol];
-      const today = new Date().toISOString().slice(0, 10);
-      const { data: usage } = await supabase
-        .from("daily_usage")
-        .select(usageCol)
-        .eq("user_id", user.id)
-        .eq("date", today)
-        .maybeSingle();
-      const used = (usage as Record<string, number> | null)?.[usageCol] ?? 0;
-      if (used >= limit) {
-        return NextResponse.json(
-          { error: "DAILY_LIMIT_REACHED", feature, limit, currentTier: tier },
-          { status: 429 },
-        );
-      }
-    }
   }
 
   return { ok: true, userId: user.id, tier, creditsRemaining: credits, isAdmin };
