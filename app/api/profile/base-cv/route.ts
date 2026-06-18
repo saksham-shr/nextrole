@@ -13,7 +13,9 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isSameOrigin } from "@/lib/security/csrf";
+import { awardActionCredit } from "@/lib/credits/grant";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED_MIME = new Set([
@@ -80,6 +82,10 @@ export async function POST(req: NextRequest) {
     console.error("[profile/base-cv] DB write failed:", dbError.message);
     return NextResponse.json({ error: "Could not save CV" }, { status: 500 });
   }
+
+  // Award CV upload grant for free-tier users (fire-and-forget)
+  const admin = createAdminClient();
+  awardActionCredit(admin, user.id, "cv_upload").catch(() => {});
 
   const words = text.split(/\s+/).filter(Boolean).length;
   return NextResponse.json({ words });

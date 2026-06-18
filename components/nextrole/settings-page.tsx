@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { UserTier } from "@/lib/db/types";
+import { useToast } from "@/components/nextrole/toast";
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 
@@ -313,6 +314,7 @@ type ExtensionToken = {
 };
 
 function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void }) {
+  const toast = useToast();
   const [tokens, setTokens] = useState<ExtensionToken[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -336,7 +338,7 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
   useEffect(() => { load(); }, []);
 
   const revoke = async (id: string, name: string) => {
-    if (!confirm(`Revoke "${name}"? This will sign out any browser using this token.`)) return;
+    if (!(await toast.confirm(`Revoke "${name}"? This will sign out any browser using this token.`))) return;
     setRevoking(id);
     try {
       const res = await fetch("/api/extension/token", {
@@ -349,7 +351,7 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
       onToast(`Revoked "${name}"`);
       await load();
     } catch (err) {
-      alert((err as Error).message);
+      toast.error((err as Error).message);
     } finally {
       setRevoking(null);
     }

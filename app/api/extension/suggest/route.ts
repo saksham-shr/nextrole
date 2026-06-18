@@ -88,7 +88,7 @@ export async function POST(req: NextRequest) {
 
   const [{ data: profile }] = await Promise.all([
     admin.from("profiles")
-      .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, credits_remaining")
+      .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, daily_credits, topup_credits")
       .eq("id", userId).single(),
   ]);
 
@@ -110,14 +110,14 @@ export async function POST(req: NextRequest) {
     if (spentToday + CREDIT_COSTS.autofill > STARTER_DAILY_AUTOFILL_CREDIT_CAP) {
       return NextResponse.json({ error: `Daily AI suggestion limit reached (${STARTER_DAILY_AUTOFILL_CREDIT_CAP} credits/day) â€” upgrade to Pro for unlimited`, upgrade: true }, { status: 402 });
     }
-    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    const creditsLeft = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
     if (creditsLeft < CREDIT_COSTS.autofill) {
       return NextResponse.json({ error: "No credits remaining â€” top up or upgrade your plan", upgrade: true }, { status: 402 });
     }
   }
 
   if (tier === "pro") {
-    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    const creditsLeft = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
     if (creditsLeft < CREDIT_COSTS.autofill) {
       return NextResponse.json({ error: "No credits remaining â€” top up your plan", upgrade: true }, { status: 402 });
     }
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
   // read-only checks above and both burn provider tokens.
   let credit_reservation: { refund: () => Promise<void>; charged: number } | null = null;
   if (tier === "starter" || tier === "pro") {
-    const { data: deducted, error: deductErr } = await admin.rpc("deduct_credit", {
+    const { data: deducted, error: deductErr } = await admin.rpc("deduct_credits", {
       p_user_id: userId,
       p_amount: CREDIT_COSTS.autofill,
     });
@@ -146,9 +146,9 @@ export async function POST(req: NextRequest) {
         if (!rpcErr) return;
       } catch {}
       try {
-        const { data } = await admin.from("profiles").select("credits_remaining").eq("id", userId).single();
-        const current = (data?.credits_remaining as number | null) ?? 0;
-        await admin.from("profiles").update({ credits_remaining: current + CREDIT_COSTS.autofill }).eq("id", userId);
+        const { data } = await admin.from("profiles").select("daily_credits").eq("id", userId).single();
+        const current = (data?.daily_credits as number | null) ?? 0;
+        await admin.from("profiles").update({ daily_credits: current + CREDIT_COSTS.autofill }).eq("id", userId);
       } catch {}
     };
 

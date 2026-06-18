@@ -29,8 +29,8 @@ const STARTER_USAGE_COL: Record<string, keyof typeof STARTER_DAILY_LIMITS> = {
 
 /**
  * Gate every protected AI API route.
- * Admin email gets Pro feature access, but still uses the real profile credit
- * balance so dashboard numbers, usage logs, and deductions stay in sync.
+ * Admin email gets Pro feature access and is exempt from the credit-balance
+ * check (the admin account never carries a real purchased balance).
  */
 export async function requireFeature(
   feature: string,
@@ -46,13 +46,13 @@ export async function requireFeature(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier, credits_remaining, subscription_status")
+    .select("tier, daily_credits, topup_credits, subscription_status")
     .eq("id", user.id)
     .single();
 
   const tier    = (isAdmin ? "pro" : (profile?.tier ?? "free")) as Tier;
   const status  = (profile?.subscription_status ?? null) as SubStatus;
-  const credits = profile?.credits_remaining ?? 0;
+  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
 
   if (!isAdmin && status === "paused") {
     return NextResponse.json({ error: "SUBSCRIPTION_PAUSED", currentTier: tier }, { status: 402 });
@@ -63,7 +63,8 @@ export async function requireFeature(
   }
 
   // Paid tiers: check daily credit balance (100 Starter / 300 Pro, resets at midnight)
-  if (tier !== "free" && credits <= 0) {
+  // Admin is exempt — the admin account never carries a real purchased balance.
+  if (!isAdmin && tier !== "free" && credits <= 0) {
     return NextResponse.json({ error: "NO_CREDITS", currentTier: tier }, { status: 402 });
   }
 
@@ -132,12 +133,12 @@ export async function requireJobSlot(): Promise<GuardResult | GuardError> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier, credits_remaining, subscription_status")
+    .select("tier, daily_credits, topup_credits, subscription_status")
     .eq("id", user.id)
     .single();
 
   const tier    = (isAdmin ? "pro" : profile?.tier ?? "free") as Tier;
-  const credits = profile?.credits_remaining ?? 0;
+  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
   const status  = (profile?.subscription_status ?? null) as SubStatus;
 
   if (!isAdmin && status === "paused") {

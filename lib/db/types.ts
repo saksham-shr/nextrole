@@ -18,7 +18,7 @@ export type ProviderType = "anthropic" | "openai" | "gemini" | "manual";
 
 export type UserTier = "free" | "starter" | "pro" | "team";
 
-export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired" | "paused" | "halted";
+export type SubscriptionStatus = "active" | "cancelled" | "past_due" | "expired" | "paused" | "halted" | "pending";
 
 export type PaymentRecordStatus = "captured" | "refunded" | "partially_refunded";
 
@@ -181,12 +181,22 @@ export type ProfileRow = {
   // Account & billing
   onboarding_completed: boolean;
   tier: UserTier;
-  credits_remaining: number;
-  credits_reset_at: string;
+  daily_credits: number;
+  daily_credits_reset_at: string;
+  topup_credits: number;
+  signup_credits: number;
+  credit_grants_given: Record<string, string>;
+  topup_forfeit_at: string | null;
   subscription_status: SubscriptionStatus | null;
   subscription_ends_at: string | null;
   billing_period_start: string | null;
   subscription_period: "monthly" | "yearly" | null;
+  razorpay_customer_id: string | null;
+  razorpay_subscription_id: string | null;
+  referral_code: string | null;
+  referred_by: string | null;
+  verified_phone: string | null;
+  signup_ip: string | null;
   trial_expiry_notified_at: string | null;
   subscription_expiry_notified_at: string | null;
   created_at: string;
@@ -813,10 +823,38 @@ export type Database = {
         };
         Relationships: [];
       };
+      error_reports: {
+        Row: {
+          id: string;
+          user_id: string | null;
+          error_message: string;
+          page_url: string | null;
+          component: string | null;
+          user_agent: string | null;
+          extra_context: Record<string, unknown> | null;
+          status: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id?: string | null;
+          error_message: string;
+          page_url?: string | null;
+          component?: string | null;
+          user_agent?: string | null;
+          extra_context?: Record<string, unknown> | null;
+          status?: string;
+          created_at?: string;
+        };
+        Update: {
+          status?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
-      deduct_credit: {
+      deduct_credits: {
         Args: { p_user_id: string; p_amount?: number };
         Returns: boolean;
       };

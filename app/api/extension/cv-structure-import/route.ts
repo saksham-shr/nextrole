@@ -12,7 +12,9 @@
 
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { callProvider } from "@/lib/ai/providers";
+import { awardActionCredit, isProfileComplete } from "@/lib/credits/grant";
 import { resolveRoute } from "@/lib/ai/router";
 import type {
   WorkExperienceEntry,
@@ -139,6 +141,16 @@ export async function POST() {
       .eq("id", user.id);
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    // Fire-and-forget progressive credit grants
+    const admin = createAdminClient();
+    if (work_experience.length > 0) {
+      awardActionCredit(admin, user.id, "work_experience").catch(() => {});
+    }
+    const updatedProfile = { ...patch, work_experience } as Record<string, unknown>;
+    if (isProfileComplete(updatedProfile)) {
+      awardActionCredit(admin, user.id, "profile_complete").catch(() => {});
+    }
 
     return NextResponse.json({
       work_experience, education, certifications, projects, skills,

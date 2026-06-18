@@ -7,6 +7,7 @@
 import { createHash } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { UserTier } from "@/lib/db/types";
+import { awardActionCredit } from "@/lib/credits/grant";
 
 function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
@@ -43,6 +44,9 @@ export async function resolveExtensionUser(
     .single();
 
   const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
+
+  // Award extension_connect grant on first valid extension API call (fire-and-forget)
+  awardActionCredit(admin, row.user_id, "extension_connect").catch(() => {});
 
   return { userId: row.user_id, tier };
 }

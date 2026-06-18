@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { getSuggestions, type SuggestionField } from "@/lib/suggestions/data";
 
-const VALID_FIELDS = new Set<SuggestionField>(["role", "location", "college", "company", "skill"]);
+const VALID_FIELDS = new Set<SuggestionField>(["role", "location", "college", "company", "skill", "degree", "field_of_study", "certification"]);
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const query = req.nextUrl.searchParams.get("q") ?? "";
 
   if (!field || !VALID_FIELDS.has(field)) {
-    return NextResponse.json({ error: "field must be one of: role, location, college, company, skill" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid field" }, { status: 400 });
   }
 
   const suggestions = getSuggestions(field, query);

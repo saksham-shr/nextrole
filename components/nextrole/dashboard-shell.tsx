@@ -101,6 +101,215 @@ function TopBar() {
   );
 }
 
+// ── Invite / Referral modal ───────────────────────────────────────────────
+
+function InviteModal({ code, onClose }: { code: string; onClose: () => void }) {
+  const [origin, setOrigin] = useState("");
+  const [copied, setCopied] = useState(false);
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const link = origin ? `${origin}/signup?ref=${code}` : "";
+  const shareText = encodeURIComponent("I'm using NextRole to manage my job search — evaluating roles, tailoring resumes, tracking applications. Try it free:");
+  const shareUrl  = encodeURIComponent(link);
+
+  const shares = [
+    {
+      label: "WhatsApp",
+      color: "#25D366",
+      href: `https://wa.me/?text=${shareText}%20${shareUrl}`,
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+      ),
+    },
+    {
+      label: "X / Twitter",
+      color: "#000",
+      href: `https://twitter.com/intent/tweet?text=${shareText}&url=${shareUrl}`,
+      icon: (
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+        </svg>
+      ),
+    },
+    {
+      label: "LinkedIn",
+      color: "#0A66C2",
+      href: `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`,
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+        </svg>
+      ),
+    },
+    {
+      label: "Email",
+      color: "#6B7280",
+      href: `mailto:?subject=Join me on NextRole&body=I've been using NextRole to manage my job search and it's great. Try it free: ${link}`,
+      icon: (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+        </svg>
+      ),
+    },
+  ] as const;
+
+  function copyLink() {
+    if (!link) return;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        display: "flex", alignItems: "center", justifyContent: "center",
+        background: "rgba(0,0,0,0.4)",
+        animation: "fadeIn 0.15s ease",
+      }}
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: "var(--surface)",
+          borderRadius: 20,
+          padding: "28px 28px 24px",
+          width: "min(480px, calc(100vw - 32px))",
+          boxShadow: "0 12px 48px rgba(0,0,0,0.15)",
+          animation: "scaleIn 0.2s ease",
+          position: "relative",
+        }}
+      >
+        {/* Close */}
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute", top: 16, right: 16,
+            background: "none", border: "none", cursor: "pointer",
+            color: "var(--muted-foreground)", padding: 4, borderRadius: 6,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--surface-soft)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "none"; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+
+        {/* Header */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)", flexShrink: 0 }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--foreground)" }}>Invite a friend</h2>
+            <p style={{ margin: 0, fontSize: 12, color: "var(--muted-foreground)" }}>You both earn +50 credits when they use 10+ credits</p>
+          </div>
+        </div>
+
+        {/* Referral link */}
+        <div style={{ marginTop: 20 }}>
+          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-foreground)", fontFamily: "var(--font-mono-stack)" }}>Your referral link</p>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div style={{
+              flex: 1, minWidth: 0,
+              border: "1px solid var(--line-soft)",
+              borderRadius: 10,
+              background: "var(--surface-soft)",
+              padding: "9px 12px",
+              fontSize: 12,
+              fontFamily: "var(--font-mono-stack)",
+              color: "var(--foreground)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}>
+              {link || "Loading…"}
+            </div>
+            <button
+              onClick={copyLink}
+              style={{
+                flexShrink: 0,
+                background: copied ? "var(--ok)" : "var(--accent)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 10,
+                padding: "9px 16px",
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                transition: "background 0.2s",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {copied ? "Copied!" : "Copy link"}
+            </button>
+          </div>
+          <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--muted-foreground)" }}>
+            Code: <span style={{ fontFamily: "var(--font-mono-stack)", fontWeight: 600, letterSpacing: "0.06em" }}>{code}</span>
+          </p>
+        </div>
+
+        {/* Share */}
+        <div style={{ marginTop: 20 }}>
+          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-foreground)", fontFamily: "var(--font-mono-stack)" }}>Share via</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {shares.map(({ label, color, href, icon }) => (
+              <a
+                key={label}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "8px 14px",
+                  borderRadius: 10,
+                  border: "1px solid var(--line-soft)",
+                  background: "var(--surface-soft)",
+                  color: "var(--foreground)",
+                  textDecoration: "none",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  transition: "background 0.15s, color 0.15s, border-color 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  const el = e.currentTarget as HTMLAnchorElement;
+                  el.style.background = color;
+                  el.style.color = "#fff";
+                  el.style.borderColor = color;
+                }}
+                onMouseLeave={(e) => {
+                  const el = e.currentTarget as HTMLAnchorElement;
+                  el.style.background = "var(--surface-soft)";
+                  el.style.color = "var(--foreground)";
+                  el.style.borderColor = "var(--line-soft)";
+                }}
+              >
+                {icon}
+                {label}
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Sidebar({
   email,
   isAdmin,
@@ -110,6 +319,7 @@ function Sidebar({
   toggleDark,
   collapsed,
   onToggle,
+  referralCode,
 }: {
   email: string;
   isAdmin: boolean;
@@ -119,6 +329,7 @@ function Sidebar({
   toggleDark: () => void;
   collapsed: boolean;
   onToggle: () => void;
+  referralCode: string | null;
 }) {
   const pathname = usePathname();
   const dailyMax = tier === "pro" ? 300 : tier === "starter" ? 100 : 0;
@@ -126,6 +337,7 @@ function Sidebar({
   const initials = displayName(email).charAt(0).toUpperCase();
   const name = displayName(email);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -249,6 +461,39 @@ function Sidebar({
 
       <div style={{ flex: 1 }} />
 
+      {/* Invite button */}
+      {referralCode && (
+        <div style={{ padding: "0 10px 8px" }}>
+          <button
+            onClick={() => setInviteOpen(true)}
+            title={collapsed ? "Invite a friend" : undefined}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: collapsed ? "center" : "flex-start",
+              gap: 8,
+              width: "100%",
+              padding: collapsed ? "8px 0" : "8px 10px",
+              borderRadius: 8,
+              border: "1px solid var(--accent)33",
+              background: "var(--accent-soft)",
+              color: "var(--accent)",
+              fontSize: 12.5,
+              fontWeight: 600,
+              cursor: "pointer",
+              transition: "background 0.15s",
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent)1a"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--accent-soft)"; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+            </svg>
+            {!collapsed && "Invite & earn"}
+          </button>
+        </div>
+      )}
+
       {/* Credits pill */}
       {!collapsed && !isAdmin && (tier === "starter" || tier === "pro") && (
         <div style={{ padding: "0 10px 10px" }}>
@@ -342,6 +587,7 @@ function Sidebar({
             </div>
             {[
               { label: dark ? "Light mode" : "Dark mode", action: () => { toggleDark(); setMenuOpen(false); } },
+              ...(referralCode ? [{ label: "Invite & earn credits", action: () => { setInviteOpen(true); setMenuOpen(false); } }] : []),
             ].map(({ label, action }) => (
               <button
                 key={label}
@@ -373,6 +619,10 @@ function Sidebar({
             </form>
           </div>
         )}
+
+        {inviteOpen && referralCode && (
+          <InviteModal code={referralCode} onClose={() => setInviteOpen(false)} />
+        )}
       </div>
     </aside>
   );
@@ -385,6 +635,7 @@ export function DashboardShell({
   tier = "free",
   creditsRemaining = 0,
   trialEndsAt = null,
+  referralCode = null,
 }: {
   children: ReactNode;
   user: { email: string };
@@ -392,6 +643,7 @@ export function DashboardShell({
   tier?: UserTier;
   creditsRemaining?: number;
   trialEndsAt?: string | null;
+  referralCode?: string | null;
 }) {
   const { dark, toggle: toggleDark } = useDarkMode();
   const isDesktop = useIsDesktop();
@@ -424,6 +676,7 @@ export function DashboardShell({
             toggleDark={toggleDark}
             collapsed={sidebarCollapsed}
             onToggle={toggleSidebar}
+            referralCode={referralCode}
           />
         </div>
       )}

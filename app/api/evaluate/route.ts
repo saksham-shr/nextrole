@@ -8,6 +8,8 @@ import { CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
 import { reserveExtensionAiCharge, type ChargeReservation } from "@/lib/extension-ai";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { isSameOrigin } from "@/lib/security/csrf";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { awardActionCredit, checkReferralThreshold } from "@/lib/credits/grant";
 
 export const maxDuration = 60;
 
@@ -234,6 +236,13 @@ export async function POST(request: NextRequest) {
 
   await supabase.from("jobs").update({ status: "evaluated", archetype: archetype ?? job.archetype, updated_at: new Date().toISOString() })
     .eq("id", jobId).eq("user_id", userId);
+
+  // Award first_evaluation grant + check referral threshold (fire-and-forget)
+  {
+    const admin = createAdminClient();
+    awardActionCredit(admin, userId, "first_evaluation").catch(() => {});
+    checkReferralThreshold(admin, userId).catch(() => {});
+  }
 
   if (evaluation?.id) {
     await supabase.from("reports").insert({

@@ -17,6 +17,8 @@ import type {
   ProjectEntry,
   Database,
 } from "@/lib/db/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { awardActionCredit, isProfileComplete } from "@/lib/credits/grant";
 
 type ProfileUpdate = Database["public"]["Tables"]["profiles"]["Update"];
 
@@ -152,6 +154,7 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   }
   if (typeof body.comp_min === "number") set("comp_min", Math.max(0, body.comp_min));
   if (typeof body.comp_max === "number") set("comp_max", Math.max(0, body.comp_max));
+  if (typeof body.current_comp === "number") set("current_comp", Math.max(0, body.current_comp));
   if (typeof body.willing_to_relocate === "boolean") {
     set("willing_to_relocate", body.willing_to_relocate);
   }
@@ -221,6 +224,36 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   const ca = validateSkills(body.custom_archetypes);
   if (ca !== null) set("custom_archetypes", ca);
 
+  // Application Details (Tier 2 — ATS-specific autofill extras)
+  set("name_prefix",         clampStr(body.name_prefix, 20));
+  set("preferred_name",      clampStr(body.preferred_name, 100));
+  set("fathers_name",        clampStr(body.fathers_name, 200));
+  set("local_given_name",    clampStr(body.local_given_name, 100));
+  set("local_family_name",   clampStr(body.local_family_name, 100));
+
+  set("address_line2",       clampStr(body.address_line2, 300));
+  if (typeof body.permanent_address_same === "boolean") {
+    set("permanent_address_same", body.permanent_address_same);
+  }
+  set("permanent_address",   clampStr(body.permanent_address, 500));
+
+  set("notice_period_note",  clampStr(body.notice_period_note, 300));
+  if (typeof body.open_to_hybrid === "boolean") set("open_to_hybrid", body.open_to_hybrid);
+  if (typeof body.govt_military_member === "boolean") set("govt_military_member", body.govt_military_member);
+  if (typeof body.signed_non_compete === "boolean") set("signed_non_compete", body.signed_non_compete);
+
+  set("category", clampStr(body.category, 50));
+
+  set("naukri_url",        clampStr(body.naukri_url, 500));
+  set("publications_url",  clampStr(body.publications_url, 500));
+  set("other_url",         clampStr(body.other_url, 500));
+
+  if (typeof body.ctc_fixed === "number") set("ctc_fixed", Math.max(0, body.ctc_fixed));
+  if (typeof body.ctc_variable === "number") set("ctc_variable", Math.max(0, body.ctc_variable));
+  set("ctc_note", clampStr(body.ctc_note, 300));
+
+  set("referral_source", clampStr(body.referral_source, 200));
+
   return patch as ProfileUpdate;
 }
 
@@ -257,6 +290,29 @@ export async function PATCH(req: NextRequest) {
     console.error("[profile PATCH] update failed:", error.message);
     return NextResponse.json({ error: "Could not save profile" }, { status: 500 });
   }
+
+  // Fire-and-forget progressive credit grants for free-tier users.
+  // Read the updated profile to check completion state.
+  const admin = createAdminClient();
+  Promise.resolve(
+    supabase
+      .from("profiles")
+      .select("tier, full_name, city, country, work_experience, credit_grants_given")
+      .eq("id", user.id)
+      .single()
+  ).then(({ data: updated }) => {
+    if (!updated) return;
+    const grants = (updated.credit_grants_given ?? {}) as Record<string, string>;
+
+    if (!grants.profile_complete && isProfileComplete(updated as Record<string, unknown>)) {
+      awardActionCredit(admin, user.id, "profile_complete").catch(() => {});
+    }
+
+    const we = updated.work_experience as unknown[];
+    if (!grants.work_experience && Array.isArray(we) && we.length > 0) {
+      awardActionCredit(admin, user.id, "work_experience").catch(() => {});
+    }
+  }).catch(() => {});
 
   return NextResponse.json({ ok: true, updated: Object.keys(patch).length });
 }

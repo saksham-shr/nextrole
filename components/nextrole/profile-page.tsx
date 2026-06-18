@@ -11,6 +11,8 @@ import type {
   ProjectEntry,
 } from "@/lib/db/types";
 import { CompensationSlider, useIsIndia } from "@/components/nextrole/compensation-slider";
+import { SuggestionInput } from "@/components/nextrole/suggestion-input";
+import { useToast } from "@/components/nextrole/toast";
 
 // ─── Style tokens (match settings-page.tsx) ───────────────────────────────────
 
@@ -23,21 +25,22 @@ const textareaCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(
 type SectionId =
   | "cv" | "contact" | "preferences" | "job_targets" | "compensation"
   | "experience" | "education" | "skills"
-  | "projects" | "certifications" | "address" | "demographics";
+  | "projects" | "certifications" | "address"
+  | "application_details";
 
 const SECTIONS: { id: SectionId; label: string }[] = [
-  { id: "cv",              label: "CV" },
-  { id: "contact",         label: "Contact & Identity" },
-  { id: "preferences",     label: "Availability" },
-  { id: "job_targets",     label: "Job Targets" },
-  { id: "compensation",    label: "Compensation" },
-  { id: "experience",      label: "Work experience" },
-  { id: "education",       label: "Education" },
-  { id: "skills",          label: "Key skills" },
-  { id: "projects",        label: "Projects" },
-  { id: "certifications",  label: "Certifications" },
-  { id: "address",         label: "Address" },
-  { id: "demographics",    label: "Demographics" },
+  { id: "cv",                  label: "CV" },
+  { id: "contact",             label: "Contact & Identity" },
+  { id: "preferences",         label: "Availability" },
+  { id: "job_targets",         label: "Job Targets" },
+  { id: "compensation",        label: "Compensation" },
+  { id: "experience",          label: "Work experience" },
+  { id: "education",           label: "Education" },
+  { id: "skills",              label: "Key skills" },
+  { id: "projects",            label: "Projects" },
+  { id: "certifications",      label: "Certifications" },
+  { id: "address",             label: "Address" },
+  { id: "application_details", label: "Application Details" },
 ];
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
@@ -311,6 +314,7 @@ function computeCompletion(p: ProfileRow): number {
 // ─── 1. Career (work_mode, seniority, years_exp, notice, relocate, visa) ─────
 
 function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy]       = useState(false);
   const [workMode, setWorkMode] = useState(p.work_mode ?? "");
@@ -335,7 +339,7 @@ function PreferencesCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partia
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -411,26 +415,49 @@ const ROLE_SUGGESTIONS = [
   "Product Manager", "Senior Product Manager", "Data Engineer", "ML Engineer",
   "AI Engineer", "Backend Engineer", "Frontend Engineer", "Full Stack Engineer",
   "DevOps Engineer", "Platform Engineer", "Site Reliability Engineer",
+  "Financial Analyst", "Investment Banker", "Chartered Accountant", "CFO",
+  "Marketing Manager", "Brand Manager", "Digital Marketing Specialist", "CMO",
+  "Sales Manager", "Account Executive", "Business Development Manager",
+  "HR Manager", "Recruiter", "Talent Acquisition Specialist",
+  "Doctor", "Nurse", "Pharmacist", "Healthcare Administrator",
+  "Lawyer", "Legal Counsel", "Compliance Officer",
+  "Graphic Designer", "Art Director", "Creative Director", "Copywriter",
+  "Teacher", "Professor", "Curriculum Designer",
+  "Operations Manager", "Supply Chain Manager", "COO",
+  "Civil Engineer", "Mechanical Engineer", "Electrical Engineer",
+  "Architect", "Interior Designer", "Urban Planner",
+  "Business Analyst", "Management Consultant", "Project Manager",
+  "CEO", "General Manager", "Founder",
 ];
 const LOCATION_SUGGESTIONS = [
   "Remote", "Remote (India)", "Remote (US)", "Remote (EU)",
   "Bengaluru", "Mumbai", "Delhi", "Hyderabad", "Pune", "Chennai",
+  "Kolkata", "Ahmedabad", "Noida", "Gurgaon", "Jaipur", "Kochi",
   "San Francisco", "New York", "Seattle", "Austin", "London", "Singapore", "Dubai",
+  "Toronto", "Berlin", "Sydney", "Tokyo",
 ];
 const ARCHETYPE_SUGGESTIONS = [
   "Backend", "Frontend", "Full Stack", "Platform", "Product Eng", "LLMOps", "Agentic",
   "AI Platform", "Technical PM", "SA", "FDE", "Transformation", "Data", "ML/AI",
+  "Growth", "Revenue Ops", "People Ops", "Finance", "Creative",
+  "Strategy", "Research", "Clinical", "Teaching", "Legal Ops",
+  "Supply Chain", "Manufacturing", "Design", "Content",
 ];
 const COMPANY_TYPE_SUGGESTIONS = [
   "startup", "scaleup", "enterprise", "AI lab", "fintech", "SaaS", "B2B", "B2C",
   "consumer", "deep tech", "climate tech", "crypto/web3", "healthcare tech", "edtech",
+  "consulting", "FMCG", "pharma", "manufacturing", "media", "real estate",
+  "government", "NGO", "banking", "insurance", "retail", "hospitality",
 ];
 const LANG_SUGGESTIONS = [
   "TypeScript", "JavaScript", "Python", "Go", "Rust", "Java", "Kotlin", "Swift",
   "C++", "C#", "Ruby", "PHP", "Scala", "Elixir", "SQL", "GraphQL",
+  "Excel", "Power BI", "Tableau", "SAP", "Salesforce", "Figma",
+  "AutoCAD", "SolidWorks", "MATLAB", "Tally", "QuickBooks",
 ];
 
 function JobTargetsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy]       = useState(false);
   const [roles, setRoles]          = useState<string[]>(p.target_roles ?? []);
@@ -458,7 +485,7 @@ function JobTargetsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -509,6 +536,7 @@ function JobTargetsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
 // ─── 1c. Compensation (slider, locale-aware) ──────────────────────────────────
 
 function CompensationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy]       = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
@@ -534,7 +562,7 @@ function CompensationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -759,6 +787,7 @@ function ViewField({ label, value, className }: { label: string; value: string |
 // ─── 2. Contact & Links ───────────────────────────────────────────────────────
 
 function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [full, setFull] = useState(p.full_name ?? "");
@@ -783,7 +812,7 @@ function ContactCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -835,6 +864,7 @@ const COUNTRIES = [
 const WORK_AUTH_OPTIONS = ["Unrestricted", "OPT/CPT", "H-1B", "Other"] as const;
 
 function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const extra = p as unknown as Record<string, string | null>;
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -866,7 +896,7 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -935,6 +965,7 @@ function AddressCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pr
 // ─── 4. Work experience (list with add/edit/delete) ───────────────────────────
 
 function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [entries, setEntries] = useState<WorkExperienceEntry[]>(p.work_experience ?? []);
   useEffect(() => { setEntries(p.work_experience ?? []); }, [p.work_experience]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -951,7 +982,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
 
   async function saveDraft() {
     if (!draft?.role || !draft?.company) {
-      alert("Role and company are required");
+      toast.warning("Role and company are required");
       return;
     }
     const next = editIdx === -1
@@ -963,12 +994,12 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
       setEntries(next);
       onSaved({ work_experience: next });
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
   async function remove(i: number) {
-    if (!confirm("Delete this entry?")) return;
+    if (!(await toast.confirm("Delete this entry?"))) return;
     const next = entries.filter((_, j) => j !== i);
     await savePatch({ work_experience: next });
     setEntries(next);
@@ -982,15 +1013,44 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
       subtitle={entries.length === 0 ? "Used to fill Workday/Greenhouse work history modals" : undefined}
       action={editIdx === null && <LinkBtn onClick={openNew}>+ Add</LinkBtn>}
     >
+      <div className="flex flex-col gap-3">
+        {entries.map((e, i) => (
+          <div key={i} className="rounded-lg border border-[var(--line-soft)] p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[14px] font-semibold">{e.role}</div>
+                <div className="text-[13px] text-[var(--muted-foreground)]">{e.company}{e.location ? ` · ${e.location}` : ""}</div>
+                <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">
+                  {e.start ?? "?"} – {e.current ? "Present" : (e.end ?? "?")}
+                  {e.employment_type && ` · ${e.employment_type.replace("_", "-")}`}
+                </div>
+                {e.description && <div className="mt-2 text-[12.5px] leading-[1.55]">{e.description}</div>}
+              </div>
+              <div className="flex shrink-0 gap-1">
+                <button onClick={() => openEdit(i)} className="text-[12px] text-[var(--accent)] hover:underline">Edit</button>
+                <span className="text-[var(--muted-foreground)]">·</span>
+                <button onClick={() => remove(i)} className="text-[12px] text-[var(--bad)] hover:underline">Delete</button>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {entries.length === 0 && editIdx === null && (
+        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
+          No work experience yet. <LinkBtn onClick={openNew}>+ Add your first job</LinkBtn>
+        </div>
+      )}
+
       {editIdx !== null && draft && (
-        <div className="mb-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
           <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add experience" : "Edit experience"}</div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Role / job title">
-              <input className={inputCls} value={draft.role} onChange={(e) => setDraft({ ...draft, role: e.target.value })} />
+              <SuggestionInput field="role" className={inputCls} value={draft.role} onChange={(v) => setDraft({ ...draft, role: v })} />
             </Field>
             <Field label="Company">
-              <input className={inputCls} value={draft.company} onChange={(e) => setDraft({ ...draft, company: e.target.value })} />
+              <SuggestionInput field="company" className={inputCls} value={draft.company} onChange={(v) => setDraft({ ...draft, company: v })} />
             </Field>
             <Field label="Start" hint="MM/YYYY or YYYY">
               <input className={inputCls} value={draft.start ?? ""} onChange={(e) => setDraft({ ...draft, start: e.target.value })} placeholder="06/2023" />
@@ -1026,35 +1086,6 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
           </div>
         </div>
       )}
-
-      {entries.length === 0 && editIdx === null && (
-        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
-          No work experience yet. <LinkBtn onClick={openNew}>+ Add your first job</LinkBtn>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        {entries.map((e, i) => (
-          <div key={i} className="rounded-lg border border-[var(--line-soft)] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[14px] font-semibold">{e.role}</div>
-                <div className="text-[13px] text-[var(--muted-foreground)]">{e.company}{e.location ? ` · ${e.location}` : ""}</div>
-                <div className="mt-0.5 text-[12px] text-[var(--muted-foreground)]">
-                  {e.start ?? "?"} – {e.current ? "Present" : (e.end ?? "?")}
-                  {e.employment_type && ` · ${e.employment_type.replace("_", "-")}`}
-                </div>
-                {e.description && <div className="mt-2 text-[12.5px] leading-[1.55]">{e.description}</div>}
-              </div>
-              <div className="flex shrink-0 gap-1">
-                <button onClick={() => openEdit(i)} className="text-[12px] text-[var(--accent)] hover:underline">Edit</button>
-                <span className="text-[var(--muted-foreground)]">·</span>
-                <button onClick={() => remove(i)} className="text-[12px] text-[var(--bad)] hover:underline">Delete</button>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
     </Card>
   );
 }
@@ -1062,6 +1093,7 @@ function ExperienceCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial
 // ─── 5. Education ─────────────────────────────────────────────────────────────
 
 function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [entries, setEntries] = useState<EducationEntry[]>(p.education ?? []);
   useEffect(() => { setEntries(p.education ?? []); }, [p.education]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -1074,17 +1106,17 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
   const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
-    if (!draft?.degree || !draft?.institution) { alert("Degree and institution are required"); return; }
+    if (!draft?.degree || !draft?.institution) { toast.warning("Degree and institution are required"); return; }
     const next = editIdx === -1 ? [draft, ...entries] : entries.map((e, i) => (i === editIdx ? draft : e));
     setBusy(true);
     try {
       await savePatch({ education: next });
       setEntries(next); onSaved({ education: next }); setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
   async function remove(i: number) {
-    if (!confirm("Delete this entry?")) return;
+    if (!(await toast.confirm("Delete this entry?"))) return;
     const next = entries.filter((_, j) => j !== i);
     await savePatch({ education: next });
     setEntries(next); onSaved({ education: next });
@@ -1092,29 +1124,6 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
 
   return (
     <Card id="education" title="Education" action={editIdx === null && <LinkBtn onClick={openNew}>+ Add</LinkBtn>}>
-      {editIdx !== null && draft && (
-        <div className="mb-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
-          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add education" : "Edit education"}</div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Degree"><input className={inputCls} value={draft.degree} onChange={(e) => setDraft({ ...draft, degree: e.target.value })} placeholder="B.Tech, M.Sc, Class XII, …" /></Field>
-            <Field label="Institution"><input className={inputCls} value={draft.institution} onChange={(e) => setDraft({ ...draft, institution: e.target.value })} /></Field>
-            <Field label="Field of study"><input className={inputCls} value={draft.field ?? ""} onChange={(e) => setDraft({ ...draft, field: e.target.value })} placeholder="Computer Science" /></Field>
-            <Field label="Grade / CGPA / %"><input className={inputCls} value={draft.grade ?? ""} onChange={(e) => setDraft({ ...draft, grade: e.target.value })} placeholder="8.5 CGPA / 89.5%" /></Field>
-            <Field label="Start year"><input className={inputCls} value={draft.start ?? ""} onChange={(e) => setDraft({ ...draft, start: e.target.value })} placeholder="2022" /></Field>
-            <Field label="End year"><input className={inputCls} value={draft.end ?? ""} onChange={(e) => setDraft({ ...draft, end: e.target.value })} placeholder="2026 or Present" /></Field>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save entry"}</PrimaryBtn>
-            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
-            <SaveStatus msg={savedMsg} />
-          </div>
-        </div>
-      )}
-      {entries.length === 0 && editIdx === null && (
-        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
-          No education yet. <LinkBtn onClick={openNew}>+ Add a degree</LinkBtn>
-        </div>
-      )}
       <div className="flex flex-col gap-3">
         {entries.map((e, i) => (
           <div key={i} className="rounded-lg border border-[var(--line-soft)] p-4">
@@ -1135,6 +1144,29 @@ function EducationCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<
           </div>
         ))}
       </div>
+      {entries.length === 0 && editIdx === null && (
+        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
+          No education yet. <LinkBtn onClick={openNew}>+ Add a degree</LinkBtn>
+        </div>
+      )}
+      {editIdx !== null && draft && (
+        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add education" : "Edit education"}</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Degree"><SuggestionInput field="degree" className={inputCls} value={draft.degree} onChange={(v) => setDraft({ ...draft, degree: v })} placeholder="B.Tech, M.Sc, Class XII, …" /></Field>
+            <Field label="Institution"><SuggestionInput field="college" className={inputCls} value={draft.institution} onChange={(v) => setDraft({ ...draft, institution: v })} /></Field>
+            <Field label="Field of study"><SuggestionInput field="field_of_study" className={inputCls} value={draft.field ?? ""} onChange={(v) => setDraft({ ...draft, field: v })} placeholder="Computer Science" /></Field>
+            <Field label="Grade / CGPA / %"><input className={inputCls} value={draft.grade ?? ""} onChange={(e) => setDraft({ ...draft, grade: e.target.value })} placeholder="8.5 CGPA / 89.5%" /></Field>
+            <Field label="Start year"><input className={inputCls} value={draft.start ?? ""} onChange={(e) => setDraft({ ...draft, start: e.target.value })} placeholder="2022" /></Field>
+            <Field label="End year"><input className={inputCls} value={draft.end ?? ""} onChange={(e) => setDraft({ ...draft, end: e.target.value })} placeholder="2026 or Present" /></Field>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save entry"}</PrimaryBtn>
+            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -1151,6 +1183,7 @@ const SKILL_SUGGESTIONS = [
 ];
 
 function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [skills, setSkills] = useState<string[]>(p.skills ?? []);
@@ -1160,7 +1193,7 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
   async function save() {
     setBusy(true);
     try { await savePatch({ skills }); onSaved({ skills }); setSaved(); }
-    catch (e) { alert((e as Error).message); }
+    catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
@@ -1194,6 +1227,7 @@ function SkillsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<Pro
 // ─── 8. Projects ──────────────────────────────────────────────────────────────
 
 function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [entries, setEntries] = useState<ProjectEntry[]>(p.projects ?? []);
   useEffect(() => { setEntries(p.projects ?? []); }, [p.projects]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -1206,17 +1240,17 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
   const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
-    if (!draft?.title) { alert("Title is required"); return; }
+    if (!draft?.title) { toast.warning("Title is required"); return; }
     const next = editIdx === -1 ? [draft, ...entries] : entries.map((e, i) => (i === editIdx ? draft : e));
     setBusy(true);
     try {
       await savePatch({ projects: next });
       setEntries(next); onSaved({ projects: next }); setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
   async function remove(i: number) {
-    if (!confirm("Delete this project?")) return;
+    if (!(await toast.confirm("Delete this project?"))) return;
     const next = entries.filter((_, j) => j !== i);
     await savePatch({ projects: next });
     setEntries(next); onSaved({ projects: next });
@@ -1224,31 +1258,6 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
 
   return (
     <Card id="projects" title="Projects" action={editIdx === null && <LinkBtn onClick={openNew}>+ Add</LinkBtn>}>
-      {editIdx !== null && draft && (
-        <div className="mb-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
-          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add project" : "Edit project"}</div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Title"><input className={inputCls} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></Field>
-            <Field label="URL"><input className={inputCls} value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://github.com/…" /></Field>
-            <div className="sm:col-span-2">
-              <Field label="Tech stack"><TagInput tags={draft.tech ?? []} onChange={(t) => setDraft({ ...draft, tech: t })} suggestions={SKILL_SUGGESTIONS} placeholder="Add tech…" /></Field>
-            </div>
-            <div className="sm:col-span-2">
-              <Field label="Description"><textarea className={textareaCls} value={draft.description ?? ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} rows={3} /></Field>
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
-            <SaveStatus msg={savedMsg} />
-          </div>
-        </div>
-      )}
-      {entries.length === 0 && editIdx === null && (
-        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
-          No projects yet. <LinkBtn onClick={openNew}>+ Add one</LinkBtn>
-        </div>
-      )}
       <div className="flex flex-col gap-3">
         {entries.map((e, i) => (
           <div key={i} className="rounded-lg border border-[var(--line-soft)] p-4">
@@ -1272,6 +1281,31 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
           </div>
         ))}
       </div>
+      {entries.length === 0 && editIdx === null && (
+        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
+          No projects yet. <LinkBtn onClick={openNew}>+ Add one</LinkBtn>
+        </div>
+      )}
+      {editIdx !== null && draft && (
+        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add project" : "Edit project"}</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Title"><input className={inputCls} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} /></Field>
+            <Field label="URL"><input className={inputCls} value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://github.com/…" /></Field>
+            <div className="sm:col-span-2">
+              <Field label="Tech stack"><TagInput tags={draft.tech ?? []} onChange={(t) => setDraft({ ...draft, tech: t })} suggestions={SKILL_SUGGESTIONS} placeholder="Add tech…" /></Field>
+            </div>
+            <div className="sm:col-span-2">
+              <Field label="Description"><textarea className={textareaCls} value={draft.description ?? ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} rows={3} /></Field>
+            </div>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
@@ -1279,6 +1313,7 @@ function ProjectsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<P
 // ─── 9. Certifications ────────────────────────────────────────────────────────
 
 function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [entries, setEntries] = useState<CertificationEntry[]>(p.certifications ?? []);
   useEffect(() => { setEntries(p.certifications ?? []); }, [p.certifications]);
   const [editIdx, setEditIdx] = useState<number | null>(null);
@@ -1291,17 +1326,17 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
   const { savedMsg, setSaved } = useSaveState(cancel);
 
   async function saveDraft() {
-    if (!draft?.title) { alert("Title is required"); return; }
+    if (!draft?.title) { toast.warning("Title is required"); return; }
     const next = editIdx === -1 ? [draft, ...entries] : entries.map((e, i) => (i === editIdx ? draft : e));
     setBusy(true);
     try {
       await savePatch({ certifications: next });
       setEntries(next); onSaved({ certifications: next }); setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
   async function remove(i: number) {
-    if (!confirm("Delete this certification?")) return;
+    if (!(await toast.confirm("Delete this certification?"))) return;
     const next = entries.filter((_, j) => j !== i);
     await savePatch({ certifications: next });
     setEntries(next); onSaved({ certifications: next });
@@ -1309,27 +1344,6 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
 
   return (
     <Card id="certifications" title="Certifications" action={editIdx === null && <LinkBtn onClick={openNew}>+ Add</LinkBtn>}>
-      {editIdx !== null && draft && (
-        <div className="mb-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
-          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add certification" : "Edit certification"}</div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Title"><input className={inputCls} value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="AWS Solutions Architect" /></Field>
-            <Field label="Issuer"><input className={inputCls} value={draft.issuer ?? ""} onChange={(e) => setDraft({ ...draft, issuer: e.target.value })} placeholder="Amazon Web Services" /></Field>
-            <Field label="Year"><input className={inputCls} value={draft.year ?? ""} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="2024" /></Field>
-            <Field label="Credential URL"><input className={inputCls} value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://…" /></Field>
-          </div>
-          <div className="mt-4 flex items-center gap-3">
-            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
-            <SaveStatus msg={savedMsg} />
-          </div>
-        </div>
-      )}
-      {entries.length === 0 && editIdx === null && (
-        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
-          No certifications yet. <LinkBtn onClick={openNew}>+ Add one</LinkBtn>
-        </div>
-      )}
       <div className="flex flex-col gap-3">
         {entries.map((e, i) => (
           <div key={i} className="rounded-lg border border-[var(--line-soft)] p-4 flex items-start justify-between gap-3">
@@ -1346,22 +1360,239 @@ function CertificationsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Par
           </div>
         ))}
       </div>
+      {entries.length === 0 && editIdx === null && (
+        <div className="text-center text-[13px] text-[var(--muted-foreground)] py-6">
+          No certifications yet. <LinkBtn onClick={openNew}>+ Add one</LinkBtn>
+        </div>
+      )}
+      {editIdx !== null && draft && (
+        <div className="mt-5 rounded-lg border border-[var(--accent)] bg-[var(--surface)] p-4">
+          <div className="mb-3 text-[13px] font-semibold">{editIdx === -1 ? "Add certification" : "Edit certification"}</div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Title"><SuggestionInput field="certification" className={inputCls} value={draft.title} onChange={(v) => setDraft({ ...draft, title: v })} placeholder="AWS Solutions Architect" /></Field>
+            <Field label="Issuer"><input className={inputCls} value={draft.issuer ?? ""} onChange={(e) => setDraft({ ...draft, issuer: e.target.value })} placeholder="Amazon Web Services" /></Field>
+            <Field label="Year"><input className={inputCls} value={draft.year ?? ""} onChange={(e) => setDraft({ ...draft, year: e.target.value })} placeholder="2024" /></Field>
+            <Field label="Credential URL"><input className={inputCls} value={draft.url ?? ""} onChange={(e) => setDraft({ ...draft, url: e.target.value })} placeholder="https://…" /></Field>
+          </div>
+          <div className="mt-4 flex items-center gap-3">
+            <PrimaryBtn onClick={saveDraft} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+            <GhostBtn onClick={cancel} disabled={busy}>Cancel</GhostBtn>
+            <SaveStatus msg={savedMsg} />
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
 
-// ─── 10. Demographics (EEO) ──────────────────────────────────────────────────
+// ─── 10. Application Details (Tier 2 — optional, ATS-specific autofill) ──────
+// These fields never affect AI evaluation, scoring, or resume generation —
+// they exist purely so the extension can fill in extra ATS-specific form
+// fields. Each group is collapsed by default and only shown when relevant.
 
-function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
-  const [editing, setEditing] = useState(false);
+function Accordion({
+  title, hint, defaultOpen, children,
+}: { title: string; hint?: string; defaultOpen?: boolean; children: React.ReactNode }) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div className="rounded-lg border border-[var(--line-soft)]">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+      >
+        <div>
+          <div className="text-[13.5px] font-medium">{title}</div>
+          {hint && <div className="mt-0.5 text-[11.5px] text-[var(--muted-foreground)]">{hint}</div>}
+        </div>
+        <svg
+          width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          className={`shrink-0 text-[var(--muted-foreground)] transition-transform ${open ? "rotate-180" : ""}`}
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {open && <div className="border-t border-[var(--line-soft)] p-4">{children}</div>}
+    </div>
+  );
+}
+
+const hasAny = (...vals: unknown[]) =>
+  vals.some((v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0));
+
+function ExtendedNameGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [prefix, setPrefix] = useState(p.name_prefix ?? "");
+  const [preferred, setPreferred] = useState(p.preferred_name ?? "");
+  const [fathers, setFathers] = useState(p.fathers_name ?? "");
+  const [localGiven, setLocalGiven] = useState(p.local_given_name ?? "");
+  const [localFamily, setLocalFamily] = useState(p.local_family_name ?? "");
   const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        name_prefix: prefix || null,
+        preferred_name: preferred || null,
+        fathers_name: fathers || null,
+        local_given_name: localGiven || null,
+        local_family_name: localFamily || null,
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Extended name"
+      hint="Required by: Keka, Oracle, Aditya Birla, Bajaj Finserv, Cognizant"
+      defaultOpen={hasAny(p.name_prefix, p.preferred_name, p.fathers_name, p.local_given_name, p.local_family_name)}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Salutation"><input className={inputCls} value={prefix} onChange={(e) => setPrefix(e.target.value)} placeholder="Mr / Ms / Dr" /></Field>
+        <Field label="Preferred name"><input className={inputCls} value={preferred} onChange={(e) => setPreferred(e.target.value)} placeholder="What you go by" /></Field>
+        <Field label="Father's name" hint="Required on Indian govt/PSU and bank forms">
+          <input className={inputCls} value={fathers} onChange={(e) => setFathers(e.target.value)} />
+        </Field>
+        <Field label="Name in local script / as per Aadhaar" hint="Only if different from your name above">
+          <div className="flex gap-2">
+            <input className={inputCls} value={localGiven} onChange={(e) => setLocalGiven(e.target.value)} placeholder="Given name" />
+            <input className={inputCls} value={localFamily} onChange={(e) => setLocalFamily(e.target.value)} placeholder="Family name" />
+          </div>
+        </Field>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function ExtendedAddressGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [line2, setLine2] = useState(p.address_line2 ?? "");
+  const [sameAsCurrent, setSameAsCurrent] = useState(p.permanent_address_same ?? true);
+  const [permanent, setPermanent] = useState(p.permanent_address ?? "");
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        address_line2: line2 || null,
+        permanent_address_same: sameAsCurrent,
+        permanent_address: sameAsCurrent ? null : (permanent || null),
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Extended address"
+      hint="Required by: Oracle, Bajaj Finserv, Aditya Birla, Hero, IBM, Microsoft"
+      defaultOpen={hasAny(p.address_line2, p.permanent_address) || p.permanent_address_same === false}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Address line 2" hint="Apartment, suite, floor, etc."><input className={inputCls} value={line2} onChange={(e) => setLine2(e.target.value)} /></Field>
+        <div className="sm:col-span-2">
+          <label className="flex items-center gap-2 text-[13px]">
+            <input type="checkbox" checked={sameAsCurrent} onChange={(e) => setSameAsCurrent(e.target.checked)} />
+            Permanent address is the same as my current address
+          </label>
+        </div>
+        {!sameAsCurrent && (
+          <div className="sm:col-span-2">
+            <Field label="Permanent address"><textarea className={textareaCls} value={permanent} onChange={(e) => setPermanent(e.target.value)} rows={2} /></Field>
+          </div>
+        )}
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function WorkAuthorizationGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [noticeNote, setNoticeNote] = useState(p.notice_period_note ?? "");
+  const [openHybrid, setOpenHybrid] = useState(p.open_to_hybrid ?? false);
+  const [govtMember, setGovtMember] = useState(p.govt_military_member ?? false);
+  const [nonCompete, setNonCompete] = useState(p.signed_non_compete ?? false);
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        notice_period_note: noticeNote || null,
+        open_to_hybrid: openHybrid,
+        govt_military_member: govtMember,
+        signed_non_compete: nonCompete,
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Work authorization & compliance"
+      hint="Required by: Greenhouse, Microsoft, Netflix, Capgemini, Godrej"
+      defaultOpen={hasAny(p.notice_period_note) || p.open_to_hybrid || p.govt_military_member === true || p.signed_non_compete === true}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <Field label="Notice period — additional note" hint="e.g. 'Negotiable with 2 weeks buyout'">
+            <input className={inputCls} value={noticeNote} onChange={(e) => setNoticeNote(e.target.value)} />
+          </Field>
+        </div>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input type="checkbox" checked={openHybrid} onChange={(e) => setOpenHybrid(e.target.checked)} />
+          Open to hybrid work
+        </label>
+        <label className="flex items-center gap-2 text-[13px]">
+          <input type="checkbox" checked={govtMember} onChange={(e) => setGovtMember(e.target.checked)} />
+          Current/former government or military member
+        </label>
+        <label className="flex items-center gap-2 text-[13px] sm:col-span-2">
+          <input type="checkbox" checked={nonCompete} onChange={(e) => setNonCompete(e.target.checked)} />
+          I have signed a non-compete agreement with a current/previous employer
+        </label>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function DemographicsGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
   const [gender, setGender] = useState(p.gender ?? "");
   const [pronouns, setPronouns] = useState(p.pronouns ?? "");
   const [race, setRace] = useState(p.race_ethnicity ?? "");
   const [veteran, setVeteran] = useState(p.veteran_status ?? "");
   const [disability, setDisability] = useState(p.disability_status ?? "");
-
-  const { savedMsg, setSaved } = useSaveState(() => setEditing(false));
+  const [category, setCategory] = useState(p.category ?? "");
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
 
   async function save() {
     setBusy(true);
@@ -1372,34 +1603,24 @@ function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
         race_ethnicity: race || null,
         veteran_status: veteran || null,
         disability_status: disability || null,
+        category: category || null,
       };
       await savePatch(patch);
       onSaved(patch as Partial<ProfileRow>);
       setSaved();
-    } catch (e) { alert((e as Error).message); }
+    } catch (e) { toast.error((e as Error).message); }
     finally { setBusy(false); }
   }
 
-  if (!editing) {
-    return (
-      <Card
-        id="demographics"
-        title="Demographics (optional)"
-        subtitle="Only used for EEO sections (Greenhouse, Workday Self-Identify). Defaults to 'Prefer not to answer' when blank."
-        action={<LinkBtn onClick={() => setEditing(true)}>Edit</LinkBtn>}
-      >
-        <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2">
-          <ViewField label="Gender" value={p.gender?.replace(/_/g, " ")} />
-          <ViewField label="Pronouns" value={p.pronouns?.replace(/_/g, "/")} />
-          <ViewField label="Race / ethnicity" value={p.race_ethnicity} />
-          <ViewField label="Veteran status" value={p.veteran_status?.replace(/_/g, " ")} />
-          <ViewField label="Disability status" value={p.disability_status?.replace(/_/g, " ")} />
-        </div>
-      </Card>
-    );
-  }
   return (
-    <Card id="demographics" title="Demographics (optional)" subtitle="🔒 Used only for EEO autofill. Leave blank to default to 'Prefer not to answer'.">
+    <Accordion
+      title="Demographics (voluntary)"
+      hint="Required by: Ashby, Greenhouse, Meta, Oracle, Accenture, Microsoft, Infosys"
+      defaultOpen={hasAny(p.gender, p.pronouns, p.race_ethnicity, p.veteran_status, p.disability_status, p.category)}
+    >
+      <div className="mb-4 rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-[11.5px] text-[var(--muted-foreground)]">
+        🔒 Entirely voluntary — only used to autofill EEO/Self-Identify sections. Never used for AI evaluation or scoring. Leave blank to default to &quot;Prefer not to answer&quot;.
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Gender">
           <select className={selectCls} value={gender} onChange={(e) => setGender(e.target.value)}>
@@ -1436,11 +1657,154 @@ function DemographicsCard({ p, onSaved }: { p: ProfileRow; onSaved: (next: Parti
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
         </Field>
+        <Field label="Reservation category" hint="Indian govt/PSU forms — General/OBC/SC/ST/EWS">
+          <input className={inputCls} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="e.g. General" />
+        </Field>
       </div>
-      <div className="mt-5 flex items-center gap-3">
+      <div className="mt-4 flex items-center gap-3">
         <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
-        <GhostBtn onClick={() => setEditing(false)} disabled={busy}>Cancel</GhostBtn>
         <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function ExtraLinksGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [naukri, setNaukri] = useState(p.naukri_url ?? "");
+  const [pubs, setPubs] = useState(p.publications_url ?? "");
+  const [other, setOther] = useState(p.other_url ?? "");
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = { naukri_url: naukri || null, publications_url: pubs || null, other_url: other || null };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Extra links"
+      hint="Required by: Meesho, Paytm, Lever, Greenhouse, Shopify, Netflix"
+      defaultOpen={hasAny(p.naukri_url, p.publications_url, p.other_url)}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Naukri profile URL"><input className={inputCls} value={naukri} onChange={(e) => setNaukri(e.target.value)} placeholder="https://naukri.com/…" /></Field>
+        <Field label="Publications URL" hint="Google Scholar, research papers, etc."><input className={inputCls} value={pubs} onChange={(e) => setPubs(e.target.value)} placeholder="https://scholar.google.com/…" /></Field>
+        <Field label="Other website"><input className={inputCls} value={other} onChange={(e) => setOther(e.target.value)} placeholder="https://…" /></Field>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function CompensationBreakdownGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [fixed, setFixed] = useState(p.ctc_fixed?.toString() ?? "");
+  const [variable, setVariable] = useState(p.ctc_variable?.toString() ?? "");
+  const [note, setNote] = useState(p.ctc_note ?? "");
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = {
+        ctc_fixed: fixed ? Number(fixed) : null,
+        ctc_variable: variable ? Number(variable) : null,
+        ctc_note: note || null,
+      };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Compensation breakdown"
+      hint="Required by: Bajaj Finserv, Nykaa, Keka"
+      defaultOpen={hasAny(p.ctc_fixed, p.ctc_variable, p.ctc_note)}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Fixed CTC (LPA)"><input className={inputCls} type="number" min={0} value={fixed} onChange={(e) => setFixed(e.target.value)} /></Field>
+        <Field label="Variable CTC (LPA)"><input className={inputCls} type="number" min={0} value={variable} onChange={(e) => setVariable(e.target.value)} /></Field>
+        <div className="sm:col-span-2">
+          <Field label="Note" hint="e.g. bonus structure, ESOPs"><input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function ReferralConsentGroup({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  const toast = useToast();
+  const [source, setSource] = useState(p.referral_source ?? "");
+  const [busy, setBusy] = useState(false);
+  const { savedMsg, setSaved } = useSaveState();
+
+  async function save() {
+    setBusy(true);
+    try {
+      const patch = { referral_source: source || null };
+      await savePatch(patch);
+      onSaved(patch as Partial<ProfileRow>);
+      setSaved();
+    } catch (e) { toast.error((e as Error).message); }
+    finally { setBusy(false); }
+  }
+
+  return (
+    <Accordion
+      title="Referral & consents"
+      hint="Asked by almost every ATS — saved once, autofilled everywhere"
+      defaultOpen={hasAny(p.referral_source)}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="How did you usually hear about jobs?" hint="Default answer for 'How did you hear about us'">
+          <input className={inputCls} value={source} onChange={(e) => setSource(e.target.value)} placeholder="e.g. LinkedIn, referral, company website" />
+        </Field>
+      </div>
+      <div className="mt-3 text-[11.5px] text-[var(--muted-foreground)]">
+        Privacy/data-processing consent checkboxes (required by Keka, Breezy, Godrej, Capgemini, and others) are accepted individually per application — we never submit consent on your behalf without showing you the form first.
+      </div>
+      <div className="mt-4 flex items-center gap-3">
+        <PrimaryBtn onClick={save} disabled={busy}>{busy ? "Saving…" : "Save"}</PrimaryBtn>
+        <SaveStatus msg={savedMsg} />
+      </div>
+    </Accordion>
+  );
+}
+
+function ApplicationDetailsSection({ p, onSaved }: { p: ProfileRow; onSaved: (next: Partial<ProfileRow>) => void }) {
+  return (
+    <Card
+      id="application_details"
+      title="Application Details"
+      subtitle="Optional — these never affect AI evaluation or resume generation. They only fill in extra fields that some job sites ask for."
+    >
+      <div className="flex flex-col gap-3">
+        <ExtendedNameGroup p={p} onSaved={onSaved} />
+        <ExtendedAddressGroup p={p} onSaved={onSaved} />
+        <WorkAuthorizationGroup p={p} onSaved={onSaved} />
+        <DemographicsGroup p={p} onSaved={onSaved} />
+        <ExtraLinksGroup p={p} onSaved={onSaved} />
+        <CompensationBreakdownGroup p={p} onSaved={onSaved} />
+        <ReferralConsentGroup p={p} onSaved={onSaved} />
       </div>
     </Card>
   );
@@ -1481,7 +1845,7 @@ export function ProfilePageContent({ profile: initial }: { profile: ProfileRow }
           <ProjectsCard       p={profile} onSaved={handleSaved} />
           <CertificationsCard p={profile} onSaved={handleSaved} />
           <AddressCard        p={profile} onSaved={handleSaved} />
-          <DemographicsCard   p={profile} onSaved={handleSaved} />
+          <ApplicationDetailsSection p={profile} onSaved={handleSaved} />
         </main>
       </div>
 

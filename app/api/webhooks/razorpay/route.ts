@@ -1,21 +1,19 @@
 /**
  * POST /api/webhooks/razorpay
  *
- * Handles Razorpay webhook events as a reliability layer on top of
- * the client-side verify-payment call. Razorpay signs events with
- * HMAC-SHA256 using RAZORPAY_WEBHOOK_SECRET.
+ * Authoritative handler for all Razorpay lifecycle events.
+ * Always returns 200 — non-2xx causes Razorpay to retry for 24h.
  *
- * Register this URL in Razorpay Dashboard → Settings → Webhooks:
- *   https://nextrole.live/api/webhooks/razorpay
- * Active events: payment.captured, payment.failed,
- *                subscription.cancelled, subscription.completed, subscription.halted,
- *                refund.processed
+ * Razorpay Dashboard → Settings → Webhooks → enable:
+ *   payment.captured, payment.failed,
+ *   subscription.activated, subscription.charged, subscription.pending,
+ *   subscription.halted, subscription.cancelled, subscription.completed,
+ *   refund.processed
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { DAILY_CREDITS } from "@/lib/ai/gates";
 import { getCommerceConfig, CommerceConfigUnavailableError } from "@/lib/commerce/config";
 import {
   sendPaymentFailedEmail,
@@ -23,11 +21,11 @@ import {
   sendRefundEmail,
 } from "@/lib/email/send";
 
+// ── Signature verification ───────────────────────────────────────────────────
+
 function verifyWebhookSignature(rawBody: string, signature: string): boolean {
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  if (!secret) {
-    throw new Error("RAZORPAY_WEBHOOK_SECRET is not configured");
-  }
+  if (!secret) throw new Error("RAZORPAY_WEBHOOK_SECRET not configured");
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
   const a = Buffer.from(expected, "hex");
   const b = Buffer.from(signature, "hex");
@@ -35,19 +33,20 @@ function verifyWebhookSignature(rawBody: string, signature: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+// ── Payload types ────────────────────────────────────────────────────────────
+
 interface RzpPaymentEntity {
   id: string;
-  order_id: string;
+  order_id?: string;
+  subscription_id?: string;
   amount?: number;
-  notes?: {
-    type?: string;
-    plan?: string;
-    period?: string;
-    pack_id?: string;
-    credits?: string;
-    user_id?: string;
-  };
-  email?: string;
+  notes?: Record<string, string>;
+}
+
+interface RzpSubscriptionEntity {
+  id: string;
+  status: string;
+  notes?: Record<string, string>;
 }
 
 interface RzpRefundEntity {
@@ -56,40 +55,60 @@ interface RzpRefundEntity {
   amount: number;
 }
 
-interface RzpWebhookEvent {
+interface RzpEvent {
   event: string;
   payload: {
     payment?:      { entity: RzpPaymentEntity };
-    subscription?: { entity: { id: string; status: string; notes?: Record<string, string> } };
+    subscription?: { entity: RzpSubscriptionEntity };
     refund?:       { entity: RzpRefundEntity };
   };
 }
 
-/** Look up a user's email from the profiles table. */
+// ── User ID resolution ───────────────────────────────────────────────────────
+// Notes are attached to subscriptions; if they're missing (Razorpay occasionally
+// strips them), fall back to a DB lookup by razorpay_subscription_id.
+
+async function resolveUserId(
+  admin: ReturnType<typeof createAdminClient>,
+  notes: Record<string, string> | undefined,
+  subId?: string,
+): Promise<string | null> {
+  if (notes?.user_id) return notes.user_id;
+  if (subId) {
+    const { data } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("razorpay_subscription_id", subId)
+      .maybeSingle();
+    return (data as { id?: string } | null)?.id ?? null;
+  }
+  return null;
+}
+
 async function getUserEmail(
   admin: ReturnType<typeof createAdminClient>,
   userId: string,
 ): Promise<string | null> {
   const { data } = await admin.from("profiles").select("email").eq("id", userId).single();
-  return data?.email ?? null;
+  return (data as { email?: string } | null)?.email ?? null;
 }
+
+// ── Main handler ─────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
   const rawBody   = await request.text();
   const signature = request.headers.get("x-razorpay-signature") ?? "";
 
-  let signatureValid: boolean;
   try {
-    signatureValid = verifyWebhookSignature(rawBody, signature);
+    if (!verifyWebhookSignature(rawBody, signature)) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
   } catch (err) {
     console.error("[razorpay webhook]", (err as Error).message);
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
   }
-  if (!signatureValid) {
-    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
-  }
 
-  let event: RzpWebhookEvent;
+  let event: RzpEvent;
   try { event = JSON.parse(rawBody); }
   catch { return NextResponse.json({ error: "Invalid JSON" }, { status: 400 }); }
 
@@ -97,271 +116,311 @@ export async function POST(request: NextRequest) {
 
   switch (event.event) {
 
-    // ── payment.captured ───────────────────────────────────────────────────
-    // Reliability fallback — fires even when the browser tab closes before
-    // the client-side verify-payment call completes.
+    // ── payment.captured ─────────────────────────────────────────────────────
+    // Only handles topups. Subscription first payments are handled by
+    // subscription.activated; renewals by subscription.charged.
     case "payment.captured": {
       const payment = event.payload.payment?.entity;
       if (!payment) break;
 
-      const notes  = payment.notes ?? {};
-      const userId = notes.user_id;
-      if (!userId) {
-        console.warn("[razorpay webhook] payment.captured: no user_id in notes");
-        break;
-      }
+      const notes   = payment.notes ?? {};
+      const userId  = notes.user_id;
 
-      if (notes.type === "subscription" && notes.plan && notes.period) {
-        const plan   = notes.plan as "starter" | "pro";
-        const period = notes.period as "monthly" | "yearly";
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: status, error: applyErr } = await (admin.rpc as any)("apply_subscription_payment", {
-          p_user_id:       userId,
-          p_payment_id:    payment.id,
-          p_plan:          plan,
-          p_period:        period,
-          p_daily_credits: DAILY_CREDITS[plan],
-          p_amount_paise:  payment.amount ?? 0,
-          p_order_id:      payment.order_id,
-        });
-        if (applyErr) {
-          console.error("[razorpay webhook] apply_subscription_payment failed:", applyErr.message);
-          return NextResponse.json({ error: "Failed to apply subscription; retry" }, { status: 500 });
-        }
-        if (status === "already_processed") {
-          console.log(`[razorpay webhook] subscription payment ${payment.id} already processed`);
-        }
-      }
-
-      if (notes.type === "topup" && notes.pack_id) {
+      if (notes.type === "topup" && notes.pack_id && userId) {
         let commerce;
         try {
           commerce = await getCommerceConfig();
         } catch (err) {
           if (err instanceof CommerceConfigUnavailableError) {
-            console.error("[razorpay webhook] commerce config unavailable:", err.message);
-            return NextResponse.json({ error: "Billing config unavailable; retry" }, { status: 503 });
+            console.error("[webhook] commerce config unavailable:", err.message);
+            // Return 500 so Razorpay retries — billing config may recover
+            return NextResponse.json({ error: "Billing config unavailable; retry" }, { status: 500 });
           }
           throw err;
         }
+
         const pack = commerce.topupPacks.find((p) => p.id === notes.pack_id);
         if (pack) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: status, error: applyErr } = await (admin.rpc as any)("apply_topup_payment", {
-            p_user_id:      userId,
-            p_payment_id:   payment.id,
-            p_credits:      pack.credits,
-            p_amount_paise: payment.amount ?? 0,
-            p_pack_id:      pack.id,
-            p_order_id:     payment.order_id,
+            p_user_id:             userId,
+            p_pack_id:             pack.id,
+            p_credits:             pack.credits,
+            p_amount_paise:        payment.amount ?? 0,
+            p_razorpay_payment_id: payment.id,
+            p_razorpay_order_id:   payment.order_id ?? null,
           });
           if (applyErr) {
-            console.error("[razorpay webhook] apply_topup_payment failed:", applyErr.message);
+            console.error("[webhook] apply_topup_payment failed:", applyErr.message);
             return NextResponse.json({ error: "Failed to apply topup; retry" }, { status: 500 });
           }
           if (status === "already_processed") {
-            console.log(`[razorpay webhook] topup payment ${payment.id} already processed`);
+            console.log(`[webhook] topup ${payment.id} already processed`);
           }
         }
       }
       break;
     }
 
-    // ── payment.failed ─────────────────────────────────────────────────────
+    // ── payment.failed ───────────────────────────────────────────────────────
     case "payment.failed": {
       const payment = event.payload.payment?.entity;
       if (!payment) break;
-
       const notes  = payment.notes ?? {};
       const userId = notes.user_id;
-      if (!userId) break;
+      if (!userId || notes.type !== "subscription") break;
 
-      if (notes.type === "subscription" && notes.plan) {
-        await admin
-          .from("profiles")
-          .update({ subscription_status: "past_due" })
-          .eq("id", userId);
+      await admin.from("profiles")
+        .update({ subscription_status: "past_due" })
+        .eq("id", userId);
 
-        const email = await getUserEmail(admin, userId);
-        if (email) {
-          sendPaymentFailedEmail(email, notes.plan).catch((err) =>
-            console.error("[razorpay webhook] payment.failed email error:", err),
-          );
-        }
-        console.log(`[razorpay webhook] payment.failed for user ${userId}`);
+      const email = await getUserEmail(admin, userId);
+      if (email) {
+        sendPaymentFailedEmail(email, notes.plan ?? "plan").catch((err) =>
+          console.error("[webhook] payment.failed email error:", err),
+        );
       }
       break;
     }
 
-    // ── subscription.cancelled ─────────────────────────────────────────────
-    case "subscription.cancelled": {
-      const sub = event.payload.subscription?.entity;
-      if (!sub?.notes?.user_id) break;
-      await admin
-        .from("profiles")
-        .update({ subscription_status: "cancelled" })
-        .eq("id", sub.notes.user_id);
+    // ── subscription.activated ───────────────────────────────────────────────
+    // First payment succeeded. The verify-payment fast-path may have already
+    // called apply_subscription_payment — that's fine, idempotency handles it.
+    case "subscription.activated": {
+      const sub     = event.payload.subscription?.entity;
+      const payment = event.payload.payment?.entity;
+      if (!sub) break;
+
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) {
+        console.warn(`[webhook] subscription.activated: no user_id for sub ${sub.id}`);
+        break;
+      }
+
+      const notes  = sub.notes ?? {};
+      const plan   = notes.plan as "starter" | "pro" | undefined;
+      const period = notes.period as "monthly" | "yearly" | undefined;
+
+      if (payment?.id && plan && period) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: applyErr } = await (admin.rpc as any)("apply_subscription_payment", {
+          p_user_id:             userId,
+          p_razorpay_payment_id: payment.id,
+          p_razorpay_sub_id:     sub.id,
+          p_razorpay_order_id:   null,
+          p_plan:                plan,
+          p_period:              period,
+          p_amount_paise:        payment.amount ?? 0,
+        });
+        if (applyErr) {
+          console.error("[webhook] apply_subscription_payment (activated) failed:", applyErr.message);
+          return NextResponse.json({ error: "Failed to activate subscription; retry" }, { status: 500 });
+        }
+      } else {
+        // No payment entity — just confirm active status and clear grace
+        await admin.from("profiles").update({
+          subscription_status:      "active",
+          razorpay_subscription_id: sub.id,
+          topup_forfeit_at:         null,
+        }).eq("id", userId);
+      }
       break;
     }
 
-    // ── subscription.completed ─────────────────────────────────────────────
-    // Fires when a Razorpay Subscription reaches its total_count.
-    // Downgrade to free immediately (period has ended).
-    case "subscription.completed": {
-      const sub = event.payload.subscription?.entity;
-      if (!sub?.notes?.user_id) break;
-      await admin.from("profiles").update({
-        subscription_status:  "expired",
-        tier:                 "free",
-        credits_remaining:    0,
-        subscription_ends_at: null,
-        billing_period_start: null,
-        subscription_period:  null,
-      }).eq("id", sub.notes.user_id);
+    // ── subscription.charged ─────────────────────────────────────────────────
+    // Recurring renewal payment succeeded — extend subscription_ends_at.
+    case "subscription.charged": {
+      const sub     = event.payload.subscription?.entity;
+      const payment = event.payload.payment?.entity;
+      if (!sub || !payment) break;
+
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) {
+        console.warn(`[webhook] subscription.charged: no user_id for sub ${sub.id}`);
+        break;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: status, error: applyErr } = await (admin.rpc as any)("apply_subscription_renewal", {
+        p_user_id:             userId,
+        p_razorpay_payment_id: payment.id,
+        p_razorpay_sub_id:     sub.id,
+        p_amount_paise:        payment.amount ?? 0,
+      });
+      if (applyErr) {
+        console.error("[webhook] apply_subscription_renewal failed:", applyErr.message);
+        return NextResponse.json({ error: "Failed to process renewal; retry" }, { status: 500 });
+      }
+      if (status === "already_processed") {
+        console.log(`[webhook] renewal ${payment.id} already processed`);
+      }
       break;
     }
 
-    // ── subscription.halted ────────────────────────────────────────────────
-    // 4 consecutive charge failures — downgrade immediately and notify.
+    // ── subscription.pending ─────────────────────────────────────────────────
+    // Razorpay is retrying a failed charge (D+1, D+2, D+3).
+    // Keep tier/credits intact — user still has access during retry window.
+    case "subscription.pending": {
+      const sub = event.payload.subscription?.entity;
+      if (!sub) break;
+
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) break;
+
+      await admin.from("profiles")
+        .update({ subscription_status: "pending" })
+        .eq("id", userId);
+
+      // Inform user that Razorpay is retrying (non-blocking)
+      const email = await getUserEmail(admin, userId);
+      if (email) {
+        sendPaymentFailedEmail(email, (sub.notes?.plan ?? "plan")).catch((err) =>
+          console.error("[webhook] subscription.pending email error:", err),
+        );
+      }
+      break;
+    }
+
+    // ── subscription.halted ──────────────────────────────────────────────────
+    // All retry attempts exhausted. Start 2-day grace period:
+    //   - Zero daily_credits immediately (service pauses)
+    //   - topup_credits zeroed by cron after grace window
+    //   - tier stays until forfeit_topup_after_grace() runs
     case "subscription.halted": {
       const sub = event.payload.subscription?.entity;
-      if (!sub?.notes?.user_id) break;
+      if (!sub) break;
 
-      const userId = sub.notes.user_id;
-      // Read plan before we downgrade so the email is accurate
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) break;
+
       const { data: profile } = await admin
         .from("profiles")
         .select("email, tier")
         .eq("id", userId)
         .single();
 
+      const forfeitAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString();
+
       await admin.from("profiles").update({
-        subscription_status:  "halted",
-        tier:                 "free",
-        credits_remaining:    0,
-        subscription_ends_at: null,
-        billing_period_start: null,
-        subscription_period:  null,
+        subscription_status: "halted",
+        daily_credits:       0,
+        topup_forfeit_at:    forfeitAt,
       }).eq("id", userId);
 
-      if (profile?.email) {
-        sendHaltedEmail(profile.email, profile.tier as string).catch((err) =>
-          console.error("[razorpay webhook] halted email error:", err),
-        );
+      if ((profile as { email?: string; tier?: string } | null)?.email) {
+        sendHaltedEmail(
+          (profile as { email: string; tier: string }).email,
+          (profile as { email: string; tier: string }).tier,
+        ).catch((err) => console.error("[webhook] halted email error:", err));
       }
-      console.log(`[razorpay webhook] subscription.halted for user ${userId}`);
       break;
     }
 
-    // ── refund.processed ──────────────────────────────────────────────────
-    // Fires when Razorpay completes a refund. We look up the original payment
-    // in payment_records, find the user, downgrade their tier, and notify.
+    // ── subscription.cancelled ───────────────────────────────────────────────
+    // User cancelled. Keep tier until subscription_ends_at (cron handles expiry).
+    case "subscription.cancelled": {
+      const sub = event.payload.subscription?.entity;
+      if (!sub) break;
+
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) break;
+
+      await admin.from("profiles")
+        .update({ subscription_status: "cancelled" })
+        .eq("id", userId);
+      break;
+    }
+
+    // ── subscription.completed ───────────────────────────────────────────────
+    // Subscription reached its total_count (rare with our 240-cycle default).
+    // Downgrade immediately — no grace period.
+    case "subscription.completed": {
+      const sub = event.payload.subscription?.entity;
+      if (!sub) break;
+
+      const userId = await resolveUserId(admin, sub.notes, sub.id);
+      if (!userId) break;
+
+      await admin.from("profiles").update({
+        tier:                     "free",
+        subscription_status:      "expired",
+        daily_credits:            0,
+        topup_credits:            0,
+        topup_forfeit_at:         null,
+        subscription_ends_at:     null,
+        subscription_period:      null,
+        razorpay_subscription_id: null,
+      }).eq("id", userId);
+      break;
+    }
+
+    // ── refund.processed ─────────────────────────────────────────────────────
     case "refund.processed": {
       const refund  = event.payload.refund?.entity;
       const payment = event.payload.payment?.entity;
-      if (!refund || !payment) break;
+      if (!refund) break;
 
-      const notes  = payment.notes ?? {};
-      const userId = notes.user_id;
-      if (!userId) {
-        // Fallback: look up user from payment_records by payment_id
-        const { data: record } = await admin
-          .from("payment_records")
-          .select("user_id, type, plan")
-          .eq("razorpay_payment_id", refund.payment_id)
-          .maybeSingle();
+      const notes  = payment?.notes ?? {};
+      const userId = notes.user_id ?? null;
 
-        if (!record) {
-          console.warn(`[razorpay webhook] refund.processed: no record for payment ${refund.payment_id}`);
-          break;
-        }
+      // Look up the original payment record for user_id fallback and type info
+      const { data: record } = await admin
+        .from("payment_records")
+        .select("user_id, type, plan")
+        .eq("razorpay_payment_id", refund.payment_id)
+        .maybeSingle();
 
-        // Mark the payment as refunded
-        await admin
-          .from("payment_records")
-          .update({ status: "refunded", refunded_at: new Date().toISOString(), refund_id: refund.id })
-          .eq("razorpay_payment_id", refund.payment_id);
-
-        if (record.type === "subscription") {
-          const { data: p } = await admin
-            .from("profiles")
-            .select("email, tier")
-            .eq("id", record.user_id)
-            .single();
-
-          await admin.from("profiles").update({
-            subscription_status:  "expired",
-            tier:                 "free",
-            credits_remaining:    0,
-            subscription_ends_at: null,
-            billing_period_start: null,
-            subscription_period:  null,
-          }).eq("id", record.user_id);
-
-          if (p?.email) {
-            sendRefundEmail(p.email, record.plan ?? "plan", refund.amount).catch((err) =>
-              console.error("[razorpay webhook] refund email error:", err),
-            );
-          }
-        }
+      const resolvedUserId = userId ?? (record as { user_id?: string } | null)?.user_id ?? null;
+      if (!resolvedUserId) {
+        console.warn(`[webhook] refund.processed: no user_id for payment ${refund.payment_id}`);
         break;
       }
 
-      // We have user_id in notes
-      await admin
-        .from("payment_records")
+      // Mark payment as refunded
+      await admin.from("payment_records")
         .update({ status: "refunded", refunded_at: new Date().toISOString(), refund_id: refund.id })
         .eq("razorpay_payment_id", refund.payment_id);
 
-      if (notes.type === "subscription") {
+      const paymentType = notes.type ?? (record as { type?: string } | null)?.type;
+
+      if (paymentType === "subscription" || paymentType === "renewal") {
+        const planName = notes.plan ?? (record as { plan?: string } | null)?.plan ?? "plan";
         const { data: p } = await admin
           .from("profiles")
           .select("email, tier")
-          .eq("id", userId)
+          .eq("id", resolvedUserId)
           .single();
 
         await admin.from("profiles").update({
-          subscription_status:  "expired",
-          tier:                 "free",
-          credits_remaining:    0,
-          subscription_ends_at: null,
-          billing_period_start: null,
-          subscription_period:  null,
-        }).eq("id", userId);
+          tier:                     "free",
+          subscription_status:      "expired",
+          daily_credits:            0,
+          topup_credits:            0,
+          topup_forfeit_at:         null,
+          subscription_ends_at:     null,
+          subscription_period:      null,
+          razorpay_subscription_id: null,
+        }).eq("id", resolvedUserId);
 
-        if (p?.email) {
-          sendRefundEmail(p.email, notes.plan ?? "plan", refund.amount).catch((err) =>
-            console.error("[razorpay webhook] refund email error:", err),
-          );
+        if ((p as { email?: string } | null)?.email) {
+          sendRefundEmail(
+            (p as { email: string }).email,
+            planName,
+            refund.amount,
+          ).catch((err) => console.error("[webhook] refund email error:", err));
         }
-      } else if (notes.type === "topup" && notes.pack_id) {
-        // Claw back the top-up credits
+      } else if (paymentType === "topup" && notes.pack_id) {
         let commerce;
         try { commerce = await getCommerceConfig(); } catch { break; }
         const pack = commerce.topupPacks.find((p) => p.id === notes.pack_id);
         if (pack) {
-          const { error: rpcErr } = await admin.rpc("decrement_credits", {
-            p_user_id: userId,
-            p_credits: pack.credits,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await (admin.rpc as any)("decrement_credits", {
+            p_user_id: resolvedUserId,
+            p_amount:  pack.credits,
           });
-          if (rpcErr) {
-            // Fallback: direct update clamped to 0
-            const { data: profileData } = await admin
-              .from("profiles")
-              .select("credits_remaining")
-              .eq("id", userId)
-              .single();
-            const cur = profileData?.credits_remaining ?? 0;
-            await admin
-              .from("profiles")
-              .update({ credits_remaining: Math.max(0, cur - pack.credits) })
-              .eq("id", userId);
-          }
         }
       }
-
-      console.log(`[razorpay webhook] refund.processed: ${refund.id} for payment ${refund.payment_id}`);
       break;
     }
   }

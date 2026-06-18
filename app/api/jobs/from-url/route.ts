@@ -11,10 +11,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isSameOrigin } from "@/lib/security/csrf";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { resolveRoute } from "@/lib/ai/router";
+import { awardActionCredit } from "@/lib/credits/grant";
 
 const FETCH_TIMEOUT_MS = 15_000;
 const MAX_HTML_CHARS   = 80_000; // truncate before sending to AI
@@ -203,6 +205,10 @@ export async function POST(req: NextRequest) {
     console.error("[jobs/from-url] DB insert failed:", insertErr?.message);
     return NextResponse.json({ error: "Could not save job" }, { status: 500 });
   }
+
+  // Award first_job grant for free-tier users (fire-and-forget)
+  const admin = createAdminClient();
+  awardActionCredit(admin, user.id, "first_job").catch(() => {});
 
   return NextResponse.json({ job_id: job.id, title: job.title, company: job.company, status: job.status });
 }

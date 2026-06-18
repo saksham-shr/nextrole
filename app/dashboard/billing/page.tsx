@@ -19,7 +19,7 @@ export default async function Billing() {
   const [{ data: profile }, { data: usageRow }, { data: creditLog }, { data: paymentRecords }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("tier, credits_remaining, subscription_ends_at, subscription_status")
+      .select("tier, daily_credits, topup_credits, signup_credits, subscription_ends_at, subscription_status, topup_forfeit_at, referral_code, referred_by")
       .eq("id", user.id)
       .single(),
     supabase
@@ -57,8 +57,26 @@ export default async function Billing() {
     }
   }
 
+  // Referral stats
+  let referralStats = { total: 0, completed: 0, creditsEarned: 0 };
+  if (profile?.referral_code) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: grants } = await (supabase.from("referral_grants") as any)
+      .select("referee_threshold_met, credits_awarded")
+      .eq("referrer_id", user.id) as { data: Array<{ referee_threshold_met: boolean; credits_awarded: number }> | null };
+    if (grants) {
+      referralStats = {
+        total: grants.length,
+        completed: grants.filter((g) => g.referee_threshold_met).length,
+        creditsEarned: grants.reduce((s, g) => s + (g.credits_awarded ?? 0), 0),
+      };
+    }
+  }
+
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
-  const creditsRemaining = profile?.credits_remaining ?? 0;
+  const creditsRemaining = isAdmin
+    ? 300
+    : (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
 
   return (
     <BillingPage
@@ -76,6 +94,11 @@ export default async function Billing() {
       isAdmin={isAdmin}
       creditLog={creditLog ?? []}
       paymentRecords={(paymentRecords ?? []) as PaymentRecord[]}
+      signupCredits={isAdmin ? 0 : ((profile?.signup_credits as number) ?? 0)}
+      topupForfeitAt={isAdmin ? null : ((profile?.topup_forfeit_at as string | null) ?? null)}
+      referralCode={(profile?.referral_code as string | null) ?? null}
+      referredBy={(profile?.referred_by as string | null) ?? null}
+      referralStats={referralStats}
       commerce={{
         planPricesInr: commerce.planPricesInr,
         topupPacks:    commerce.topupPacks,

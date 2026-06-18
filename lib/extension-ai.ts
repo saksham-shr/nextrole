@@ -27,7 +27,7 @@ export async function chargeExtensionAiSuccess(
   }
 
   const credits = CREDIT_COSTS[task];
-  const { data: ok, error } = await admin.rpc("deduct_credit", {
+  const { data: ok, error } = await admin.rpc("deduct_credits", {
     p_user_id: userId,
     p_amount: credits,
   });
@@ -92,7 +92,7 @@ export async function reserveExtensionAiCharge(
   }
 
   const credits = CREDIT_COSTS[task];
-  const { data: ok, error } = await admin.rpc("deduct_credit", {
+  const { data: ok, error } = await admin.rpc("deduct_credits", {
     p_user_id: userId,
     p_amount: credits,
   });
@@ -114,13 +114,13 @@ export async function reserveExtensionAiCharge(
       try {
         const { data } = await admin
           .from("profiles")
-          .select("credits_remaining")
+          .select("daily_credits")
           .eq("id", userId)
           .single();
-        const current = (data?.credits_remaining as number | null) ?? 0;
+        const current = (data?.daily_credits as number | null) ?? 0;
         await admin
           .from("profiles")
-          .update({ credits_remaining: current + credits })
+          .update({ daily_credits: current + credits })
           .eq("id", userId);
       } catch {}
     },

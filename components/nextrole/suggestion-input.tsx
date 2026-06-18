@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, useId } from "react";
 
-type Field = "role" | "location" | "college" | "company" | "skill";
+type Field = "role" | "location" | "college" | "company" | "skill" | "degree" | "field_of_study" | "certification";
 
 interface SuggestionInputProps {
   field: Field;
@@ -151,8 +151,8 @@ export function SuggestionInput({
         placeholder={placeholder}
         disabled={disabled}
         autoComplete="off"
-        className={className}
-        style={{
+        className={className || undefined}
+        style={className ? undefined : {
           width: "100%",
           padding: "8px 12px",
           borderRadius: 6,
@@ -163,8 +163,6 @@ export function SuggestionInput({
           outline: "none",
           transition: "border-color 0.15s",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.borderColor = "var(--line)")}
-        onMouseLeave={(e) => (e.currentTarget.style.borderColor = open ? "var(--accent)" : "var(--line-soft)")}
       />
 
       {open && suggestions.length > 0 && (

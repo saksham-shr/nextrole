@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function AuthLayout({ children }: { children: React.ReactNode }) {
@@ -215,6 +215,13 @@ export function LoginPage({ error, message }: { error?: string; message?: string
 /* ── Signup ─────────────────────────────────────────── */
 export function SignupPage({ error }: { error?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) localStorage.setItem("nr_referral_code", ref.toUpperCase());
+  }, [searchParams]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");

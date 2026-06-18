@@ -17,7 +17,7 @@ export default async function DashboardPage() {
     { data: profile },
     { data: jobs },
   ] = await Promise.all([
-    supabase.from("profiles").select("full_name, base_cv, tier, credits_remaining").eq("id", user.id).single(),
+    supabase.from("profiles").select("full_name, base_cv, tier, daily_credits, topup_credits").eq("id", user.id).single(),
     supabase
       .from("jobs")
       .select(`id, title, company, status, archetype, evaluations(score, decision)`)
@@ -73,7 +73,9 @@ export default async function DashboardPage() {
 
   const isAdmin = (user.email ?? "").toLowerCase() === ADMIN_EMAIL;
   const tier = isAdmin ? "pro" : ((profile?.tier as "free" | "starter" | "pro") ?? "free");
-  const creditsRemaining = profile?.credits_remaining ?? 0;
+  const creditsRemaining = isAdmin
+    ? 300
+    : (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
 
   return (
     <DashboardHome

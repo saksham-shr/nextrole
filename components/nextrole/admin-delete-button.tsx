@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { deleteUser } from "@/app/actions/admin";
+import { useToast } from "@/components/nextrole/toast";
 
 function DeleteSubmitButton() {
   const { pending } = useFormStatus();
@@ -25,15 +26,16 @@ export function AdminDeleteButton({
   userEmail: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const toast = useToast();
+  const confirmed = useRef(false);
 
-  function handleSubmit(e: React.FormEvent) {
-    if (
-      !window.confirm(
-        `Permanently delete "${userEmail}"?\n\nThis removes their auth account and all associated data. This cannot be undone.`,
-      )
-    ) {
-      e.preventDefault();
-    }
+  async function handleSubmit(e: React.FormEvent) {
+    if (confirmed.current) { confirmed.current = false; return; }
+    e.preventDefault();
+    const yes = await toast.confirm(
+      `Permanently delete "${userEmail}"?\n\nThis removes their auth account and all associated data. This cannot be undone.`,
+    );
+    if (yes) { confirmed.current = true; formRef.current?.requestSubmit(); }
   }
 
   return (

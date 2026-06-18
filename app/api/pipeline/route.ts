@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { callProvider, parseJSON } from "@/lib/ai/providers";
 import { buildSystemPrompt, buildUserPrompt } from "@/lib/evaluate/prompt";
 import { requireFeature, requireJobSlot } from "@/lib/ai/guard";
@@ -7,6 +8,7 @@ import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
 import { reserveExtensionAiCharge, type ChargeReservation } from "@/lib/extension-ai";
 import { isSameOrigin } from "@/lib/security/csrf";
+import { awardActionCredit, checkReferralThreshold } from "@/lib/credits/grant";
 
 export const maxDuration = 120;
 
@@ -71,6 +73,12 @@ export async function POST(request: NextRequest) {
     }
 
     jobId = createdJob.id;
+
+    // Award first_job grant (fire-and-forget, idempotent)
+    {
+      const adminGrant = createAdminClient();
+      awardActionCredit(adminGrant, userId, "first_job").catch(() => {});
+    }
   }
 
   if (!jobId) return NextResponse.json({ error: "job_id or job payload required" }, { status: 400 });
@@ -179,6 +187,13 @@ export async function POST(request: NextRequest) {
             model: route.model,
             credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
           });
+
+          // Award first_evaluation grant + check referral threshold (fire-and-forget)
+          {
+            const adminGrant = createAdminClient();
+            awardActionCredit(adminGrant, userId, "first_evaluation").catch(() => {});
+            checkReferralThreshold(adminGrant, userId).catch(() => {});
+          }
         } catch (err) {
           results.evaluate = { error: err instanceof Error ? err.message : "AI call failed" };
         }

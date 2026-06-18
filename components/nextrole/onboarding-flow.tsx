@@ -1,38 +1,45 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { BrandWordmark } from "@/components/nextrole/brand";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
+import { useToast } from "@/components/nextrole/toast";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type Period = "monthly" | "yearly";
 type Step = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type TierId = "free" | "starter" | "pro";
+type CvStage = "upload" | "uploading" | "parsing" | "review" | "paste";
 
-const STEP_LABELS: Record<Step, string> = {
-  1: "Welcome",
-  2: "Plan",
-  3: "Profile",
-  4: "Preferences",
-  5: "AI Scoring",
-  6: "Your Flow",
-  7: "Done",
-};
+interface CvExtracted {
+  full_name?: string | null;
+  phone?: string | null;
+  linkedin_url?: string | null;
+  skills?: string[];
+  work_experience?: Array<{ start?: string | null; end?: string | null }>;
+}
 
 // ── Razorpay ─────────────────────────────────────────────────────────────────
 
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
-interface RzpOptions {
+interface RzpSubscriptionOptions {
+  key: string; subscription_id: string;
+  name: string; description: string; prefill: { email: string };
+  theme: { color: string };
+  handler: (res: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => void;
+  modal: { ondismiss: () => void };
+}
+interface RzpOrderOptions {
   key: string; amount: number; currency: string; order_id: string;
   name: string; description: string; prefill: { email: string };
   theme: { color: string };
   handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
   modal: { ondismiss: () => void };
 }
-declare global { interface Window { Razorpay: new (o: RzpOptions) => { open(): void } } }
+declare global { interface Window { Razorpay: new (o: RzpSubscriptionOptions | RzpOrderOptions) => { open(): void } } }
 
 // ── Plan data ─────────────────────────────────────────────────────────────────
 
@@ -44,7 +51,7 @@ const TIERS = [
     inrYearly: 0,
     badge: null,
     features: ["AI job scoring", "Job tracker", "CV management", "Browser extension", "5 job slots"],
-    cta: "Start free",
+    cta: "Select Free",
     primary: false,
   },
   {
@@ -54,7 +61,7 @@ const TIERS = [
     inrYearly: INR_PRICES.starter_yearly,
     badge: null,
     features: ["Everything in Free", "100 credits / day", "25 job slots", "Tailored resumes", "Job evaluation"],
-    cta: "Get Starter",
+    cta: "Select Starter",
     primary: false,
   },
   {
@@ -64,7 +71,7 @@ const TIERS = [
     inrYearly: INR_PRICES.pro_yearly,
     badge: "Most Popular",
     features: ["Everything in Starter", "300 credits / day", "Unlimited autofill", "Premium resumes", "Unlimited job slots"],
-    cta: "Get Pro",
+    cta: "Select Pro",
     primary: true,
   },
 ] as const;
@@ -81,103 +88,95 @@ function trialDaysLeft(endsAt: string | null): number | null {
   return ms > 0 ? Math.ceil(ms / 86_400_000) : null;
 }
 
-// ── Sub-components ───────────────────────────────────────────────────────────
+function computeExperienceYears(items?: Array<{ start?: string | null; end?: string | null }>): number | null {
+  if (!items || !items.length) return null;
+  const years = items
+    .flatMap(i => [i.start, i.end])
+    .map(s => { const m = (s ?? "").match(/(\d{4})/); return m ? parseInt(m[1], 10) : null; })
+    .filter((n): n is number => n !== null);
+  if (!years.length) return null;
+  const min = Math.min(...years);
+  const max = Math.max(new Date().getFullYear(), ...years);
+  const diff = max - min;
+  return diff > 0 ? diff : null;
+}
 
-function CheckIcon() {
+// ── Small icons ───────────────────────────────────────────────────────────────
+
+function CheckCircle({ size = 16, bg = "var(--ok)" }: { size?: number; bg?: string }) {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-      stroke="var(--ok)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="20 6 9 17 4 12" />
-    </svg>
+    <span style={{
+      width: size, height: size, borderRadius: "50%", background: bg, flexShrink: 0,
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="none" stroke="var(--surface)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 13 l4 4 L19 7" />
+      </svg>
+    </span>
   );
 }
 
-function StepIndicator({ current, hasPlan }: { current: Step; hasPlan: boolean }) {
-  // When the user already has a paid plan, step 2 (Plan) is skipped.
-  const visibleSteps: Step[] = hasPlan
-    ? [1, 3, 4, 5, 6, 7]
-    : [1, 2, 3, 4, 5, 6, 7];
-
+function CheckBullet() {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, marginBottom: 36 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-        {visibleSteps.map((s, i) => {
-          const done = s < current;
-          const active = s === current;
-          return (
-            <div key={s} style={{ display: "flex", alignItems: "center" }}>
-              {i > 0 && <span style={{ display: "block", width: 20, height: 1, background: "var(--line-soft)", marginRight: 6 }} />}
-              <span style={{
-                width: 24, height: 24, borderRadius: "50%",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                fontSize: 10, fontWeight: 700, fontFamily: "var(--font-mono)",
-                flexShrink: 0,
-                background: done ? "var(--ok)" : active ? "var(--accent)" : "transparent",
-                color: done || active ? "white" : "var(--muted-foreground)",
-                border: done || active ? "none" : "1px solid var(--line-soft)",
-              }}>
-                {done ? "✓" : s}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-      <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--accent)" }}>
-        {STEP_LABELS[current]}
-      </span>
-    </div>
+    <span style={{
+      width: 16, height: 16, borderRadius: "50%", background: "var(--ok-bg)", flexShrink: 0,
+      display: "inline-flex", alignItems: "center", justifyContent: "center",
+    }}>
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--ok)" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 13 l4 4 L19 7" />
+      </svg>
+    </span>
   );
 }
 
-function SkillChips({ skills, onAdd, onRemove }: {
-  skills: string[];
+// Generic chip input — used for skills and target roles
+function ChipInput({ chips, onAdd, onRemove, placeholder }: {
+  chips: string[];
   onAdd: (s: string) => void;
   onRemove: (s: string) => void;
+  placeholder?: string;
 }) {
   const [input, setInput] = useState("");
 
   function commit() {
     const val = input.trim();
-    if (val && !skills.includes(val)) onAdd(val);
+    if (val && !chips.includes(val)) onAdd(val);
     setInput("");
   }
 
   return (
-    <div>
-      <div style={{
-        display: "flex", flexWrap: "wrap", gap: 6, minHeight: 36,
-        border: "1px solid var(--line-soft)", borderRadius: 8,
-        padding: "6px 10px", background: "var(--background)",
-      }}>
-        {skills.map(s => (
-          <span key={s} style={{
-            display: "inline-flex", alignItems: "center", gap: 4,
-            background: "var(--surface-soft)", border: "1px solid var(--line-soft)",
-            borderRadius: 20, padding: "2px 8px",
-            fontSize: 12, color: "var(--foreground)",
-          }}>
-            {s}
-            <button type="button" onClick={() => onRemove(s)}
-              style={{ display: "flex", alignItems: "center", background: "none", border: "none", cursor: "pointer", color: "var(--muted-foreground)", padding: 0, fontSize: 12, lineHeight: 1 }}>
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); } }}
-          onBlur={commit}
-          placeholder={skills.length === 0 ? "Type a skill and press Enter…" : "Add more…"}
-          style={{
-            flex: 1, minWidth: 120, border: "none", outline: "none",
-            background: "transparent", fontSize: 13, color: "var(--foreground)",
-          }}
-        />
-      </div>
-      <p style={{ marginTop: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)" }}>
-        Press Enter or comma to add each skill
-      </p>
+    <div style={{
+      display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", minHeight: 44,
+      border: "1px solid var(--line-soft)", borderRadius: 10,
+      padding: "8px 10px", background: "var(--background)",
+    }}>
+      {chips.map(s => (
+        <span key={s} style={{
+          display: "inline-flex", alignItems: "center", gap: 6,
+          background: "var(--surface-soft)", border: "1px solid var(--line-soft)",
+          borderRadius: 999, padding: "4px 6px 4px 11px",
+          fontSize: 13, color: "var(--foreground)",
+        }}>
+          {s}
+          <button type="button" onClick={() => onRemove(s)}
+            style={{
+              width: 16, height: 16, borderRadius: "50%", border: "none",
+              background: "rgba(42,38,32,0.08)", color: "var(--muted-foreground)",
+              fontSize: 11, lineHeight: 1, display: "inline-flex", alignItems: "center", justifyContent: "center",
+              cursor: "pointer", padding: 0,
+            }}>
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        value={input}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => { if (e.key === "Enter" || e.key === ",") { e.preventDefault(); commit(); } }}
+        onBlur={commit}
+        placeholder={chips.length === 0 ? (placeholder ?? "Add an item…") : "Add more…"}
+        style={{ flex: 1, minWidth: 120, height: 28, border: "none", outline: "none", background: "transparent", fontSize: 13, color: "var(--foreground)" }}
+      />
     </div>
   );
 }
@@ -189,23 +188,15 @@ function ScoreBar({ applyThreshold, watchThreshold }: { applyThreshold: number; 
   const applyPct = ((5 - applyThreshold) / 4) * 100;
 
   return (
-    <div style={{ borderRadius: 8, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
-      <div style={{ display: "flex", height: 32 }}>
-        <div style={{ width: `${skipPct}%`, background: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {skipPct > 15 && <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>Skip</span>}
-        </div>
-        <div style={{ width: `${watchPct}%`, background: "#f59e0b", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          {watchPct > 15 && <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>Watch</span>}
-        </div>
-        <div style={{ width: `${applyPct}%`, background: "#22c55e", display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
-          {applyPct > 15 && <span style={{ fontSize: 10, fontWeight: 700, color: "white" }}>Apply</span>}
-        </div>
+    <div style={{ display: "flex", height: 32, borderRadius: 8, overflow: "hidden" }}>
+      <div style={{ width: `${skipPct}%`, background: "var(--bad)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {skipPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>SKIP</span>}
       </div>
-      <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 8px", fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--muted-foreground)" }}>
-        <span>1.0</span>
-        <span style={{ color: "#f59e0b" }}>Watch ≥ {watchThreshold.toFixed(1)}</span>
-        <span style={{ color: "#22c55e" }}>Apply ≥ {applyThreshold.toFixed(1)}</span>
-        <span>5.0</span>
+      <div style={{ width: `${watchPct}%`, background: "var(--warn)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        {watchPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>WATCH</span>}
+      </div>
+      <div style={{ width: `${applyPct}%`, background: "var(--ok)", display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
+        {applyPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>APPLY</span>}
       </div>
     </div>
   );
@@ -223,28 +214,36 @@ interface Props {
 
 export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Props) {
   const router = useRouter();
+  const toast = useToast();
   const hasPlan = currentTier !== "free";
 
   const [step, setStep]   = useState<Step>(hasPlan ? 3 : 1);
   const [busy, setBusy]   = useState(false);
   const [error, setError] = useState("");
+  const [skipped, setSkipped] = useState<{ cv?: boolean; prefs?: boolean; thresholds?: boolean }>({});
+
+  const daysLeft = trialDaysLeft(trialEndsAt);
 
   // Step 2 — Plan
   const [period, setPeriod]     = useState<Period>("monthly");
+  const [selectedPlan, setSelectedPlan] = useState<TierId>("pro");
   const [planLoading, setPlanLoading] = useState<TierId | null>(null);
   const scriptLoaded = useRef(false);
-  const daysLeft = trialDaysLeft(trialEndsAt);
   const { price, currency, loading: currencyLoading } = useCurrency();
   const toggleDiscount = yearlyDiscount(INR_PRICES.pro_monthly, INR_PRICES.pro_yearly);
 
-  // Step 3 — Profile
-  const [fullName,   setFullName]   = useState("");
-  const [yearsExp,   setYearsExp]   = useState<string>("");
-  const [skills,     setSkills]     = useState<string[]>([]);
-  const [cvText,     setCvText]     = useState("");
+  // Step 3 — CV upload
+  const [cvStage, setCvStage]         = useState<CvStage>("upload");
+  const [cvWords, setCvWords]         = useState<number | null>(null);
+  const [cvError, setCvError]         = useState("");
+  const [cvExtracted, setCvExtracted] = useState<CvExtracted | null>(null);
+  const [cvPasteText, setCvPasteText] = useState("");
+  const [dragOver, setDragOver]       = useState(false);
+  const cvInputRef = useRef<HTMLInputElement>(null);
+  const CV_ACCEPT = ".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
   // Step 4 — Preferences
-  const [targetRoles,     setTargetRoles]     = useState("");
+  const [roles,           setRoles]           = useState<string[]>([]);
   const [targetLocations, setTargetLocations] = useState("");
   const [workMode,        setWorkMode]        = useState<"remote" | "hybrid" | "onsite" | null>(null);
   const [salaryMin,       setSalaryMin]       = useState("");
@@ -276,6 +275,16 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   }
 
   async function completeOnboarding() {
+    // Auto-apply referral code from signup link
+    const refCode = typeof window !== "undefined" ? localStorage.getItem("nr_referral_code") : null;
+    if (refCode) {
+      await fetch("/api/referral/apply", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: refCode }),
+      }).catch(() => {});
+      localStorage.removeItem("nr_referral_code");
+    }
+
     await fetch("/api/onboarding", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
   }
 
@@ -294,11 +303,12 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "subscription", plan: tierId, period }),
       });
-      const order = await res.json() as { order_id?: string; amount?: number; currency?: string; error?: string };
-      if (!order.order_id) { alert(order.error ?? "Could not create order"); setPlanLoading(null); return; }
+      const data = await res.json() as { subscription_id?: string; key_id?: string; error?: string };
+      if (!data.subscription_id) { toast.error(data.error ?? "Could not create subscription"); setPlanLoading(null); return; }
 
       const rzp = new window.Razorpay({
-        key: RZP_KEY, amount: order.amount!, currency: order.currency!, order_id: order.order_id,
+        key: data.key_id ?? RZP_KEY,
+        subscription_id: data.subscription_id,
         name: "NextRole",
         description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
         prefill: { email }, theme: { color: "#c84a1f" },
@@ -312,31 +322,77 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
             setStep(3);
             setPlanLoading(null);
           } else {
-            alert(result.error ?? "Payment verification failed");
+            toast.error(result.error ?? "Payment verification failed");
             setPlanLoading(null);
           }
         },
         modal: { ondismiss: () => setPlanLoading(null) },
-      });
+      } as RzpSubscriptionOptions);
       rzp.open();
     } catch { setPlanLoading(null); }
   }
 
-  // ── Step 3: Profile submit ────────────────────────────────────────────────
+  function handlePlanContinue() {
+    if (selectedPlan === "free") void handleFree();
+    else void handlePaidTier(selectedPlan);
+  }
 
-  async function handleProfileNext() {
-    setBusy(true); setError("");
+  // ── Step 3: CV upload / parse — mirrors the Profile page's CV card ────────
+
+  async function parseCv() {
+    setCvStage("parsing");
     try {
-      const patch: Record<string, unknown> = {};
-      if (fullName.trim()) patch.full_name = fullName.trim();
-      if (yearsExp !== "" && !isNaN(Number(yearsExp))) patch.years_experience = Number(yearsExp);
-      if (skills.length) patch.skills = skills;
-      if (cvText.trim()) patch.base_cv = cvText.trim();
-      if (Object.keys(patch).length > 0) await patchProfile(patch);
-      setStep(4);
+      const res = await fetch("/api/extension/cv-structure-import", { method: "POST" });
+      const data = await res.json() as CvExtracted & { error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Could not parse CV");
+      setCvExtracted(data);
+      setCvStage("review");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Something went wrong");
-    } finally { setBusy(false); }
+      setCvError(e instanceof Error ? e.message : "Could not parse CV");
+      setCvStage("review");
+    }
+  }
+
+  async function uploadCvFile(file: File) {
+    setCvStage("uploading"); setCvError("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await fetch("/api/profile/base-cv", { method: "POST", body: form });
+      const j = await res.json().catch(() => ({})) as { words?: number; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `Upload failed (${res.status})`);
+      setCvWords(j.words ?? null);
+      await parseCv();
+    } catch (e) {
+      setCvError(e instanceof Error ? e.message : "Upload failed");
+      setCvStage("upload");
+    }
+  }
+
+  async function submitPastedCv() {
+    const text = cvPasteText.trim();
+    if (!text) return;
+    setCvStage("uploading"); setCvError("");
+    try {
+      await patchProfile({ base_cv: text });
+      setCvWords(text.split(/\s+/).filter(Boolean).length);
+      await parseCv();
+    } catch (e) {
+      setCvError(e instanceof Error ? e.message : "Could not save CV");
+      setCvStage("paste");
+    }
+  }
+
+  function onCvDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragOver(false);
+    const f = e.dataTransfer.files?.[0];
+    if (f) void uploadCvFile(f);
+  }
+
+  function handleCvNext() {
+    setSkipped(s => ({ ...s, cv: cvStage !== "review" }));
+    setStep(4);
   }
 
   // ── Step 4: Preferences submit ────────────────────────────────────────────
@@ -345,8 +401,7 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     setBusy(true); setError("");
     try {
       const patch: Record<string, unknown> = {};
-      const roles = targetRoles.split(",").map(s => s.trim()).filter(Boolean);
-      const locs  = targetLocations.split(",").map(s => s.trim()).filter(Boolean);
+      const locs = targetLocations.split(",").map(s => s.trim()).filter(Boolean);
       if (roles.length) patch.target_roles = roles;
       if (locs.length)  patch.target_locations = locs;
       if (workMode !== null) patch.work_mode = workMode;
@@ -354,10 +409,16 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
       if (salaryMin && !isNaN(min)) patch.comp_min = min;
       if (salaryMax && !isNaN(max)) patch.comp_max = max;
       if (Object.keys(patch).length > 0) await patchProfile(patch);
+      setSkipped(s => ({ ...s, prefs: false }));
       setStep(5);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
+  }
+
+  function handlePrefsSkip() {
+    setSkipped(s => ({ ...s, prefs: true }));
+    setStep(5);
   }
 
   // ── Step 5: Thresholds submit ─────────────────────────────────────────────
@@ -366,10 +427,16 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     setBusy(true); setError("");
     try {
       await patchProfile({ eval_score_apply: applyScore, eval_score_watch: watchScore });
+      setSkipped(s => ({ ...s, thresholds: false }));
       setStep(6);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Something went wrong");
     } finally { setBusy(false); }
+  }
+
+  function handleThresholdsSkip() {
+    setSkipped(s => ({ ...s, thresholds: true }));
+    setStep(6);
   }
 
   // ── Step 7: Complete ──────────────────────────────────────────────────────
@@ -380,49 +447,131 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
     router.push("/dashboard");
   }
 
-  // ── Shell ─────────────────────────────────────────────────────────────────
+  // ── Shared layout pieces ──────────────────────────────────────────────────
 
-  function Shell({ wide, children }: { wide?: boolean; children: React.ReactNode }) {
+  const dotGrid = { backgroundColor: "var(--background)", backgroundImage: "radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px)", backgroundSize: "6px 6px" };
+
+  function PageShell({ children }: { children: ReactNode }) {
     return (
-      <div className="min-h-screen bg-[var(--background)] px-4 py-10">
-        <div className="mx-auto" style={{ maxWidth: wide ? 900 : 680 }}>
-          <div className="mb-10 flex items-center justify-between">
-            <BrandWordmark />
-            {daysLeft !== null && (
-              <span className="rounded-full border border-[var(--accent)] bg-[#fcefe7] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
-                {daysLeft}d trial active
-              </span>
-            )}
-          </div>
-          <StepIndicator current={step} hasPlan={hasPlan} />
-          {children}
-        </div>
+      <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10" style={dotGrid}>
+        {daysLeft !== null && (
+          <span className="mb-5 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+            {daysLeft}d trial active
+          </span>
+        )}
+        {children}
       </div>
+    );
+  }
+
+  function BrandRow() {
+    return (
+      <div className="flex items-center justify-between mb-3.5">
+        <BrandWordmark size={24} />
+        <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--muted-foreground-2)]">Step {step} of 7</span>
+      </div>
+    );
+  }
+
+  function ProgressBar() {
+    return (
+      <div className="h-[3px] w-full rounded-full overflow-hidden mb-8" style={{ background: "rgba(42,38,32,0.08)" }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${(step / 7) * 100}%`, background: "var(--accent)" }} />
+      </div>
+    );
+  }
+
+  // Type B — centered single column with top bar + progress + heading
+  function TypeB({ width, title, subtitle, children, footer }: {
+    width: number; title: string; subtitle: string; children: ReactNode; footer: ReactNode;
+  }) {
+    return (
+      <PageShell>
+        <div style={{ width, maxWidth: "100%" }}>
+          <BrandRow />
+          <ProgressBar />
+          <h1 className="nr-display text-center text-[36px] mb-2">{title}</h1>
+          <p className="text-center text-sm mb-6" style={{ color: "var(--muted-foreground)" }}>{subtitle}</p>
+          <div className="rounded-[20px] border p-6" style={{ borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}>
+            {children}
+          </div>
+          <div className="flex items-center justify-between mt-5.5">
+            {footer}
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  // Type A — 40/60 split panel card
+  function TypeA({ ghost, leftBody, rightLabel, children, cta }: {
+    ghost: string; leftBody: ReactNode; rightLabel?: string; children: ReactNode; cta: ReactNode;
+  }) {
+    return (
+      <PageShell>
+        <div
+          className="w-full flex flex-col md:flex-row overflow-hidden rounded-[20px] border"
+          style={{ maxWidth: 980, minHeight: 0, borderColor: "var(--line-soft)", background: "var(--surface)", boxShadow: "0 1px 3px rgba(0,0,0,0.08)" }}
+        >
+          <div className="flex-none md:basis-[40%] relative overflow-hidden flex flex-col p-9 md:p-10" style={{ background: "#1a1814", color: "#fffdf8" }}>
+            <span className="nr-display absolute pointer-events-none select-none" style={{ top: 4, left: 28, fontSize: 72, lineHeight: 1, color: "rgba(255,255,255,0.05)" }}>{ghost}</span>
+            <div className="relative z-10">
+              <BrandWordmark size={24} />
+            </div>
+            <div className="relative z-10 mt-auto pt-10">
+              {leftBody}
+            </div>
+          </div>
+          <div className="flex-1 flex flex-col p-9 md:p-11" style={dotGrid}>
+            {rightLabel && (
+              <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-5" style={{ color: "var(--muted-foreground)" }}>{rightLabel}</div>
+            )}
+            <div className="flex-1 flex flex-col justify-center">
+              {children}
+            </div>
+            <div className="flex justify-end mt-4">
+              {cta}
+            </div>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
+
+  function PrimaryButton({ children, onClick, disabled }: { children: ReactNode; onClick?: () => void; disabled?: boolean }) {
+    return (
+      <button
+        type="button" onClick={onClick} disabled={disabled}
+        className="rounded-full px-7 h-[42px] text-sm font-medium transition disabled:opacity-50"
+        style={{ background: "var(--accent)", color: "#fffdf8", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)" }}
+      >
+        {children}
+      </button>
+    );
+  }
+
+  function TextButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
+    return (
+      <button type="button" onClick={onClick}
+        className="font-mono text-[11px] uppercase tracking-[0.14em] transition hover:opacity-70"
+        style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
+        {children}
+      </button>
     );
   }
 
   function ErrorBanner() {
     if (!error) return null;
     return (
-      <div style={{
-        marginBottom: 16, fontSize: 12, color: "#b53a3a",
-        background: "rgba(181,58,58,0.08)", border: "1px solid rgba(181,58,58,0.25)",
-        borderRadius: 6, padding: "8px 12px",
-      }}>{error}</div>
-    );
-  }
-
-  function Card({ children }: { children: React.ReactNode }) {
-    return (
-      <div className="rounded-[20px] border border-[var(--line-soft)] bg-[var(--surface)] p-6">
-        {children}
+      <div className="mb-4 rounded-md px-3 py-2 text-xs" style={{ color: "var(--bad)", background: "var(--bad-bg)", border: "1px solid rgba(181,58,58,0.25)" }}>
+        {error}
       </div>
     );
   }
 
-  function FieldLabel({ children }: { children: React.ReactNode }) {
+  function FieldLabel({ children }: { children: ReactNode }) {
     return (
-      <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-1.5">
+      <label className="block font-mono text-[10px] uppercase tracking-[0.2em] mb-2" style={{ color: "var(--muted-foreground)" }}>
         {children}
       </label>
     );
@@ -433,681 +582,594 @@ export function OnboardingFlow({ trialEndsAt, email, currentTier = "free" }: Pro
   }) {
     return (
       <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
+        type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+        className="w-full h-[38px] px-3 text-sm rounded-[6px] outline-none transition-colors"
+        style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }}
+        onFocus={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"; }}
+        onBlur={e => { e.currentTarget.style.borderColor = "rgba(42,38,32,0.18)"; e.currentTarget.style.boxShadow = "none"; }}
       />
     );
   }
 
-  function ActionRow({ onSkip, skipLabel = "Skip for now", submitLabel, onSubmit, submitBusy }: {
-    onSkip?: () => void;
-    skipLabel?: string;
-    submitLabel: string;
-    onSubmit?: () => void;
-    submitBusy?: boolean;
-  }) {
-    return (
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24 }}>
-        {onSkip ? (
-          <button type="button" onClick={onSkip}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors">
-            {skipLabel}
-          </button>
-        ) : <span />}
-        <button
-          type={onSubmit ? "button" : "submit"}
-          onClick={onSubmit}
-          disabled={submitBusy}
-          className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition hover:opacity-90 disabled:opacity-50"
-        >
-          {submitBusy ? "Saving…" : submitLabel}
-        </button>
-      </div>
-    );
-  }
-
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 1 — Welcome
+  // STEP 1 — Welcome (Type A)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (step === 1) {
+    const cards = [
+      { label: "SENIOR ENGINEER", fill: 4, rotate: -6, top: 26, left: 0 },
+      { label: "PRODUCT DESIGNER", fill: 3, rotate: 5, top: 0, right: 0 },
+      { label: "DATA SCIENTIST", fill: 2, rotate: 2, bottom: 0, left: 38 },
+    ];
     return (
-      <Shell>
-        <div style={{ textAlign: "center", marginBottom: 40 }}>
-          <div style={{
-            width: 56, height: 56, borderRadius: 16, background: "var(--accent)",
-            display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px",
-          }}>
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-          </div>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)] sm:text-5xl">
-            Welcome to NextRole
-          </h1>
-          <p className="mt-3 text-[var(--muted-foreground)] max-w-md mx-auto">
-            Your AI-powered job search co-pilot. We'll have you set up and evaluating jobs in under 3 minutes.
-          </p>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 40 }}>
+      <TypeA
+        ghost="01"
+        rightLabel="What you get"
+        leftBody={
+          <>
+            <div className="relative h-[120px] mb-7 hidden sm:block">
+              {cards.map(c => (
+                <div key={c.label} style={{
+                  position: "absolute", width: 140,
+                  top: c.top, left: c.left, right: c.right, bottom: c.bottom,
+                  transform: `rotate(${c.rotate}deg)`,
+                  background: "#252019", border: "1px solid rgba(255,255,255,0.08)",
+                  borderRadius: 10, padding: "11px 12px",
+                }}>
+                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.16em", color: "rgba(255,255,255,0.4)", marginBottom: 7 }}>{c.label}</div>
+                  <div style={{ display: "flex", gap: 3 }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <div key={i} style={{ height: 6, flex: 1, borderRadius: 2, background: i < c.fill ? "var(--accent)" : "rgba(255,255,255,0.12)" }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <h1 className="nr-display text-[34px] leading-[1.1] mb-3">Welcome to NextRole</h1>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>Your AI-powered job search co-pilot.</p>
+          </>
+        }
+        cta={<PrimaryButton onClick={() => setStep(hasPlan ? 3 : 2)}>Get started</PrimaryButton>}
+      >
+        <div className="flex flex-col gap-5">
           {[
-            { icon: "⚡", title: "AI Evaluation", desc: "Score every job 1–5 across 5 dimensions before you apply" },
-            { icon: "📄", title: "Resume Tailoring", desc: "Generate a resume tuned to each job description" },
-            { icon: "🖱️", title: "Autofill", desc: "Auto-complete application forms with your profile" },
-            { icon: "📊", title: "Job Tracker", desc: "Track every application from evaluation to offer" },
+            { title: "AI Evaluation", desc: "Score every job 1–5 before you apply." },
+            { title: "Resume Tailoring", desc: "Generate a resume tuned to each job description." },
+            { title: "Application Autofill", desc: "Fill forms from your profile automatically." },
+            { title: "Job Tracker", desc: "Track every application from evaluation to offer." },
           ].map(f => (
-            <div key={f.title} style={{
-              border: "1px solid var(--line-soft)", borderRadius: 16,
-              padding: "20px 18px", background: "var(--surface)",
-            }}>
-              <div style={{ fontSize: 22, marginBottom: 8 }}>{f.icon}</div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: "var(--foreground)" }}>{f.title}</div>
-              <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{f.desc}</div>
+            <div key={f.title} className="flex gap-3">
+              <div className="w-4 h-4 rounded-[4px] flex-shrink-0 mt-0.5" style={{ background: "var(--accent)" }} />
+              <div>
+                <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>{f.title}</div>
+                <div className="text-[13px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>{f.desc}</div>
+              </div>
             </div>
           ))}
         </div>
-
-        <div style={{ textAlign: "center" }}>
-          <button
-            onClick={() => setStep(hasPlan ? 3 : 2)}
-            className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-8 py-3 font-mono text-[12px] uppercase tracking-[0.18em] transition hover:opacity-90"
-          >
-            Get started →
-          </button>
-          <p style={{ marginTop: 12, fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted-foreground-2)", textTransform: "uppercase", letterSpacing: "0.14em" }}>
-            Takes about 3 minutes
-          </p>
-        </div>
-      </Shell>
+      </TypeA>
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 2 — Plan selection
+  // STEP 2 — Choose your plan (Type B)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (step === 2) {
     return (
-      <Shell wide>
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)] sm:text-5xl">
-            Choose your plan
-          </h1>
-          <p className="mt-3 text-[var(--muted-foreground)]">
-            Start free or upgrade for more credits and features.
-          </p>
-
-          <div className="mt-6 inline-flex items-center gap-1 rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)] p-1">
+      <TypeB
+        width={900}
+        title="Choose your plan"
+        subtitle="Start free. Upgrade whenever you need more credits."
+        footer={
+          <>
+            <TextButton onClick={() => setStep(1)}>Back</TextButton>
+            <PrimaryButton onClick={handlePlanContinue} disabled={!!planLoading}>
+              {planLoading ? "Processing…" : `Continue with ${TIERS.find(t => t.id === selectedPlan)?.name}`}
+            </PrimaryButton>
+          </>
+        }
+      >
+        <div className="flex justify-center mb-6">
+          <div className="inline-flex rounded-full p-[3px]" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>
             {(["monthly", "yearly"] as Period[]).map(p => (
               <button key={p} onClick={() => setPeriod(p)}
-                className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] font-semibold transition ${
-                  period === p
-                    ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm"
-                    : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
-                }`}>
+                className="h-[30px] px-4.5 rounded-full text-[13px] font-medium transition"
+                style={{ background: period === p ? "var(--surface)" : "transparent", color: period === p ? "var(--foreground)" : "var(--muted-foreground)" }}>
                 {p === "monthly" ? "Monthly" : (
-                  <>Yearly <span className="rounded-full bg-[var(--ok-bg)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--ok)]">-{toggleDiscount}%</span></>
+                  <>Yearly <span className="rounded-full px-1.5 py-0.5 text-[9px] font-bold ml-1" style={{ background: "var(--ok-bg)", color: "var(--ok)" }}>-{toggleDiscount}%</span></>
                 )}
               </button>
             ))}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {TIERS.map(tier => {
-            const isLoading = planLoading === tier.id;
-            let displayPrice: React.ReactNode;
+            const selected = selectedPlan === tier.id;
+            let displayPrice: ReactNode;
             let displaySub = "";
 
             if (tier.inrMonthly === 0) {
-              displayPrice = "Free";
+              displayPrice = "₹0";
             } else if (period === "yearly") {
               const perMo = Math.round(tier.inrYearly / 12);
-              displayPrice = currencyLoading ? <span className="animate-pulse text-[var(--muted-foreground-2)]">—</span> : price(perMo).display;
+              displayPrice = currencyLoading ? <span className="animate-pulse" style={{ color: "var(--muted-foreground-2)" }}>—</span> : price(perMo).display;
               displaySub = currencyLoading ? "/mo · yearly" : `/mo · ${price(tier.inrYearly).display}/yr`;
             } else {
-              displayPrice = currencyLoading ? <span className="animate-pulse text-[var(--muted-foreground-2)]">—</span> : price(tier.inrMonthly).display;
+              displayPrice = currencyLoading ? <span className="animate-pulse" style={{ color: "var(--muted-foreground-2)" }}>—</span> : price(tier.inrMonthly).display;
               displaySub = "/mo";
             }
 
-            const discount = period === "yearly" && tier.inrMonthly > 0
-              ? yearlyDiscount(tier.inrMonthly, tier.inrYearly) : null;
-
             return (
-              <div key={tier.id} className="relative flex flex-col rounded-[20px] border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-                <div className="mb-2 flex min-h-[20px] items-center justify-between gap-1">
-                  {tier.badge ? (
-                    <span className="inline-block rounded-full border border-[var(--line-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
-                      {tier.badge}
-                    </span>
-                  ) : <span />}
-                  {discount && (
-                    <span className="rounded-full bg-[var(--ok-bg)] px-1.5 py-0.5 font-mono text-[9px] font-bold text-[var(--ok)]">-{discount}%</span>
-                  )}
+              <div key={tier.id} onClick={() => setSelectedPlan(tier.id)}
+                className="relative flex flex-col rounded-[20px] p-6 cursor-pointer transition-colors"
+                style={{
+                  background: "var(--surface)",
+                  border: `1px solid ${selected ? "rgba(200,74,31,0.55)" : "var(--line-soft)"}`,
+                  boxShadow: tier.primary ? "0 4px 12px rgba(0,0,0,0.07)" : "0 1px 3px rgba(0,0,0,0.08)",
+                }}>
+                {tier.badge && (
+                  <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 rounded-full px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em]"
+                    style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)", color: "var(--muted-foreground)" }}>
+                    {tier.badge}
+                  </span>
+                )}
+                <p className="font-mono text-[11px] uppercase tracking-[0.18em] mb-3.5" style={{ color: "var(--muted-foreground)" }}>{tier.name}</p>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-[32px] font-bold" style={{ color: "var(--foreground)" }}>{displayPrice}</span>
+                  {tier.inrMonthly > 0 && <span className="text-xs" style={{ color: "var(--muted-foreground)" }}>{displaySub}</span>}
                 </div>
-
-                <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">{tier.name}</p>
-                <div className="mt-1"><span className="text-3xl font-bold text-[var(--foreground)]">{displayPrice}</span></div>
-                <p className="mt-0.5 font-mono text-[10px] text-[var(--muted-foreground-2)]">
-                  {displaySub}
-                  {!currencyLoading && currency.code !== "INR" && tier.inrMonthly > 0 && <span className="ml-1 opacity-60">· approx</span>}
-                </p>
-
-                <hr className="my-4 border-[var(--line-soft)]" />
-
-                <ul className="flex-1 space-y-2">
+                <div className="h-3.5 mt-0.5 font-mono text-[11px]" style={{ color: "var(--muted-foreground-2)" }}>
+                  {!currencyLoading && currency.code !== "INR" && tier.inrMonthly > 0 ? "approx" : " "}
+                </div>
+                <hr className="my-4" style={{ borderColor: "var(--line-soft)" }} />
+                <ul className="flex-1 flex flex-col gap-2.5">
                   {tier.features.map(f => (
-                    <li key={f} className="flex items-start gap-2 text-[13px] text-[var(--foreground)]">
-                      <span className="mt-0.5"><CheckIcon /></span>{f}
+                    <li key={f} className="flex items-center gap-2.5 text-[13px]" style={{ color: "var(--foreground)" }}>
+                      <CheckBullet />{f}
                     </li>
                   ))}
                 </ul>
-
-                <div className="mt-5">
-                  {tier.id === "free" ? (
-                    <button onClick={handleFree} disabled={!!planLoading}
-                      className="w-full rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50">
-                      {isLoading ? "Starting…" : tier.cta}
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handlePaidTier(tier.id as "starter" | "pro")}
-                      disabled={!!planLoading}
-                      className={`w-full rounded-full py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition disabled:opacity-50 ${
-                        tier.primary
-                          ? "bg-[var(--foreground)] text-[var(--background)] hover:opacity-90"
-                          : "border border-[var(--line-soft)] text-[var(--foreground)] hover:border-[var(--line)]"
-                      }`}>
-                      {isLoading ? "Processing…" : tier.cta}
-                    </button>
-                  )}
-                </div>
+                <button
+                  className="mt-5 h-[42px] rounded-full text-sm font-medium transition"
+                  style={tier.primary
+                    ? { background: "var(--accent)", color: "#fffdf8", border: "none", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)" }
+                    : { background: "var(--surface)", color: "var(--foreground)", border: "1px solid var(--line-soft)" }}
+                >
+                  {selected ? "Selected" : tier.cta}
+                </button>
               </div>
             );
           })}
         </div>
-        <p className="mt-8 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.14em] mt-6" style={{ color: "var(--muted-foreground-2)" }}>
           No credit card required · Cancel anytime
         </p>
-      </Shell>
+      </TypeB>
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 3 — Build your profile
+  // STEP 3 — Upload your CV (Type B)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (step === 3) {
+    const extractedRows: Array<{ label: string; value: string | null; found: boolean }> = cvExtracted ? [
+      { label: "Full name", value: cvExtracted.full_name ?? null, found: !!cvExtracted.full_name },
+      { label: "Experience", value: (() => { const y = computeExperienceYears(cvExtracted.work_experience); return y ? `${y} years` : null; })(), found: !!computeExperienceYears(cvExtracted.work_experience) },
+      { label: "Phone", value: cvExtracted.phone ?? null, found: !!cvExtracted.phone },
+      { label: "LinkedIn", value: cvExtracted.linkedin_url ?? null, found: !!cvExtracted.linkedin_url },
+    ] : [];
+
     return (
-      <Shell>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">Build your profile</h1>
-          <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-            The AI uses this to score job fit and personalise every evaluation.
-          </p>
-        </div>
+      <TypeB
+        width={640}
+        title="Upload your CV"
+        subtitle="We'll read it once and pre-fill your profile and preferences."
+        footer={
+          <>
+            <TextButton onClick={() => { setSkipped(s => ({ ...s, cv: true })); setStep(4); }}>Skip for now</TextButton>
+            <PrimaryButton onClick={handleCvNext} disabled={cvStage === "uploading" || cvStage === "parsing"}>
+              {cvStage === "review" ? "Continue" : "Skip and continue"}
+            </PrimaryButton>
+          </>
+        }
+      >
+        {cvError && (
+          <div className="mb-4 rounded-md px-3 py-2 text-xs" style={{ color: "var(--bad)", background: "var(--bad-bg)", border: "1px solid rgba(181,58,58,0.25)" }}>{cvError}</div>
+        )}
 
-        <ErrorBanner />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 16 }}>
-              Basic info
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              <div>
-                <FieldLabel>Full name</FieldLabel>
-                <TextInput value={fullName} onChange={setFullName} placeholder="Jane Smith" />
-              </div>
-              <div>
-                <FieldLabel>Years of experience</FieldLabel>
-                <input
-                  type="number" min={0} max={50}
-                  value={yearsExp}
-                  onChange={e => setYearsExp(e.target.value)}
-                  placeholder="e.g. 4"
-                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
-                  style={{ width: 120 }}
-                />
-              </div>
-              <div>
-                <FieldLabel>Skills</FieldLabel>
-                <SkillChips
-                  skills={skills}
-                  onAdd={s => setSkills(prev => [...prev, s])}
-                  onRemove={s => setSkills(prev => prev.filter(x => x !== s))}
-                />
+        {cvStage === "upload" && (
+          <>
+            <div
+              onClick={() => cvInputRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={onCvDrop}
+              className="h-[200px] rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-2.5 cursor-pointer transition-colors"
+              style={{ borderColor: dragOver ? "var(--accent)" : "rgba(42,38,32,0.18)", background: "var(--background)" }}
+            >
+              <input ref={cvInputRef} type="file" accept={CV_ACCEPT} className="hidden"
+                onChange={e => { const f = e.target.files?.[0]; if (f) void uploadCvFile(f); e.target.value = ""; }} />
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground-2)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 3 H7 a2 2 0 0 0 -2 2 v14 a2 2 0 0 0 2 2 h10 a2 2 0 0 0 2 -2 V8 Z" /><path d="M14 3 v5 h5" />
+              </svg>
+              <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>
+                Drag your CV here, <span style={{ color: "var(--accent)", fontWeight: 500 }}>or click to browse</span>
               </div>
             </div>
-          </Card>
+            <div className="flex items-center gap-1.5 mt-3.5">
+              {["PDF", "DOCX"].map(t => (
+                <span key={t} className="font-mono text-[9px] tracking-[0.1em] rounded-full px-2.5 py-0.5" style={{ background: "var(--surface-soft)", color: "var(--muted-foreground)" }}>{t}</span>
+              ))}
+              <span className="font-mono text-[9px] tracking-[0.1em] ml-auto" style={{ color: "var(--muted-foreground-2)" }}>MAX 5 MB</span>
+            </div>
+            <div className="text-center mt-4">
+              <button type="button" onClick={() => setCvStage("paste")}
+                className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
+                Paste text instead
+              </button>
+            </div>
+          </>
+        )}
 
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 12 }}>
-              Your CV <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>— optional but recommended</span>
-            </p>
+        {cvStage === "paste" && (
+          <>
             <textarea
-              value={cvText}
-              onChange={e => setCvText(e.target.value)}
-              rows={10}
-              placeholder={"Jane Smith\nSoftware Engineer · Bengaluru\n\nEXPERIENCE\nSenior Engineer · Acme Corp (2021–present)\n..."}
-              className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] p-3 text-sm text-[var(--foreground)] font-mono resize-y outline-none focus:border-[var(--accent)] transition-colors"
-              style={{ minHeight: 200 }}
+              value={cvPasteText}
+              onChange={e => setCvPasteText(e.target.value)}
+              rows={8}
+              placeholder={"Paste your CV text here…"}
+              className="w-full p-3 text-sm font-mono rounded-lg outline-none resize-y"
+              style={{ background: "var(--background)", border: "1px solid var(--line-soft)", color: "var(--foreground)", minHeight: 160 }}
             />
-            <p style={{ marginTop: 6, fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)" }}>
-              Plain text, no formatting needed. Max 20,000 characters.
-            </p>
-          </Card>
-        </div>
+            <div className="flex items-center justify-between mt-3">
+              <button type="button" onClick={() => setCvStage("upload")}
+                className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
+                Back to upload
+              </button>
+              <button type="button" onClick={submitPastedCv} disabled={!cvPasteText.trim()}
+                className="rounded-full px-4 h-[32px] text-xs font-medium disabled:opacity-50"
+                style={{ background: "var(--surface)", border: "1px solid var(--line-soft)", color: "var(--foreground)" }}>
+                Extract
+              </button>
+            </div>
+          </>
+        )}
 
-        <ActionRow
-          onSkip={() => setStep(4)}
-          submitLabel="Continue →"
-          onSubmit={handleProfileNext}
-          submitBusy={busy}
-        />
-      </Shell>
+        {(cvStage === "uploading" || cvStage === "parsing") && (
+          <div className="h-[200px] rounded-xl flex flex-col items-center justify-center gap-3.5" style={{ background: "var(--background)" }}>
+            <div className="w-8 h-8 rounded-full animate-spin" style={{ border: "3px solid rgba(200,74,31,0.18)", borderTopColor: "var(--accent)" }} />
+            <div className="text-center">
+              <div className="text-sm" style={{ color: "var(--muted-foreground)" }}>{cvStage === "uploading" ? "Reading your CV…" : "Extracting profile details…"}</div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--muted-foreground-2)" }}>{cvWords ? `${cvWords.toLocaleString()} words extracted` : "Extracting skills"}</div>
+            </div>
+          </div>
+        )}
+
+        {cvStage === "review" && (
+          <>
+            <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-4" style={{ color: "var(--muted-foreground)" }}>We found this in your CV</div>
+            <div className="flex flex-col">
+              {extractedRows.map(row => (
+                <div key={row.label} className="grid items-center gap-3 py-2.5 border-b" style={{ gridTemplateColumns: "120px 1fr auto", borderColor: "rgba(42,38,32,0.06)" }}>
+                  <span className="font-mono text-[10px] tracking-[0.12em] uppercase" style={{ color: "var(--muted-foreground)" }}>{row.label}</span>
+                  <span className="text-[13px]" style={{ color: row.found ? "var(--foreground)" : "var(--muted-foreground-2)" }}>{row.value ?? "—"}</span>
+                  <span className="font-mono text-[9px] tracking-[0.1em] uppercase rounded-full px-2.5 py-1"
+                    style={row.found ? { background: "var(--ok-bg)", color: "var(--ok)" } : { color: "var(--muted-foreground-2)" }}>
+                    {row.found ? "Found" : "Not found"}
+                  </span>
+                </div>
+              ))}
+              <div className="grid items-start gap-3 py-2.5" style={{ gridTemplateColumns: "120px 1fr" }}>
+                <span className="font-mono text-[10px] tracking-[0.12em] uppercase mt-1" style={{ color: "var(--muted-foreground)" }}>Skills</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {(cvExtracted?.skills ?? []).length === 0 ? (
+                    <span className="text-[13px]" style={{ color: "var(--muted-foreground-2)" }}>—</span>
+                  ) : (
+                    <>
+                      {(cvExtracted!.skills ?? []).slice(0, 6).map(s => (
+                        <span key={s} className="rounded-full px-2.5 py-1 text-xs" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>{s}</span>
+                      ))}
+                      {(cvExtracted!.skills?.length ?? 0) > 6 && (
+                        <span className="rounded-full px-2.5 py-1 text-xs" style={{ background: "var(--surface)", border: "1px solid var(--line-soft)", color: "var(--muted-foreground)" }}>
+                          +{(cvExtracted!.skills!.length - 6)} more
+                        </span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <button type="button" onClick={() => { setCvStage("upload"); setCvExtracted(null); setCvWords(null); }}
+                className="rounded-full px-4 h-[32px] text-xs" style={{ background: "var(--surface)", border: "1px solid var(--line-soft)", color: "var(--foreground)" }}>
+                Re-upload
+              </button>
+            </div>
+          </>
+        )}
+      </TypeB>
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 4 — Job preferences
+  // STEP 4 — Job preferences (Type B)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (step === 4) {
     return (
-      <Shell>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">Job preferences</h1>
-          <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-            Tell NextRole what you're looking for. You can change these anytime.
-          </p>
-        </div>
-
+      <TypeB
+        width={640}
+        title="Job preferences"
+        subtitle="Tell us what you're looking for so the AI scores the right jobs."
+        footer={
+          <>
+            <TextButton onClick={handlePrefsSkip}>Skip for now</TextButton>
+            <PrimaryButton onClick={handlePrefsNext} disabled={busy}>{busy ? "Saving…" : "Continue"}</PrimaryButton>
+          </>
+        }
+      >
         <ErrorBanner />
-
-        <Card>
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-            <div>
-              <FieldLabel>Target roles</FieldLabel>
-              <TextInput value={targetRoles} onChange={setTargetRoles} placeholder="Software Engineer, Product Manager, ..." />
-              <p style={{ marginTop: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)" }}>Separate multiple roles with commas</p>
-            </div>
-
-            <div>
-              <FieldLabel>Preferred locations</FieldLabel>
-              <TextInput value={targetLocations} onChange={setTargetLocations} placeholder="Bengaluru, Mumbai, Remote, ..." />
-              <p style={{ marginTop: 4, fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)" }}>Separate multiple locations with commas</p>
-            </div>
-
-            <div>
-              <FieldLabel>Work mode</FieldLabel>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {(["remote", "hybrid", "onsite"] as const).map(mode => (
-                  <button key={mode} type="button"
-                    onClick={() => setWorkMode(prev => prev === mode ? null : mode)}
-                    className={`rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] border transition ${
-                      workMode === mode
-                        ? "bg-[var(--accent)] text-white border-[var(--accent)]"
-                        : "border-[var(--line-soft)] text-[var(--muted-foreground)] hover:border-[var(--line)]"
-                    }`}>
-                    {mode === "onsite" ? "On-site" : mode.charAt(0).toUpperCase() + mode.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <FieldLabel>Expected salary (₹ LPA)</FieldLabel>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-                <input type="number" min={0} max={9999} value={salaryMin} onChange={e => setSalaryMin(e.target.value)}
-                  placeholder="Min"
-                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
-                  style={{ width: 100 }} />
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted-foreground)" }}>to</span>
-                <input type="number" min={0} max={9999} value={salaryMax} onChange={e => setSalaryMax(e.target.value)}
-                  placeholder="Max"
-                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
-                  style={{ width: 100 }} />
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)" }}>lakhs per year</span>
-              </div>
+        <div className="flex flex-col gap-5.5">
+          <div>
+            <FieldLabel>Target roles</FieldLabel>
+            <ChipInput chips={roles} onAdd={r => setRoles(prev => [...prev, r])} onRemove={r => setRoles(prev => prev.filter(x => x !== r))} placeholder="Add a role…" />
+          </div>
+          <div>
+            <FieldLabel>Preferred locations</FieldLabel>
+            <TextInput value={targetLocations} onChange={setTargetLocations} placeholder="Bengaluru, Mumbai, Remote…" />
+          </div>
+          <div>
+            <FieldLabel>Work mode</FieldLabel>
+            <div className="flex gap-2">
+              {(["remote", "hybrid", "onsite"] as const).map(mode => (
+                <button key={mode} type="button" onClick={() => setWorkMode(prev => prev === mode ? null : mode)}
+                  className="flex-1 h-10 rounded-full text-[13px] font-medium transition"
+                  style={workMode === mode
+                    ? { background: "var(--accent)", color: "#fffdf8", border: "none" }
+                    : { background: "transparent", color: "var(--muted-foreground)", border: "1px solid var(--line-soft)" }}>
+                  {mode === "onsite" ? "On-site" : mode.charAt(0).toUpperCase() + mode.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
-        </Card>
-
-        <ActionRow
-          onSkip={() => setStep(5)}
-          submitLabel="Continue →"
-          onSubmit={handlePrefsNext}
-          submitBusy={busy}
-        />
-      </Shell>
+          <div>
+            <FieldLabel>Expected salary</FieldLabel>
+            <div className="flex items-center gap-2.5">
+              <input type="number" min={0} max={9999} value={salaryMin} onChange={e => setSalaryMin(e.target.value)} placeholder="Min"
+                className="h-[38px] w-full px-3 text-sm rounded-[6px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
+              <span className="text-[13px]" style={{ color: "var(--muted-foreground)" }}>to</span>
+              <input type="number" min={0} max={9999} value={salaryMax} onChange={e => setSalaryMax(e.target.value)} placeholder="Max"
+                className="h-[38px] w-full px-3 text-sm rounded-[6px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
+              <span className="font-mono text-[11px] tracking-[0.1em]" style={{ color: "var(--muted-foreground)" }}>LPA</span>
+            </div>
+          </div>
+        </div>
+      </TypeB>
     );
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 5 — AI Scoring thresholds
+  // STEP 5 — How AI scores jobs (Type B hybrid)
   // ═══════════════════════════════════════════════════════════════════════════
 
   if (step === 5) {
     return (
-      <Shell>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">AI Score Setup</h1>
-          <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-            Every job gets scored 1–5 across five dimensions. Set your thresholds for Apply, Watch, and Skip.
-          </p>
-        </div>
-
+      <TypeB
+        width={760}
+        title="How AI scores jobs"
+        subtitle="Every job is scored 1 to 5 across five dimensions."
+        footer={
+          <>
+            <TextButton onClick={handleThresholdsSkip}>Use defaults</TextButton>
+            <PrimaryButton onClick={handleThresholdsNext} disabled={busy}>{busy ? "Saving…" : "Save and continue"}</PrimaryButton>
+          </>
+        }
+      >
         <ErrorBanner />
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Score zone visualiser */}
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 14 }}>
-              Score zones
-            </p>
-            <ScoreBar applyThreshold={applyScore} watchThreshold={watchScore} />
+        <ScoreBar applyThreshold={applyScore} watchThreshold={watchScore} />
 
-            <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
-              {[
-                { label: "Apply", color: "#22c55e", desc: "Strong fit — submit your application" },
-                { label: "Watch", color: "#f59e0b", desc: "Possible fit — keep an eye on it" },
-                { label: "Skip",  color: "#ef4444", desc: "Poor fit — not worth your time" },
-              ].map(d => (
-                <div key={d.label} style={{
-                  flex: 1, minWidth: 140,
-                  border: `1px solid ${d.color}22`, borderRadius: 10, padding: "10px 12px",
-                  background: `${d.color}0d`,
-                }}>
-                  <span style={{ fontWeight: 700, fontSize: 12, color: d.color }}>{d.label}</span>
-                  <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4 }}>{d.desc}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Threshold sliders */}
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 20 }}>
-              Your thresholds
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#22c55e" }}>Apply threshold</span>
-                    <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Jobs scoring this or above are recommended to apply</p>
-                  </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 700, color: "#22c55e", minWidth: 36, textAlign: "right" }}>
-                    {applyScore.toFixed(1)}
-                  </span>
-                </div>
-                <input
-                  type="range" min={watchScore + 0.1} max={5} step={0.1}
-                  value={applyScore}
-                  onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    setApplyScore(Math.round(v * 10) / 10);
-                  }}
-                  style={{ width: "100%", accentColor: "#22c55e" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)", marginTop: 2 }}>
-                  <span>{(watchScore + 0.1).toFixed(1)}</span><span>5.0</span>
-                </div>
-              </div>
-
-              <div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-                  <div>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: "#f59e0b" }}>Watch threshold</span>
-                    <p style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 2 }}>Jobs scoring this or above (but below Apply) go into Watch list</p>
-                  </div>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 18, fontWeight: 700, color: "#f59e0b", minWidth: 36, textAlign: "right" }}>
-                    {watchScore.toFixed(1)}
-                  </span>
-                </div>
-                <input
-                  type="range" min={1} max={applyScore - 0.1} step={0.1}
-                  value={watchScore}
-                  onChange={e => {
-                    const v = parseFloat(e.target.value);
-                    setWatchScore(Math.round(v * 10) / 10);
-                  }}
-                  style={{ width: "100%", accentColor: "#f59e0b" }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--muted-foreground-2)", marginTop: 2 }}>
-                  <span>1.0</span><span>{(applyScore - 0.1).toFixed(1)}</span>
-                </div>
-              </div>
-            </div>
-
-            <p style={{ marginTop: 16, fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--muted-foreground-2)" }}>
-              Default: Apply ≥ 3.5 · Watch ≥ 2.5 · These can be changed anytime from Settings.
-            </p>
-          </Card>
-
-          {/* Score dimensions */}
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 14 }}>
-              What gets scored
-            </p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
-              {[
-                { name: "Role Fit",         desc: "Job title & scope vs your target roles" },
-                { name: "CV Match",         desc: "Your experience vs job requirements, gaps & strengths" },
-                { name: "Compensation",     desc: "Salary vs your expected range & market benchmarks" },
-                { name: "Level Strategy",   desc: "Career progression value of this role" },
-                { name: "Legitimacy",       desc: "Is the posting real, clear, and high quality?" },
-              ].map(d => (
-                <div key={d.name} style={{
-                  border: "1px solid var(--line-soft)", borderRadius: 8,
-                  padding: "10px 12px", background: "var(--surface-soft)",
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)" }}>{d.name}</div>
-                  <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4 }}>{d.desc}</div>
-                </div>
-              ))}
-              <div style={{
-                border: "1px solid var(--accent)", borderRadius: 8,
-                padding: "10px 12px", background: "rgba(200,74,31,0.06)",
-              }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent)" }}>Final Score</div>
-                <div style={{ fontSize: 11, color: "var(--muted-foreground)", marginTop: 3, lineHeight: 1.4 }}>Weighted average → Apply / Watch / Skip</div>
-              </div>
-            </div>
-          </Card>
-        </div>
-
-        <ActionRow
-          onSkip={() => setStep(6)}
-          skipLabel="Use defaults"
-          submitLabel="Save & continue →"
-          onSubmit={handleThresholdsNext}
-          submitBusy={busy}
-        />
-      </Shell>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 6 — How your flow works
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  if (step === 6) {
-    return (
-      <Shell>
-        <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">Your Job Search Flow</h1>
-          <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-            From spotting a job to landing an offer — here's how NextRole fits in.
-          </p>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          {/* Pipeline */}
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 16 }}>
-              Application pipeline
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "stretch" }}>
-              {[
-                { stage: "1. Find", desc: "Spot a job on LinkedIn, Naukri, or anywhere", accent: false },
-                { stage: "2. Evaluate", desc: "Paste the URL — AI scores it across 5 dimensions in seconds", accent: true },
-                { stage: "3. Track", desc: "Applied, Shortlisted, Interview, Offer — all in one board", accent: false },
-                { stage: "4. Tailor", desc: "Generate a resume tuned to each JD before you apply", accent: false },
-                { stage: "5. Autofill", desc: "Browser extension fills application forms from your profile", accent: false },
-              ].map(s => (
-                <div key={s.stage} style={{ flex: 1, minWidth: 140 }}>
-                  <div style={{
-                    border: s.accent ? "1px solid var(--accent)" : "1px solid var(--line-soft)",
-                    borderRadius: 12, padding: "14px 14px",
-                    background: s.accent ? "rgba(200,74,31,0.06)" : "var(--surface-soft)",
-                    height: "100%",
-                  }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: s.accent ? "var(--accent)" : "var(--foreground)", marginBottom: 4 }}>{s.stage}</div>
-                    <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.5 }}>{s.desc}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* How to evaluate */}
-          <Card>
-            <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 14 }}>
-              How to evaluate a job
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {[
-                { step: "1", text: "Go to Dashboard → Evaluate a Job" },
-                { step: "2", text: "Paste the job URL or description" },
-                { step: "3", text: "AI scores it 1–5 across Role Fit, CV Match, Compensation, Level Strategy, and Legitimacy" },
-                { step: "4", text: "If the score is ≥ your Apply threshold, the AI recommends applying" },
-                { step: "5", text: "Add it to your pipeline and tailor your resume in one click" },
-              ].map(item => (
-                <div key={item.step} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <span style={{
-                    width: 22, height: 22, borderRadius: "50%", background: "var(--accent)",
-                    color: "white", display: "flex", alignItems: "center", justifyContent: "center",
-                    fontSize: 10, fontWeight: 700, flexShrink: 0, marginTop: 1,
-                  }}>{item.step}</span>
-                  <p style={{ fontSize: 13, color: "var(--foreground)", lineHeight: 1.5 }}>{item.text}</p>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          {/* Credits note */}
-          <div style={{
-            border: "1px solid var(--line-soft)", borderRadius: 12, padding: "12px 16px",
-            background: "var(--surface-soft)", display: "flex", gap: 10, alignItems: "flex-start",
-          }}>
-            <span style={{ fontSize: 16, flexShrink: 0 }}>💡</span>
-            <div style={{ fontSize: 12, color: "var(--muted-foreground)", lineHeight: 1.5 }}>
-              Each evaluation costs <strong style={{ color: "var(--foreground)" }}>5 credits</strong>.
-              Tailored resumes cost <strong style={{ color: "var(--foreground)" }}>10 credits</strong>.
-              Credits reset daily — Starter gets 100/day, Pro gets 300/day.
-              Free users get 5 free evaluations per day.
-            </div>
-          </div>
-        </div>
-
-        <ActionRow
-          submitLabel="Let's go →"
-          onSubmit={() => setStep(7)}
-        />
-      </Shell>
-    );
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // STEP 7 — All set!
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  return (
-    <Shell>
-      <div style={{ textAlign: "center", marginBottom: 36 }}>
-        <div style={{
-          width: 60, height: 60, borderRadius: "50%", background: "#22c55e",
-          display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px",
-        }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">You're all set!</h1>
-        <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-          Your profile is ready. Time to find your next role.
-        </p>
-      </div>
-
-      <Card>
-        <p style={{ fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.18em", color: "var(--muted-foreground)", marginBottom: 16 }}>
-          What's set up
-        </p>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4.5 mb-1">
           {[
-            { label: "Profile created",            done: true },
-            { label: "CV saved",                   done: !!cvText.trim() },
-            { label: "Job preferences set",        done: !!(targetRoles || targetLocations || workMode) },
-            { label: "AI score thresholds set",    done: true },
-          ].map(item => (
-            <div key={item.label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{
-                width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
-                background: item.done ? "#22c55e" : "var(--line-soft)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                {item.done && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </span>
-              <span style={{ fontSize: 13, color: item.done ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                {item.label}
-              </span>
+            { label: "Apply", color: "var(--ok)", bg: "var(--ok-bg)", desc: "Strong match — submit your application.", range: "3.5 and above" },
+            { label: "Watch", color: "var(--warn)", bg: "var(--warn-bg)", desc: "Possible fit — worth monitoring.", range: "2.5 to 3.4" },
+            { label: "Skip",  color: "var(--bad)", bg: "var(--bad-bg)", desc: "Poor match — not worth your time.", range: "Below 2.5" },
+          ].map(d => (
+            <div key={d.label} className="rounded-lg px-4 py-3.5" style={{ borderLeft: `3px solid ${d.color}`, background: d.bg }}>
+              <div className="flex items-center justify-between">
+                <span className="text-[13px] font-bold" style={{ color: d.color }}>{d.label}</span>
+                <span className="font-mono text-[10px]" style={{ color: d.color }}>{d.range}</span>
+              </div>
+              <div className="text-xs mt-1.5" style={{ color: "var(--muted-foreground)" }}>{d.desc}</div>
             </div>
           ))}
         </div>
-      </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginTop: 16 }}>
-        {[
-          { label: "Evaluate a job",     desc: "Paste a job URL and get an AI score",   href: "/dashboard/evaluate" },
-          { label: "Browse pipeline",    desc: "Track your applications in one place",   href: "/dashboard/pipeline" },
-          { label: "Upload resume",      desc: "Add a PDF or tailor a new one",          href: "/dashboard/profile" },
-          { label: "Get the extension",  desc: "Autofill forms right from your browser", href: "/dashboard/extension" },
-        ].map(link => (
-          <a key={link.label} href={link.href} style={{
-            border: "1px solid var(--line-soft)", borderRadius: 12,
-            padding: "14px 14px", background: "var(--surface)",
-            textDecoration: "none", display: "block",
-            transition: "box-shadow 0.15s",
-          }}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mt-5 mb-2">
+          {[
+            { name: "Role Fit", desc: "How well the role matches your target." },
+            { name: "CV Match", desc: "Overlap between your skills and the JD." },
+            { name: "Compensation", desc: "Pay versus your expected range." },
+            { name: "Level Strategy", desc: "Whether the seniority fits your trajectory." },
+            { name: "Legitimacy", desc: "Signals the posting is real and active." },
+          ].map(d => (
+            <div key={d.name} className="rounded-[10px] px-3.5 py-3" style={{ background: "var(--surface-soft)" }}>
+              <div className="text-xs font-bold" style={{ color: "var(--foreground)" }}>{d.name}</div>
+              <div className="text-[11px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>{d.desc}</div>
+            </div>
+          ))}
+          <div className="rounded-[10px] px-3.5 py-3" style={{ background: "var(--accent-soft)", border: "1px solid var(--accent-border)" }}>
+            <div className="text-xs font-bold" style={{ color: "var(--accent)" }}>Final Score</div>
+            <div className="text-[11px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>Weighted blend of all five dimensions.</div>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-5 border-t" style={{ borderColor: "var(--line-softer)" }}>
+          <p className="font-mono text-[10px] tracking-[0.2em] uppercase mb-4.5" style={{ color: "var(--muted-foreground)" }}>Set your thresholds</p>
+
+          <div className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-bold" style={{ color: "var(--ok)" }}>Apply threshold</span>
+              <span className="font-mono text-xl font-medium" style={{ color: "var(--ok)" }}>{applyScore.toFixed(1)}</span>
+            </div>
+            <input type="range" min={watchScore + 0.1} max={5} step={0.1} value={applyScore}
+              onChange={e => setApplyScore(Math.round(parseFloat(e.target.value) * 10) / 10)}
+              className="w-full" style={{ accentColor: "var(--ok)" }} />
+          </div>
+
+          <div className="mb-2">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[13px] font-bold" style={{ color: "var(--warn)" }}>Watch threshold</span>
+              <span className="font-mono text-xl font-medium" style={{ color: "var(--warn)" }}>{watchScore.toFixed(1)}</span>
+            </div>
+            <input type="range" min={1} max={applyScore - 0.1} step={0.1} value={watchScore}
+              onChange={e => setWatchScore(Math.round(parseFloat(e.target.value) * 10) / 10)}
+              className="w-full" style={{ accentColor: "var(--warn)" }} />
+          </div>
+
+          <p className="font-mono text-[10px] mt-4" style={{ color: "var(--muted-foreground-2)" }}>
+            Default: Apply 3.5 · Watch 2.5 · Change anytime in Settings
+          </p>
+        </div>
+      </TypeB>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 6 — Your job search flow (Type A)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  if (step === 6) {
+    const Node = ({ label, active }: { label: string; active?: boolean }) => (
+      <div className="flex-1 h-9 rounded-lg flex items-center justify-center font-mono text-[10px] tracking-[0.1em]"
+        style={active
+          ? { background: "var(--accent)", color: "#fffdf8" }
+          : { border: "1px solid rgba(255,255,255,0.2)", color: "rgba(255,255,255,0.5)" }}>
+        {label}
+      </div>
+    );
+    return (
+      <TypeA
+        ghost="06"
+        leftBody={
+          <>
+            <div className="flex flex-col gap-2.5 mb-7">
+              <div className="flex items-center gap-2">
+                <Node label="FIND" /><span style={{ color: "rgba(255,255,255,0.3)" }}>→</span><Node label="EVALUATE" active />
+              </div>
+              <div className="flex items-center gap-2 pl-7">
+                <span style={{ color: "rgba(255,255,255,0.3)" }}>↳</span><Node label="TRACK" /><span style={{ color: "rgba(255,255,255,0.3)" }}>→</span><Node label="TAILOR" />
+              </div>
+              <div className="flex items-center gap-2 pl-14">
+                <span style={{ color: "rgba(255,255,255,0.3)" }}>↳</span><Node label="AUTOFILL" />
+              </div>
+            </div>
+            <h1 className="nr-display text-[32px] leading-[1.12] mb-3">Your job search flow</h1>
+            <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>From spotting a job to landing an offer.</p>
+          </>
+        }
+        cta={<PrimaryButton onClick={() => setStep(7)}>Got it</PrimaryButton>}
+      >
+        <div className="flex flex-col gap-4">
+          {[
+            { n: 1, title: "Find", desc: "Spot a job on any job board or company site." },
+            { n: 2, title: "Evaluate", credits: "5 credits", desc: "AI scores it 1–5 in seconds." },
+            { n: 3, title: "Track", desc: "Job added to your pipeline board automatically." },
+            { n: 4, title: "Tailor", credits: "10 credits", desc: "Generate a resume matched to the job description." },
+            { n: 5, title: "Autofill", desc: "Browser extension fills the application form from your profile." },
+          ].map(item => (
+            <div key={item.n} className="flex gap-3 items-start">
+              <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[11px] font-semibold flex-shrink-0" style={{ background: "var(--accent)", color: "#fffdf8" }}>
+                {item.n}
+              </span>
+              <div>
+                <div className="text-sm font-semibold" style={{ color: "var(--foreground)" }}>
+                  {item.title}{item.credits && <span className="font-mono text-[10px] font-normal ml-1.5" style={{ color: "var(--muted-foreground-2)" }}>· {item.credits}</span>}
+                </div>
+                <div className="text-[13px] mt-0.5" style={{ color: "var(--muted-foreground)" }}>{item.desc}</div>
+              </div>
+            </div>
+          ))}
+          <div className="rounded-[10px] px-4 py-3.5 mt-1" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>
+            <div className="font-mono text-[10px] tracking-[0.16em] uppercase mb-1.5" style={{ color: "var(--muted-foreground)" }}>Credits reset daily</div>
+            <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Free: 5 evaluations/day · Starter: 100 credits/day · Pro: 300 credits/day</div>
+          </div>
+        </div>
+      </TypeA>
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // STEP 7 — All set! (Type A)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const checklist = [
+    { label: "Profile created", done: true, skippedTag: false },
+    { label: "CV uploaded and parsed", done: cvStage === "review" && !skipped.cv, skippedTag: !!skipped.cv },
+    { label: "Job preferences set", done: !skipped.prefs, skippedTag: !!skipped.prefs },
+    { label: "AI score thresholds configured", done: !skipped.thresholds, skippedTag: !!skipped.thresholds },
+  ];
+
+  const quickActions = [
+    { label: "Evaluate a job", desc: "Score your first listing.", href: "/dashboard/evaluate" },
+    { label: "View pipeline", desc: "See your tracked jobs.", href: "/dashboard/pipeline" },
+    { label: "Tailor a resume", desc: "Match your CV to a JD.", href: "/dashboard/profile" },
+    { label: "Get the extension", desc: "Autofill applications.", href: "/dashboard/extension" },
+  ];
+
+  return (
+    <TypeA
+      ghost="07"
+      leftBody={
+        <>
+          <div className="w-16 h-16 rounded-full flex items-center justify-center mb-6.5" style={{ background: "var(--ok)" }}>
+            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12 l4 4 L19 7" />
+            </svg>
+          </div>
+          <h1 className="nr-display text-[34px] leading-[1.1] mb-3">You are all set!</h1>
+          <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>Time to find your next role.</p>
+        </>
+      }
+      cta={
+        <button type="button" onClick={handleComplete} disabled={busy}
+          className="w-full rounded-full h-11 text-sm font-medium transition disabled:opacity-50"
+          style={{ background: "var(--accent)", color: "#fffdf8", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)" }}>
+          {busy ? "Heading in…" : "Go to dashboard"}
+        </button>
+      }
+      rightLabel="What we set up"
+    >
+      <div className="flex flex-col gap-3 mb-6">
+        {checklist.map(item => (
+          <div key={item.label} className="flex items-center gap-2.5">
+            {item.done ? <CheckCircle size={18} /> : (
+              <span className="w-[18px] h-[18px] rounded-full flex-shrink-0" style={{ border: "1px solid var(--line-soft)" }} />
+            )}
+            <span className="text-sm" style={{ color: item.done ? "var(--foreground)" : "var(--muted-foreground)" }}>{item.label}</span>
+            {item.skippedTag && (
+              <span className="font-mono text-[9px] tracking-[0.12em] uppercase ml-auto" style={{ color: "var(--muted-foreground-2)" }}>Skipped</span>
+            )}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2.5">
+        {quickActions.map(a => (
+          <a key={a.label} href={a.href} className="rounded-xl p-4 block no-underline transition-shadow"
+            style={{ background: "var(--surface)", border: "1px solid var(--line-soft)" }}
             onMouseEnter={e => (e.currentTarget.style.boxShadow = "0 2px 12px rgba(0,0,0,0.07)")}
-            onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}
-          >
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--foreground)", marginBottom: 3 }}>{link.label} →</div>
-            <div style={{ fontSize: 11, color: "var(--muted-foreground)", lineHeight: 1.4 }}>{link.desc}</div>
+            onMouseLeave={e => (e.currentTarget.style.boxShadow = "none")}>
+            <div className="flex items-center justify-between">
+              <span className="text-[13px] font-semibold" style={{ color: "var(--foreground)" }}>{a.label}</span>
+              <span style={{ color: "var(--accent)" }}>→</span>
+            </div>
+            <div className="text-xs mt-1" style={{ color: "var(--muted-foreground)" }}>{a.desc}</div>
           </a>
         ))}
       </div>
-
-      <div style={{ textAlign: "center", marginTop: 32 }}>
-        <button
-          onClick={handleComplete}
-          disabled={busy}
-          className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-8 py-3 font-mono text-[12px] uppercase tracking-[0.18em] transition hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? "Heading in…" : "Go to dashboard →"}
-        </button>
-      </div>
-    </Shell>
+    </TypeA>
   );
 }

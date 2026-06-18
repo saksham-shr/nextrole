@@ -8,6 +8,8 @@ import { requireFeature } from "@/lib/ai/guard";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import { CREDIT_COSTS, PREMIUM_RESUME_LIFETIME_CAP } from "@/lib/ai/gates";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { checkReferralThreshold } from "@/lib/credits/grant";
 import { isSameOrigin } from "@/lib/security/csrf";
 
 export const maxDuration = 120;
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
     job = data;
   }
 
-  const { data: profile } = await supabase.from("profiles").select("base_cv, credits_remaining").eq("id", userId).single();
+  const { data: profile } = await supabase.from("profiles").select("base_cv, daily_credits, topup_credits").eq("id", userId).single();
   if (!profile?.base_cv) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
 
   // Premium resume lifetime cap check
@@ -99,9 +101,9 @@ export async function POST(request: NextRequest) {
   }
 
   // Pre-flight credit check — deduction happens after AI succeeds to avoid charging for failures
-  if (tier !== "free") {
+  if (!isAdmin && tier !== "free") {
     const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
-    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    const creditsLeft = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
     if (creditsLeft < creditAmount) {
       return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
@@ -148,8 +150,8 @@ export async function POST(request: NextRequest) {
   const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
   if (tier === "free" && !isPremium) {
     await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
-  } else if (tier !== "free") {
-    const { data: ok, error } = await supabase.rpc("deduct_credit", {
+  } else if (!isAdmin && tier !== "free") {
+    const { data: ok, error } = await supabase.rpc("deduct_credits", {
       p_user_id: userId,
       p_amount: creditAmount,
     });
@@ -182,6 +184,12 @@ export async function POST(request: NextRequest) {
     model: route.model,
     credits_used: tier === "free" ? 0 : creditAmount,
   });
+
+  // Check referral threshold after credit usage (fire-and-forget)
+  {
+    const admin = createAdminClient();
+    checkReferralThreshold(admin, userId).catch(() => {});
+  }
 
   return NextResponse.json({ resume_id: resume?.id, coverage, html });
 }

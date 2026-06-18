@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canonicalizeJobUrl, deriveAtsFamilyFromUrl } from "@/lib/jobs";
+import { awardActionCredit } from "@/lib/credits/grant";
 
 // Job slot limits per tier (-1 = unlimited)
 const JOB_SLOT_LIMITS: Record<string, number> = { free: 5, starter: 25, pro: -1 };
@@ -174,6 +175,9 @@ export async function POST(request: NextRequest) {
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  // Award first_job grant (fire-and-forget, idempotent — routes to signup_credits or topup_credits by tier)
+  awardActionCredit(supabase, userId, "first_job").catch(() => {});
 
   return NextResponse.json({ ok: true, job_id: job.id, title, company, created: true, existing: false, canonical_url: canonicalUrl, ats_family: atsFamily });
 }

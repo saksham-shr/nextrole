@@ -17,6 +17,7 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canAccess, FREE_DAILY_LIMITS, CREDIT_COSTS } from "@/lib/ai/gates";
 import { resolveRoute, type AIRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
+import { checkReferralThreshold } from "@/lib/credits/grant";
 import { reserveExtensionAiCharge } from "@/lib/extension-ai";
 
 export const maxDuration = 120;
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("base_cv, full_name, tier, credits_remaining")
+    .select("base_cv, full_name, tier, daily_credits, topup_credits")
     .eq("id", userId)
     .single();
 
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Daily resume limit reached â€” upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
     }
   } else {
-    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
+    const creditsLeft = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
     if (creditsLeft < CREDIT_COSTS.resume_standard) {
       return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
     }
@@ -165,6 +166,9 @@ export async function POST(req: NextRequest) {
     model: route.model,
     credits_used: tier === "free" ? 0 : CREDIT_COSTS.resume_standard,
   });
+
+  // Check referral threshold after credit usage (fire-and-forget)
+  checkReferralThreshold(admin, userId).catch(() => {});
 
   return NextResponse.json({ resume_id: resume?.id ?? null, html, coverage, job_title: jobTitle, company });
 }

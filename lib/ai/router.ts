@@ -110,7 +110,7 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
   const route = opts.routeOverride ?? resolveRoute(opts.task);
 
   // Deduct credits atomically
-  const { data: ok, error } = await supabase.rpc("deduct_credit", {
+  const { data: ok, error } = await supabase.rpc("deduct_credits", {
     p_user_id: opts.userId,
     p_amount:  credits,
   });

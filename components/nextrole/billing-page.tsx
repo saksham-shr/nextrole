@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { UserTier, PaymentRecord } from "@/lib/db/types";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
+import { useToast } from "@/components/nextrole/toast";
 
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
@@ -18,14 +19,21 @@ function useRazorpayScript() {
   }, []);
 }
 
-interface RzpOptions {
+interface RzpSubscriptionOptions {
+  key: string; subscription_id: string;
+  name: string; description: string; prefill: { email: string };
+  theme: { color: string };
+  handler: (res: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => void;
+  modal: { ondismiss: () => void };
+}
+interface RzpOrderOptions {
   key: string; amount: number; currency: string; order_id: string;
   name: string; description: string; prefill: { email: string };
   theme: { color: string };
   handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
   modal: { ondismiss: () => void };
 }
-declare global { interface Window { Razorpay: new (o: RzpOptions) => { open(): void } } }
+declare global { interface Window { Razorpay: new (o: RzpSubscriptionOptions | RzpOrderOptions) => { open(): void } } }
 
 // ── Icons ──────────────────────────────────────────────────────────────────
 
@@ -37,6 +45,15 @@ function LockIcon() {
 }
 function AlertIcon() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>;
+}
+function CopyIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>;
+}
+function GiftIcon() {
+  return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>;
+}
+function ClockIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>;
 }
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -58,6 +75,12 @@ interface CommerceProps {
   flags: { starter_enabled: boolean; pro_enabled: boolean; topups_enabled: boolean };
 }
 
+interface ReferralStats {
+  total: number;
+  completed: number;
+  creditsEarned: number;
+}
+
 interface BillingPageProps {
   tier: UserTier;
   email: string;
@@ -69,6 +92,11 @@ interface BillingPageProps {
   creditLog?: CreditLogEntry[];
   paymentRecords?: PaymentRecord[];
   commerce: CommerceProps;
+  signupCredits?: number;
+  topupForfeitAt?: string | null;
+  referralCode?: string | null;
+  referredBy?: string | null;
+  referralStats?: ReferralStats;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -310,17 +338,167 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
   );
 }
 
+// ── Referral section ──────────────────────────────────────────────────────
+
+function ReferralSection({ code, referredBy, stats }: {
+  code: string; referredBy: string | null; stats: ReferralStats;
+}) {
+  const [copied, setCopied]       = useState<"link" | "code" | false>(false);
+  const [applyCode, setApplyCode] = useState("");
+  const [applying, setApplying]   = useState(false);
+  const [applyMsg, setApplyMsg]   = useState<{ ok: boolean; text: string } | null>(null);
+
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const referralLink = `${origin}/signup?ref=${code}`;
+
+  function copyLink() {
+    navigator.clipboard.writeText(referralLink).then(() => {
+      setCopied("link");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  function copyCode() {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied("code");
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  async function handleApply() {
+    if (!applyCode.trim()) return;
+    setApplying(true); setApplyMsg(null);
+    try {
+      const res = await fetch("/api/referral/apply", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: applyCode.trim() }),
+      });
+      const data = await res.json() as { ok?: boolean; error?: string };
+      if (data.ok) {
+        setApplyMsg({ ok: true, text: "Referral applied! You'll earn bonus credits as you use NextRole." });
+        setApplyCode("");
+      } else {
+        setApplyMsg({ ok: false, text: data.error ?? "Could not apply referral code" });
+      }
+    } catch {
+      setApplyMsg({ ok: false, text: "Network error — please try again" });
+    } finally {
+      setApplying(false);
+    }
+  }
+
+  const remaining = Math.max(0, 5 - stats.total);
+
+  return (
+    <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-[var(--accent)]"><GiftIcon /></span>
+        <h3 className="text-[14px] font-semibold">Referrals</h3>
+      </div>
+
+      {/* Referral link */}
+      <div className="mb-4">
+        <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Your referral link</div>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 min-w-0 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 font-mono text-[13px] text-[var(--foreground)] truncate">
+            {referralLink}
+          </div>
+          <button onClick={copyLink} className="shrink-0 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-white transition hover:opacity-90">
+            {copied === "link" ? "Copied!" : "Copy link"}
+          </button>
+        </div>
+        <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--muted-foreground)]">
+          <span>Code: <strong className="font-mono tracking-[0.06em]">{code}</strong></span>
+          <button onClick={copyCode} className="text-[var(--accent)] hover:underline">
+            {copied === "code" ? "Copied!" : "Copy code"}
+          </button>
+        </div>
+        <p className="mt-1.5 text-[12px] text-[var(--muted-foreground)]">
+          Share with friends. You both earn <strong>+50 credits</strong> when they use 10+ credits.
+        </p>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        <div className="rounded-xl border border-[var(--line-soft)] p-3 text-center">
+          <div className="font-mono text-[18px] font-medium">{stats.completed}</div>
+          <div className="text-[10px] text-[var(--muted-foreground)]">Completed</div>
+        </div>
+        <div className="rounded-xl border border-[var(--line-soft)] p-3 text-center">
+          <div className="font-mono text-[18px] font-medium">{stats.creditsEarned}</div>
+          <div className="text-[10px] text-[var(--muted-foreground)]">Credits earned</div>
+        </div>
+        <div className="rounded-xl border border-[var(--line-soft)] p-3 text-center">
+          <div className="font-mono text-[18px] font-medium">{remaining}</div>
+          <div className="text-[10px] text-[var(--muted-foreground)]">Slots left</div>
+        </div>
+      </div>
+
+      {/* Apply a referral code (only if not already referred) */}
+      {!referredBy && (
+        <div className="border-t border-[var(--line-soft)] pt-4">
+          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Have a referral code?</div>
+          <div className="flex gap-2">
+            <input
+              type="text" value={applyCode} onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
+              placeholder="Enter code" maxLength={12}
+              className="flex-1 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 font-mono text-[13px] uppercase tracking-[0.06em] placeholder:normal-case placeholder:tracking-normal outline-none focus:border-[var(--accent)]"
+            />
+            <button onClick={handleApply} disabled={applying || !applyCode.trim()}
+              className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-[12px] font-medium text-white transition hover:opacity-90 disabled:opacity-50">
+              {applying ? "Applying..." : "Apply"}
+            </button>
+          </div>
+          {applyMsg && (
+            <p className={`mt-2 text-[12px] ${applyMsg.ok ? "text-[var(--ok)]" : "text-red-600"}`}>{applyMsg.text}</p>
+          )}
+        </div>
+      )}
+      {referredBy && (
+        <div className="border-t border-[var(--line-soft)] pt-3">
+          <p className="text-[12px] text-[var(--muted-foreground)]">
+            Referred by <strong className="font-mono">{referredBy}</strong>
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Grace period banner ──────────────────────────────────────────────────
+
+function GracePeriodBanner({ forfeitAt }: { forfeitAt: string }) {
+  const daysLeft = Math.max(0, Math.ceil((new Date(forfeitAt).getTime() - Date.now()) / 86_400_000));
+
+  return (
+    <div className="mb-6 flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+      <span className="mt-0.5 text-amber-500 shrink-0"><ClockIcon /></span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-amber-800">Top-up credits expiring</p>
+        <p className="mt-0.5 text-[12px] text-amber-700">
+          Your unused top-up credits will expire on <strong>{fmtDate(forfeitAt)}</strong>
+          {daysLeft > 0 ? ` (${daysLeft} ${daysLeft === 1 ? "day" : "days"} left)` : " (today)"}.
+          Renew your subscription to keep them.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
 export function BillingPage({
   tier, email, isAdmin = false,
   trialEndsAt, subscriptionStatus, renewsAt,
   usage, creditLog = [], paymentRecords = [], commerce,
+  signupCredits = 0, topupForfeitAt, referralCode, referredBy, referralStats,
 }: BillingPageProps) {
   const [period, setPeriod]               = useState<"monthly" | "yearly">("monthly");
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [currentStatus, setCurrentStatus] = useState(subscriptionStatus);
   const { price } = useCurrency();
+  const toast = useToast();
 
   useRazorpayScript();
 
@@ -333,62 +511,81 @@ export function BillingPage({
   const lastSubRecord = paymentRecords.find((r) => r.type === "subscription" && r.status === "captured");
   const activePeriod  = (lastSubRecord?.period ?? "monthly") as "monthly" | "yearly";
 
-  async function startRazorpay(
-    loadingKey: string,
-    orderPayload: Record<string, string>,
-    description: string,
-    onSuccess: (ids: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => Promise<void>,
-  ) {
+  async function handleCheckout(plan: "starter" | "pro", checkoutPeriod: "monthly" | "yearly") {
+    const loadingKey = `${plan}_${checkoutPeriod}`;
     setCheckoutLoading(loadingKey);
     try {
-      const res  = await fetch("/api/razorpay/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(orderPayload) });
+      // Use switch-plan route if user already has an active paid subscription
+      const isSwitching = isPaid && currentStatus === "active" && tier !== plan;
+      const endpoint = isSwitching ? "/api/razorpay/switch-plan" : "/api/razorpay/create-order";
+      const payload = isSwitching
+        ? { plan, period: checkoutPeriod }
+        : { type: "subscription", plan, period: checkoutPeriod };
+
+      const res  = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const text = await res.text();
-      let order: { order_id?: string; amount?: number; currency?: string; error?: string };
-      try { order = JSON.parse(text); } catch { alert(`Server error: ${text.slice(0, 120)}`); return; }
-      if (!order.order_id) { alert(order.error ?? "Could not create payment order. Please try again."); return; }
+      let data: { subscription_id?: string; key_id?: string; error?: string };
+      try { data = JSON.parse(text); } catch { toast.error(`Server error: ${text.slice(0, 120)}`); setCheckoutLoading(null); return; }
+      if (!data.subscription_id) { toast.error(data.error ?? "Could not start subscription. Please try again."); setCheckoutLoading(null); return; }
 
       new window.Razorpay({
-        key: RZP_KEY, amount: order.amount!, currency: order.currency!, order_id: order.order_id,
-        name: "NextRole", description, prefill: { email }, theme: { color: "#c84a1f" },
+        key: data.key_id ?? RZP_KEY,
+        subscription_id: data.subscription_id,
+        name: "NextRole",
+        description: `NextRole ${plan.charAt(0).toUpperCase() + plan.slice(1)} — ${checkoutPeriod}`,
+        prefill: { email },
+        theme: { color: "#c84a1f" },
         handler: async (paymentRes) => {
           setCheckoutLoading(loadingKey + "_verifying");
-          try { await onSuccess(paymentRes); } finally { setCheckoutLoading(null); }
+          try {
+            const verify = await fetch("/api/razorpay/verify-payment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentRes, type: "subscription", plan, period: checkoutPeriod }) });
+            const result = await verify.json() as { ok?: boolean; error?: string };
+            if (result.ok) { window.location.reload(); }
+            else { toast.error(result.error ?? "Payment verification failed. Please contact support."); }
+          } finally { setCheckoutLoading(null); }
         },
         modal: { ondismiss: () => setCheckoutLoading(null) },
-      }).open();
+      } as RzpSubscriptionOptions).open();
     } catch (err) {
-      alert((err as Error).message ?? "Payment failed. Please try again.");
+      toast.error((err as Error).message ?? "Payment failed. Please try again.");
       setCheckoutLoading(null);
     }
   }
 
-  async function handleCheckout(plan: "starter" | "pro", checkoutPeriod: "monthly" | "yearly") {
-    await startRazorpay(
-      `${plan}_${checkoutPeriod}`,
-      { type: "subscription", plan, period: checkoutPeriod },
-      `NextRole ${plan.charAt(0).toUpperCase() + plan.slice(1)} — ${checkoutPeriod}`,
-      async (paymentRes) => {
-        const verify = await fetch("/api/razorpay/verify-payment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentRes, type: "subscription", plan, period: checkoutPeriod }) });
-        const result = await verify.json() as { ok?: boolean; error?: string };
-        if (result.ok) { window.location.reload(); }
-        else { alert(result.error ?? "Payment verification failed. Please contact support."); }
-      },
-    );
-  }
-
   async function handleTopup(packId: string) {
     const pack = commerce.topupPacks.find((p) => p.id === packId);
-    await startRazorpay(
-      packId,
-      { type: "topup", pack_id: packId },
-      `NextRole Credits — ${pack?.credits ?? ""} credits`,
-      async (paymentRes) => {
-        const verify = await fetch("/api/razorpay/verify-payment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentRes, type: "topup", pack_id: packId }) });
-        const result = await verify.json() as { ok?: boolean; error?: string };
-        if (result.ok) { window.location.reload(); }
-        else { alert(result.error ?? "Payment verification failed. Please contact support."); }
-      },
-    );
+    setCheckoutLoading(packId);
+    try {
+      const res  = await fetch("/api/razorpay/create-order", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: "topup", pack_id: packId }) });
+      const text = await res.text();
+      let data: { order_id?: string; amount?: number; currency?: string; key_id?: string; error?: string };
+      try { data = JSON.parse(text); } catch { toast.error(`Server error: ${text.slice(0, 120)}`); setCheckoutLoading(null); return; }
+      if (!data.order_id) { toast.error(data.error ?? "Could not create payment order. Please try again."); setCheckoutLoading(null); return; }
+
+      new window.Razorpay({
+        key: data.key_id ?? RZP_KEY,
+        amount: data.amount!,
+        currency: data.currency!,
+        order_id: data.order_id,
+        name: "NextRole",
+        description: `NextRole Credits — ${pack?.credits ?? ""} credits`,
+        prefill: { email },
+        theme: { color: "#c84a1f" },
+        handler: async (paymentRes) => {
+          setCheckoutLoading(packId + "_verifying");
+          try {
+            const verify = await fetch("/api/razorpay/verify-payment", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...paymentRes, type: "topup", pack_id: packId }) });
+            const result = await verify.json() as { ok?: boolean; error?: string };
+            if (result.ok) { window.location.reload(); }
+            else { toast.error(result.error ?? "Payment verification failed. Please contact support."); }
+          } finally { setCheckoutLoading(null); }
+        },
+        modal: { ondismiss: () => setCheckoutLoading(null) },
+      } as RzpOrderOptions).open();
+    } catch (err) {
+      toast.error((err as Error).message ?? "Payment failed. Please try again.");
+      setCheckoutLoading(null);
+    }
   }
 
   const starterInr      = commerce.planPricesInr[`starter_${period}`]
@@ -428,6 +625,11 @@ export function BillingPage({
           email={email}
           onRetry={(plan, p) => handleCheckout(plan, p)}
         />
+      )}
+
+      {/* ── Grace period banner ── */}
+      {!isAdmin && topupForfeitAt && (
+        <GracePeriodBanner forfeitAt={topupForfeitAt} />
       )}
 
       {/* ── Current plan card ── */}
@@ -470,10 +672,11 @@ export function BillingPage({
 
         {/* Usage grid */}
         {tier === "free" ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <UsageCell label="Evaluations today" value={`${5 - usage.evaluationsToday} / 5`} sub="5 free per day" warn={usage.evaluationsToday >= 5} />
-            <UsageCell label="Resumes today"     value={`${1 - usage.resumesToday} / 1`}     sub="1 free per day" warn={usage.resumesToday >= 1} />
-            <UsageCell label="Autofill"           value="—"                                   sub="Starter required" locked />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <UsageCell label="Evaluations today" value={`${Math.max(0, 5 - usage.evaluationsToday)} / 5`} sub="5 free per day" warn={usage.evaluationsToday >= 5} />
+            <UsageCell label="Resumes today"     value={`${Math.max(0, 1 - usage.resumesToday)} / 1`}     sub="1 free per day" warn={usage.resumesToday >= 1} />
+            <UsageCell label="Bonus credits"     value={String(signupCredits)}                             sub="Earned via actions" />
+            <UsageCell label="Autofill"           value="—"                                                sub="Starter required" locked />
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -515,18 +718,22 @@ export function BillingPage({
         )}
       </div>
 
-      {/* ── Top-up packs (Pro only) ── */}
-      {tier === "pro" && commerce.flags.topups_enabled && commerce.topupPacks.length > 0 && (
+      {/* ── Top-up packs (Starter: mini only, Pro: all) ── */}
+      {isPaid && commerce.flags.topups_enabled && commerce.topupPacks.length > 0 && (
         <div id="topup" className="mb-6 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
           <div className="mb-1 flex flex-wrap items-center gap-2 justify-between">
             <h2 className="text-[15px] font-semibold">Buy extra credits</h2>
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Pro only · valid until renewal</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+              {tier === "starter" ? "100cr pack · max 500cr balance" : "Valid until renewal"}
+            </span>
           </div>
           <p className="mb-4 text-[13px] text-[var(--muted-foreground)]">
-            Top-up credits stack on top of your daily 300. Unused credits expire at renewal.
+            Top-up credits stack on top of your daily {dailyBase}. Unused credits expire at renewal.
           </p>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {commerce.topupPacks.map((pack) => {
+            {commerce.topupPacks
+              .filter((pack) => tier === "pro" || pack.id === "mini")
+              .map((pack) => {
               const isLoading = checkoutLoading === pack.id || checkoutLoading === `${pack.id}_verifying`;
               return (
                 <button key={pack.id} onClick={() => handleTopup(pack.id)} disabled={!!checkoutLoading}
@@ -577,8 +784,8 @@ export function BillingPage({
             price={price(starterInr).display}
             priceSub={`/ ${period === "monthly" ? "month" : "month, billed yearly"}`}
             current={tier === "starter"}
-            features={["100 credits / day", "1 autofill / day", "Standard resumes", "Pipeline tracking"]}
-            locked={["Unlimited autofill", "Premium resumes", "Credit top-ups"]}
+            features={["100 credits / day", "1 autofill / day", "Standard resumes", "Mini top-ups (100cr)"]}
+            locked={["Unlimited autofill", "Premium resumes"]}
             cta={planCta("starter")}
             loading={checkoutLoading?.startsWith("starter") ?? false}
             onCheckout={canCheckout("starter") ? () => handleCheckout("starter", period) : undefined}

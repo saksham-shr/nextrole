@@ -18,7 +18,7 @@ export default async function SettingsPage() {
   const [{ data: profile }, { data: creditLog }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("tier, credits_remaining, subscription_ends_at, subscription_status, preferred_language, eval_score_apply, eval_score_watch, custom_eval_focus, custom_archetypes, target_archetypes, preferred_company_types")
+      .select("tier, daily_credits, topup_credits, subscription_ends_at, subscription_status, preferred_language, eval_score_apply, eval_score_watch, custom_eval_focus, custom_archetypes, target_archetypes, preferred_company_types")
       .eq("id", user.id)
       .single(),
     supabase
@@ -35,7 +35,7 @@ export default async function SettingsPage() {
     <SettingsPageContent
       tier={tier}
       email={user.email ?? ""}
-      creditsRemaining={profile?.credits_remaining ?? 0}
+      creditsRemaining={isAdmin ? 300 : (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0)}
       renewsAt={isAdmin ? null : (profile?.subscription_ends_at ?? null)}
       subscriptionStatus={isAdmin ? "active" : (profile?.subscription_status ?? null)}
       portalUrl={null}

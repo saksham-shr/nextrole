@@ -8,6 +8,7 @@ import { AdminInvites } from "@/components/nextrole/admin-invites";
 import { AdminUsersTable, type AdminUserRow } from "@/components/nextrole/admin-users-table";
 import { AdminAuditLog } from "@/components/nextrole/admin-audit-log";
 import { AdminCommerce } from "@/components/nextrole/admin-commerce";
+import { AdminErrorReports, type ErrorReportRow } from "@/components/nextrole/admin-error-reports";
 import { getCommerceConfig, getCommerceDefaults } from "@/lib/commerce/config";
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
@@ -121,17 +122,19 @@ export default async function AdminDashboardPage({
     usersResult, jobsResult, evaluationsResult, resumesResult,
     profilesResult, invitesResult, auditResult,
     recentSignupsResult, activeUsersResult, recentTopupsResult,
+    errorReportsResult,
   ] = await Promise.all([
     listAllAuthUsers(),
     admin.from("jobs").select("*", { count: "exact", head: true }),
     admin.from("evaluations").select("*", { count: "exact", head: true }),
     admin.from("resumes").select("*", { count: "exact", head: true }),
-    admin.from("profiles").select("id, tier, credits_remaining, subscription_ends_at"),
+    admin.from("profiles").select("id, tier, daily_credits, topup_credits, subscription_ends_at"),
     admin.from("invites").select("*").order("created_at", { ascending: false }),
     admin.from("admin_audit_log").select("*").order("created_at", { ascending: false }).limit(200),
     admin.from("profiles").select("created_at").gte("created_at", sevenDaysAgo),
     admin.from("usage_log").select("user_id").gte("created_at", sevenDaysAgo),
     admin.from("usage_log").select("credits_used, created_at").eq("task_type", "topup").gte("created_at", thirtyDaysAgo),
+    admin.from("error_reports").select("*").order("created_at", { ascending: false }).limit(500),
   ]);
 
   // ── Build user list joined with profile data ─────────────────────────────
@@ -139,7 +142,7 @@ export default async function AdminDashboardPage({
   for (const p of (profilesResult.data ?? [])) {
     profilesById.set(p.id, {
       tier: (p.tier as UserTier) ?? "free",
-      credits: p.credits_remaining ?? 0,
+      credits: (p.daily_credits ?? 0) + (p.topup_credits ?? 0),
       subscriptionEndsAt: (p.subscription_ends_at as string | null) ?? null,
     });
   }
@@ -185,6 +188,8 @@ export default async function AdminDashboardPage({
 
   const invites = (invitesResult.data ?? []) as InviteRow[];
   const auditLog = (auditResult.data ?? []) as AdminAuditLogRow[];
+  const errorReports = (errorReportsResult.data ?? []) as ErrorReportRow[];
+  const openReportCount = errorReports.filter((r) => r.status === "open").length;
 
   // Commerce config only fetched when the tab is open (cheap, but skip otherwise).
   const commerceConfig = tab === "commerce" ? await getCommerceConfig() : null;
@@ -196,6 +201,7 @@ export default async function AdminDashboardPage({
     { id: "invites",  label: `Invites (${invites.length})` },
     { id: "commerce", label: "Commerce" },
     { id: "audit",    label: `Audit (${auditLog.length})` },
+    { id: "reports",  label: openReportCount > 0 ? `Reports (${openReportCount} open)` : "Reports" },
   ];
 
   const tabLinkClass = (id: string) =>
@@ -316,6 +322,19 @@ export default async function AdminDashboardPage({
           </p>
           <div className="mt-4">
             <AdminAuditLog rows={auditLog} />
+          </div>
+        </Surface>
+      )}
+
+      {/* ── REPORTS ── */}
+      {tab === "reports" && (
+        <Surface className="p-5">
+          <h2 className="text-[15px] font-semibold">Error reports</h2>
+          <p className="mt-1 text-[13px] text-[var(--muted-foreground)]">
+            User-submitted error reports from the &quot;Report this issue&quot; button in error toasts. Showing the last 500.
+          </p>
+          <div className="mt-4">
+            <AdminErrorReports initial={errorReports} />
           </div>
         </Surface>
       )}

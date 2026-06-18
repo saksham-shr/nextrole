@@ -16,6 +16,7 @@ import { canAccess, CREDIT_COSTS, FREE_DAILY_LIMITS } from "@/lib/ai/gates";
 import { resolveRoute } from "@/lib/ai/router";
 import type { UserTier } from "@/lib/db/types";
 import { reserveExtensionAiCharge } from "@/lib/extension-ai";
+import { awardActionCredit, checkReferralThreshold } from "@/lib/credits/grant";
 
 export const maxDuration = 60;
 
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
   }
 
   const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
-  const credits = (profile?.credits_remaining as number | null) ?? 0;
+  const credits = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
 
   // Feature gate
   if (!canAccess(tier as Parameters<typeof canAccess>[0], "evaluate")) {
@@ -216,6 +217,10 @@ export async function POST(req: NextRequest) {
     model: route.model,
     credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
   });
+
+  // Award first_evaluation grant + check referral threshold (fire-and-forget)
+  awardActionCredit(admin, userId, "first_evaluation").catch(() => {});
+  checkReferralThreshold(admin, userId).catch(() => {});
 
   return NextResponse.json({
     evaluation_id: evaluation?.id ?? null,

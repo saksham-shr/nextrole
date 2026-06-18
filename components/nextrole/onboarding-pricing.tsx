@@ -4,20 +4,28 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BrandWordmark } from "@/components/nextrole/brand";
 import { useCurrency, INR_PRICES } from "@/lib/hooks/use-currency";
+import { useToast } from "@/components/nextrole/toast";
 
 type Period = "monthly" | "yearly";
 type Step = 1 | 2 | 3;
 
 const RZP_KEY = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
-interface RzpOptions {
+interface RzpSubscriptionOptions {
+  key: string; subscription_id: string;
+  name: string; description: string; prefill: { email: string };
+  theme: { color: string };
+  handler: (res: { razorpay_payment_id: string; razorpay_subscription_id: string; razorpay_signature: string }) => void;
+  modal: { ondismiss: () => void };
+}
+interface RzpOrderOptions {
   key: string; amount: number; currency: string; order_id: string;
   name: string; description: string; prefill: { email: string };
   theme: { color: string };
   handler: (res: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => void;
   modal: { ondismiss: () => void };
 }
-declare global { interface Window { Razorpay: new (o: RzpOptions) => { open(): void } } }
+declare global { interface Window { Razorpay: new (o: RzpSubscriptionOptions | RzpOrderOptions) => { open(): void } } }
 
 const TIERS = [
   {
@@ -141,6 +149,7 @@ function StepIndicator({ current }: { current: Step }) {
 
 export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: Props) {
   const router = useRouter();
+  const toast = useToast();
 
   // If the user already has a paid plan (e.g. returned mid-onboarding), skip plan step
   const [step, setStep] = useState<Step>(currentTier !== "free" ? 2 : 1);
@@ -193,11 +202,12 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "subscription", plan: tierId, period }),
       });
-      const order = await res.json() as { order_id?: string; amount?: number; currency?: string; error?: string };
-      if (!order.order_id) { alert(order.error ?? "Could not create order"); setLoading(null); return; }
+      const data = await res.json() as { subscription_id?: string; key_id?: string; error?: string };
+      if (!data.subscription_id) { toast.error(data.error ?? "Could not create subscription"); setLoading(null); return; }
 
       const rzp = new window.Razorpay({
-        key: RZP_KEY, amount: order.amount!, currency: order.currency!, order_id: order.order_id,
+        key: data.key_id ?? RZP_KEY,
+        subscription_id: data.subscription_id,
         name: "NextRole", description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
         prefill: { email }, theme: { color: "#c84a1f" },
         handler: async (paymentRes) => {
@@ -210,12 +220,12 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
             setStep(2);
             setLoading(null);
           } else {
-            alert(result.error ?? "Payment verification failed");
+            toast.error(result.error ?? "Payment verification failed");
             setLoading(null);
           }
         },
         modal: { ondismiss: () => setLoading(null) },
-      });
+      } as RzpSubscriptionOptions);
       rzp.open();
     } catch { setLoading(null); }
   }
