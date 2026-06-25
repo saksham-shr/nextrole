@@ -109,35 +109,50 @@ export async function grantTier(targetUserId: string, tier: UserTier, durationDa
   return { ok: true };
 }
 
-// ── Reset credits to a specific value ──────────────────────────────────────
-export async function resetCredits(targetUserId: string, newCredits: number) {
+// ── Add bonus credits (goes into bonus bucket, logged in usage_log) ────────
+export async function addBonusCredits(targetUserId: string, amount: number) {
   const actor = await requireAdmin();
   if ("error" in actor) return { error: actor.error };
-  if (newCredits < 0 || newCredits > 100_000) return { error: "Credits must be 0–100000" };
+  if (amount <= 0 || amount > 100_000) return { error: "Amount must be 1–100000" };
 
   const admin = createAdminClient();
 
   const { data: before } = await admin
     .from("profiles")
-    .select("credits_remaining")
+    .select("credits_remaining, bonus_credits")
     .eq("id", targetUserId)
     .single();
 
-  const { error } = await admin
-    .from("profiles")
-    .update({ credits_remaining: newCredits })
-    .eq("id", targetUserId);
+  // add_credits RPC adds to bonus_credits + credits_remaining atomically
+  const { error: rpcErr } = await admin.rpc("add_credits", {
+    p_user_id: targetUserId,
+    p_amount:  amount,
+  });
+  if (rpcErr) return { error: rpcErr.message };
 
-  if (error) return { error: error.message };
+  // Log in usage_log so it appears in the user's credit history
+  await admin.from("usage_log").insert({
+    user_id:       targetUserId,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    activity_type: "admin_grant" as any,
+    credits_used:  amount,
+  });
+
+  const { data: after } = await admin
+    .from("profiles")
+    .select("credits_remaining, bonus_credits")
+    .eq("id", targetUserId)
+    .single();
 
   await logAdminAction({
     actorId:    actor.id,
     actorEmail: actor.email,
-    action:     "reset_credits",
+    action:     "add_bonus_credits",
     targetType: "user",
     targetId:   targetUserId,
     before:     before as Record<string, unknown> | null,
-    after:      { credits_remaining: newCredits },
+    after:      after as Record<string, unknown> | null,
+    metadata:   { amount },
   });
 
   revalidatePath("/dashboard/admin");

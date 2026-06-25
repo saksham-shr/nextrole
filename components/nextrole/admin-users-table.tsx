@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { grantTier, resetCredits } from "@/app/actions/admin";
+import { grantTier, addBonusCredits } from "@/app/actions/admin";
 import { AdminDeleteButton } from "@/components/nextrole/admin-delete-button";
 import type { UserTier } from "@/lib/db/types";
 
@@ -130,15 +130,15 @@ function UserActionsModal({ user, onClose }: { user: AdminUserRow; onClose: () =
     });
   }
 
-  function handleResetCredits() {
+  function handleAddBonusCredits() {
     setError(null);
     setSuccess(null);
     const n = parseInt(credits, 10);
-    if (isNaN(n)) { setError("Credits must be a number"); return; }
+    if (isNaN(n) || n <= 0) { setError("Enter a positive number"); return; }
     startTransition(async () => {
-      const res = await resetCredits(user.id, n);
+      const res = await addBonusCredits(user.id, n);
       if (res?.error) setError(res.error);
-      else setSuccess(`Credits set to ${n}.`);
+      else setSuccess(`Added ${n} bonus credits.`);
     });
   }
 
@@ -208,26 +208,27 @@ function UserActionsModal({ user, onClose }: { user: AdminUserRow; onClose: () =
           </div>
         </div>
 
-        {/* Reset credits */}
+        {/* Add bonus credits */}
         <div className="mt-5 space-y-3 border-t border-[var(--line-soft)] pt-5">
           <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
-            Set credits
+            Add bonus credits
           </h3>
+          <p className="text-[11px] text-[var(--muted-foreground)]">Goes into bonus bucket · logged in user&apos;s credit history</p>
           <div className="flex gap-2">
             <input
               type="number"
-              min={0}
+              min={1}
               max={100000}
               value={credits}
               onChange={(e) => setCredits(e.target.value)}
               className="w-32 rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none focus:border-[var(--line)]"
             />
             <button
-              onClick={handleResetCredits}
+              onClick={handleAddBonusCredits}
               disabled={isPending}
               className="ml-auto rounded-[6px] border border-[var(--line)] px-3 py-2 text-[13px] font-medium text-[var(--foreground)] transition hover:bg-[var(--surface-soft)] disabled:opacity-50"
             >
-              Update
+              Add
             </button>
           </div>
         </div>

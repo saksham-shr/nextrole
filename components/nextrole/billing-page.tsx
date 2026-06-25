@@ -135,7 +135,7 @@ const TASK_LABELS: Record<string, string> = {
   evaluate: "Job evaluation", tailor_resume: "Resume tailoring",
   autofill: "Autofill", topup: "Top-up purchase",
   daily_reset: "Daily reset", credits_expired: "Credits expired",
-  subscription: "Subscription payment",
+  subscription: "Subscription payment", admin_grant: "Bonus credits granted",
 };
 
 // ── Past-due / halted alert banner ─────────────────────────────────────────
@@ -303,7 +303,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
     );
   }
 
-  const totalSpent = entries.filter((e) => e.activity_type !== "topup" && e.credits_used > 0).reduce((s, e) => s + e.credits_used, 0);
+  const totalSpent = entries.filter((e) => e.activity_type !== "topup" && e.activity_type !== "admin_grant" && e.credits_used > 0).reduce((s, e) => s + e.credits_used, 0);
 
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
@@ -327,6 +327,8 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
                 <td className="px-4 py-3">{TASK_LABELS[e.activity_type] ?? e.activity_type.replace(/_/g, " ")}</td>
                 {e.activity_type === "topup" || e.activity_type === "subscription" ? (
                   <td className="px-4 py-3 text-right font-mono text-[var(--ok)]">—</td>
+                ) : e.activity_type === "admin_grant" ? (
+                  <td className="px-4 py-3 text-right font-mono text-[var(--ok)]">+{e.credits_used}</td>
                 ) : e.credits_used === 0 ? (
                   <td className="px-4 py-3 text-right font-mono text-[var(--muted-foreground)]">—</td>
                 ) : (
