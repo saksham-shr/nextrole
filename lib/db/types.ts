@@ -27,7 +27,9 @@ export type PaymentRecord = {
   user_id: string;
   razorpay_payment_id: string;
   razorpay_order_id: string | null;
-  type: "subscription" | "topup";
+  razorpay_sub_id: string | null;
+  credits_granted: number | null;
+  type: "subscription" | "renewal" | "topup";
   plan: string | null;
   period: string | null;
   pack_id: string | null;
@@ -182,7 +184,11 @@ export type ProfileRow = {
   onboarding_completed: boolean;
   tier: UserTier;
   credits_remaining: number;
+  daily_credits: number;
+  bonus_credits: number;
+  topup_credits: number;
   credits_reset_at: string;
+  daily_credits_reset_at: string;
   credit_grants_given: Record<string, string>;
   topup_forfeit_at: string | null;
   subscription_status: SubscriptionStatus | null;
@@ -801,7 +807,9 @@ export type Database = {
           user_id: string;
           razorpay_payment_id: string;
           razorpay_order_id?: string | null;
-          type: "subscription" | "topup";
+          razorpay_sub_id?: string | null;
+          credits_granted?: number | null;
+          type: "subscription" | "renewal" | "topup";
           plan?: string | null;
           period?: string | null;
           pack_id?: string | null;
@@ -873,23 +881,32 @@ export type Database = {
       apply_topup_payment: {
         Args: {
           p_user_id: string;
-          p_payment_id: string;
-          p_credits: number;
-          p_amount_paise?: number;
+          p_razorpay_payment_id: string;
           p_pack_id?: string;
-          p_order_id?: string;
+          p_credits?: number;
+          p_amount_paise?: number;
+          p_razorpay_order_id?: string;
         };
         Returns: string;
       };
       apply_subscription_payment: {
         Args: {
           p_user_id: string;
-          p_payment_id: string;
-          p_plan: string;
-          p_period: string;
-          p_daily_credits: number;
+          p_razorpay_payment_id: string;
+          p_razorpay_sub_id?: string;
+          p_razorpay_order_id?: string;
+          p_plan?: string;
+          p_period?: string;
           p_amount_paise?: number;
-          p_order_id?: string;
+        };
+        Returns: string;
+      };
+      apply_subscription_renewal: {
+        Args: {
+          p_user_id: string;
+          p_razorpay_payment_id: string;
+          p_razorpay_sub_id?: string;
+          p_amount_paise?: number;
         };
         Returns: string;
       };
