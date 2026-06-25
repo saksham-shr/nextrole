@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 export type AdminAction =
   | "grant_tier"
   | "reset_credits"
+  | "add_bonus_credits"
   | "delete_user"
   | "invite_create"
   | "invite_delete"
