@@ -100,6 +100,7 @@ interface BillingPageProps {
   referralCode?: string | null;
   referredBy?: string | null;
   referralStats?: ReferralStats;
+  autofillTrialDaysLeft?: number | null;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -497,6 +498,7 @@ export function BillingPage({
   trialEndsAt, subscriptionStatus, renewsAt,
   usage, creditLog = [], paymentRecords = [], commerce,
   signupCredits = 0, topupForfeitAt, referralCode, referredBy, referralStats,
+  autofillTrialDaysLeft = null,
 }: BillingPageProps) {
   const [period, setPeriod]               = useState<"monthly" | "yearly">("monthly");
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
@@ -754,7 +756,14 @@ export function BillingPage({
                 </div>
               );
             })()}
-            <UsageCell label="Autofills today" value={tier === "pro" ? "∞" : `${Math.max(0, 1 - usage.autofillsToday)} / 1`} sub={tier === "pro" ? "unlimited" : "1 per day"} />
+            {isPaid
+              ? <UsageCell label="Autofill" value="∞" sub="unlimited" />
+              : <UsageCell
+                  label="Autofill trial"
+                  value={autofillTrialDaysLeft !== null && autofillTrialDaysLeft > 0 ? `${autofillTrialDaysLeft}d left` : "Ended"}
+                  sub={autofillTrialDaysLeft !== null && autofillTrialDaysLeft > 0 ? "free for 7 days" : "upgrade to continue"}
+                />
+            }
             <UsageCell label="Credit costs" value="5 · 10 · 25" sub="eval · resume · premium" />
           </div>
         )}

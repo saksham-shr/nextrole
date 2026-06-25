@@ -19,7 +19,7 @@ export default async function Billing() {
   const [{ data: profile }, { data: usageRow }, { data: creditLog }, { data: paymentRecords }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("tier, credits_remaining, daily_credits, bonus_credits, topup_credits, subscription_ends_at, subscription_status, topup_forfeit_at, referral_code, referred_by")
+      .select("tier, credits_remaining, daily_credits, bonus_credits, topup_credits, subscription_ends_at, subscription_status, topup_forfeit_at, referral_code, referred_by, created_at")
       .eq("id", user.id)
       .single(),
     supabase
@@ -79,10 +79,15 @@ export default async function Billing() {
   const bonusCredits     = isAdmin ? 0   : (profile?.bonus_credits     ?? 0);
   const topupCredits     = isAdmin ? 0   : (profile?.topup_credits     ?? 0);
 
+  const autofillTrialDaysLeft = (tier === "free" && profile?.created_at)
+    ? Math.max(0, 7 - Math.floor((Date.now() - new Date(profile.created_at as string).getTime()) / 86_400_000))
+    : null;
+
   return (
     <BillingPage
       tier={tier}
       email={user.email ?? ""}
+      autofillTrialDaysLeft={autofillTrialDaysLeft}
       trialEndsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}
       subscriptionStatus={isAdmin ? "active" : ((profile?.subscription_status as string | null) ?? null)}
       renewsAt={isAdmin ? null : ((profile?.subscription_ends_at as string | null) ?? null)}

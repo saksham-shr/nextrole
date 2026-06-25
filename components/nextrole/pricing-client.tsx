@@ -57,7 +57,7 @@ const FREE_FEATURES: Feature[] = [
   { text: "CV storage", kind: "check" },
   { text: "5 AI evaluations per day", kind: "limit" },
   { text: "1 tailored resume per day", kind: "limit" },
-  { text: "Autofill forms", kind: "lock" },
+  { text: "Autofill forms — free for 7 days", kind: "limit" },
   { text: "Premium resumes", kind: "lock" },
 ];
 const STARTER_FEATURES: Feature[] = [
@@ -65,9 +65,8 @@ const STARTER_FEATURES: Feature[] = [
   { text: "100 credits / day — resets at midnight", kind: "credit" },
   { text: "Standard tailored resumes (10 credits)", kind: "check" },
   { text: "Job evaluation & fit scoring (5 credits)", kind: "check" },
-  { text: "1 autofill per day", kind: "limit" },
+  { text: "Unlimited autofill", kind: "check" },
   { text: "Up to 25 jobs in pipeline", kind: "limit" },
-  { text: "Unlimited autofill", kind: "lock" },
   { text: "Premium resumes", kind: "lock" },
   { text: "Credit top-ups", kind: "lock" },
 ];

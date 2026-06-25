@@ -58,7 +58,7 @@ const TIERS = [
       "100 credits / day",
       "Tailored resumes (10 cr)",
       "Job evaluation (5 cr)",
-      "1 autofill / day",
+      "Unlimited autofill",
       "25 job slots",
     ],
     cta: "Get Starter",

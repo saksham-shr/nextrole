@@ -94,14 +94,22 @@ export async function POST(req: NextRequest) {
 
   const [{ data: profile }] = await Promise.all([
     admin.from("profiles")
-      .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, credits_remaining")
+      .select("full_name, email, base_cv, target_roles, years_experience, seniority, tier, credits_remaining, created_at")
       .eq("id", userId).single(),
   ]);
 
   const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
 
-  // Autofill requires Starter+
-  if (!canAccess(tier as Parameters<typeof canAccess>[0], "autofill")) {
+  // Free users: 7-day autofill trial from signup date
+  if (tier === "free") {
+    const daysSinceSignup = profile?.created_at
+      ? Math.floor((Date.now() - new Date(profile.created_at as string).getTime()) / 86_400_000)
+      : 999;
+    if (daysSinceSignup >= 7) {
+      return NextResponse.json({ error: "Your 7-day free autofill trial has ended — upgrade to continue", upgrade: true }, { status: 402 });
+    }
+    // Within trial — fall through, no credit charge
+  } else if (!canAccess(tier as Parameters<typeof canAccess>[0], "autofill")) {
     return NextResponse.json({ error: "Autofill requires Starter plan or higher", upgrade: true }, { status: 402 });
   }
 
