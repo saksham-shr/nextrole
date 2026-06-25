@@ -32,7 +32,6 @@ export async function logAdminAction(entry: AuditEntry): Promise<void> {
   try {
     const admin = createAdminClient();
     const { error } = await admin.from("admin_audit_log").insert({
-      actor_id:    entry.actorId,
       actor_email: entry.actorEmail,
       action:      entry.action,
       target_type: entry.targetType,
