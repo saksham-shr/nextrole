@@ -60,6 +60,9 @@ function ClockIcon() {
 
 interface UsageData {
   creditsRemaining: number;
+  dailyCredits:     number;
+  bonusCredits:     number;
+  topupCredits:     number;
   autofillsToday: number;
   resumesToday: number;
   evaluationsToday: number;
@@ -674,29 +677,79 @@ export function BillingPage({
         {/* Usage grid */}
         {tier === "free" ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <UsageCell label="Credits earned"    value={String(signupCredits)}           sub="Via profile actions (up to 100)" />
-            <UsageCell label="Credits remaining" value={String(usage.creditsRemaining)}  sub="Available to spend" />
-            <UsageCell label="Autofill"          value="—"                               sub="Starter required" locked />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {(() => {
-              const topup   = Math.max(0, usage.creditsRemaining - dailyBase);
-              const daily   = Math.min(usage.creditsRemaining, dailyBase);
-              const dailyPct = dailyBase > 0 ? Math.min(100, (daily / dailyBase) * 100) : 0;
+              const bonusMax = Math.max(usage.bonusCredits, 100);
+              const pct = Math.min(100, (usage.bonusCredits / bonusMax) * 100);
               return (
                 <div className="col-span-2 sm:col-span-1 rounded-xl border border-[var(--line-soft)] p-4">
                   <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits remaining</div>
                   <div className="flex items-baseline gap-1.5">
-                    <span className="font-mono text-[22px] font-medium leading-none">{usage.creditsRemaining}</span>
-                    <span className="text-[13px] text-[var(--muted-foreground)]">total</span>
+                    <span className="font-mono text-[22px] font-medium leading-none">{usage.bonusCredits}</span>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">bonus</span>
                   </div>
                   <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
-                    <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${dailyPct}%` }} />
+                    <div className="h-full rounded-full bg-[var(--ok)] transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">earned via referrals &amp; rewards</div>
+                </div>
+              );
+            })()}
+            <UsageCell label="Autofill" value="—" sub="Starter required" locked />
+            <UsageCell label="Credit costs" value="5 · 10 · 25" sub="eval · resume · premium" />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            {/* Daily credits */}
+            {(() => {
+              const pct = dailyBase > 0 ? Math.min(100, (usage.dailyCredits / dailyBase) * 100) : 0;
+              return (
+                <div className="rounded-xl border border-[var(--line-soft)] p-4">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Daily</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-[22px] font-medium leading-none">{usage.dailyCredits}</span>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">/ {dailyBase}</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
+                    <div className="h-full rounded-full bg-[var(--accent)] transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">resets tomorrow</div>
+                </div>
+              );
+            })()}
+            {/* Bonus credits */}
+            {(() => {
+              const bonusMax = Math.max(usage.bonusCredits, 100);
+              const pct = Math.min(100, (usage.bonusCredits / bonusMax) * 100);
+              return (
+                <div className="rounded-xl border border-[var(--line-soft)] p-4">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Bonus</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-[22px] font-medium leading-none">{usage.bonusCredits}</span>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">earned</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
+                    <div className="h-full rounded-full bg-[var(--ok)] transition-all" style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">referrals &amp; rewards</div>
+                </div>
+              );
+            })()}
+            {/* Topup credits */}
+            {(() => {
+              const topupCap = tier === "starter" ? 500 : Math.max(usage.topupCredits, 500);
+              const pct = topupCap > 0 ? Math.min(100, (usage.topupCredits / topupCap) * 100) : 0;
+              return (
+                <div className="rounded-xl border border-[var(--line-soft)] p-4">
+                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Top-up</div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="font-mono text-[22px] font-medium leading-none">{usage.topupCredits}</span>
+                    <span className="text-[13px] text-[var(--muted-foreground)]">purchased</span>
+                  </div>
+                  <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--line-soft)]">
+                    <div className="h-full rounded-full bg-[var(--warning,#f59e0b)] transition-all" style={{ width: `${pct}%` }} />
                   </div>
                   <div className="mt-1.5 text-[11px] text-[var(--muted-foreground)]">
-                    {daily} / {dailyBase} daily
-                    {topup > 0 && <span className="ml-1.5 rounded-full bg-[var(--ok-bg)] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-[var(--ok)]">+{topup} top-up</span>}
+                    {tier === "starter" ? `${usage.topupCredits} / 500 cap` : "no cap"}
                   </div>
                 </div>
               );
