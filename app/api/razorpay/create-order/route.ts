@@ -136,6 +136,8 @@ export async function POST(req: NextRequest) {
 
     const planEnvKey = `RAZORPAY_PLAN_${body.plan.toUpperCase()}_${body.period.toUpperCase()}`;
     const planId = process.env[planEnvKey];
+    const keyPrefix = process.env.RAZORPAY_KEY_ID?.slice(0, 12) ?? "NOT_SET";
+    console.log(`[create-order] plan=${body.plan} period=${body.period} envKey=${planEnvKey} planId=${planId ?? "NOT_SET"} keyPrefix=${keyPrefix}`);
     if (!planId) {
       console.error(`[create-order] env var ${planEnvKey} not set`);
       return NextResponse.json({ error: "Plan not configured — contact support" }, { status: 503 });
