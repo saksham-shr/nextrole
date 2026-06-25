@@ -16,18 +16,8 @@ export async function chargeExtensionAiSuccess(
 ) {
   const { userId, tier, task, freeUsageField, starterUsageField } = opts;
 
-  if (tier === "free" && freeUsageField) {
-    await admin.rpc("increment_daily_usage", { p_field: freeUsageField, p_user: userId });
-    return 0;
-  }
-
-  if (tier === "starter" && starterUsageField) {
-    await admin.rpc("increment_daily_usage", { p_field: starterUsageField, p_user: userId });
-    return 0;
-  }
-
   const credits = CREDIT_COSTS[task];
-  const { data: ok, error } = await admin.rpc("deduct_credits", {
+  const { data: ok, error } = await admin.rpc("deduct_credit", {
     p_user_id: userId,
     p_amount: credits,
   });
@@ -65,34 +55,8 @@ export async function reserveExtensionAiCharge(
 ): Promise<ChargeReservation> {
   const { userId, tier, task, freeUsageField, freeDailyLimit, starterUsageField, starterDailyLimit } = opts;
 
-  if (tier === "free" && freeUsageField) {
-    const { data: newVal, error } = await admin.rpc("increment_daily_usage", { p_field: freeUsageField, p_user: userId });
-    if (error) throw new Error("Could not reserve daily usage");
-    if (typeof freeDailyLimit === "number" && typeof newVal === "number" && newVal > freeDailyLimit) {
-      await decrementDailyUsage(admin, userId, freeUsageField);
-      throw new Error("DAILY_LIMIT");
-    }
-    return {
-      charged: 0,
-      refund: async () => { await decrementDailyUsage(admin, userId, freeUsageField); },
-    };
-  }
-
-  if (tier === "starter" && starterUsageField) {
-    const { data: newVal, error } = await admin.rpc("increment_daily_usage", { p_field: starterUsageField, p_user: userId });
-    if (error) throw new Error("Could not reserve daily usage");
-    if (typeof starterDailyLimit === "number" && typeof newVal === "number" && newVal > starterDailyLimit) {
-      await decrementDailyUsage(admin, userId, starterUsageField);
-      throw new Error("DAILY_LIMIT");
-    }
-    return {
-      charged: 0,
-      refund: async () => { await decrementDailyUsage(admin, userId, starterUsageField); },
-    };
-  }
-
   const credits = CREDIT_COSTS[task];
-  const { data: ok, error } = await admin.rpc("deduct_credits", {
+  const { data: ok, error } = await admin.rpc("deduct_credit", {
     p_user_id: userId,
     p_amount: credits,
   });
@@ -102,26 +66,9 @@ export async function reserveExtensionAiCharge(
   return {
     charged: credits,
     refund: async () => {
-      // Inverse of deduct_credit: add the credits back. Try a dedicated
-      // refund_credit RPC first; fall back to a SELECT/UPDATE under the
-      // admin client (bypasses RLS) for older DBs that don't have it.
+      // add_credits is the inverse of deduct_credit — both are service_role only.
       try {
-        // refund_credit added in 20260521000001 — typegen may lag.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: rpcErr } = await (admin.rpc as any)("refund_credit", { p_user_id: userId, p_amount: credits });
-        if (!rpcErr) return;
-      } catch {}
-      try {
-        const { data } = await admin
-          .from("profiles")
-          .select("daily_credits")
-          .eq("id", userId)
-          .single();
-        const current = (data?.daily_credits as number | null) ?? 0;
-        await admin
-          .from("profiles")
-          .update({ daily_credits: current + credits })
-          .eq("id", userId);
+        await admin.rpc("add_credits", { p_user_id: userId, p_amount: credits });
       } catch {}
     },
   };

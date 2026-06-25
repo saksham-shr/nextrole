@@ -273,9 +273,32 @@ export async function callProvider(opts: CallOptions): Promise<string> {
 // ── JSON parsing ───────────────────────────────────────────────────────────────
 
 export function parseJSON(raw: string): unknown {
-  const cleaned = raw
-    .replace(/^```(?:json)?\n?/m, "")
-    .replace(/```$/m, "")
+  // Strip markdown code fences
+  let cleaned = raw
+    .replace(/^```(?:json)?\s*/im, "")
+    .replace(/\s*```\s*$/im, "")
     .trim();
-  return JSON.parse(cleaned);
+
+  // Try direct parse first
+  try { return JSON.parse(cleaned); } catch { /* fall through */ }
+
+  // Fix: replace literal control characters (unescaped newlines/tabs inside
+  // JSON string values are invalid — JSON structure doesn't require newlines)
+  const sanitized = cleaned.replace(/\r?\n/g, " ").replace(/\t/g, " ");
+  try { return JSON.parse(sanitized); } catch { /* fall through */ }
+
+  // Fix: model added prose before/after — extract outermost { } or [ ]
+  const objStart = sanitized.indexOf("{");
+  const objEnd   = sanitized.lastIndexOf("}");
+  const arrStart = sanitized.indexOf("[");
+  const arrEnd   = sanitized.lastIndexOf("]");
+
+  const start = (objStart !== -1 && (arrStart === -1 || objStart < arrStart)) ? objStart : arrStart;
+  const end   = (objEnd   !== -1 && (arrEnd   === -1 || objEnd   > arrEnd))   ? objEnd   : arrEnd;
+
+  if (start !== -1 && end > start) {
+    return JSON.parse(sanitized.slice(start, end + 1));
+  }
+
+  throw new Error("No JSON object found in AI response");
 }

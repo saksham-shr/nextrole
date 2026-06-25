@@ -45,7 +45,7 @@ export async function deleteUser(formData: FormData) {
   const adminScoped = createAdminClient();
   const { data: profileBefore } = await adminScoped
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, full_name, email")
+    .select("tier, credits_remaining, full_name, email")
     .eq("id", userId)
     .single();
   const { data: authUser } = await admin.auth.admin.getUserById(userId);
@@ -76,7 +76,7 @@ export async function grantTier(targetUserId: string, tier: UserTier, durationDa
 
   const { data: before } = await admin
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, subscription_ends_at, subscription_status")
+    .select("tier, credits_remaining, subscription_ends_at, subscription_status")
     .eq("id", targetUserId)
     .single();
 
@@ -87,7 +87,7 @@ export async function grantTier(targetUserId: string, tier: UserTier, durationDa
 
   const { error } = await admin.from("profiles").update({
     tier,
-    daily_credits:        credits,
+    credits_remaining:    credits,
     subscription_ends_at: endsAt,
     subscription_status:  tier === "free" ? "expired" : "active",
   }).eq("id", targetUserId);
@@ -101,7 +101,7 @@ export async function grantTier(targetUserId: string, tier: UserTier, durationDa
     targetType: "user",
     targetId:   targetUserId,
     before:     before as Record<string, unknown> | null,
-    after:      { tier, daily_credits: credits, subscription_ends_at: endsAt },
+    after:      { tier, credits_remaining: credits, subscription_ends_at: endsAt },
     metadata:   { duration_days: durationDays },
   });
 
@@ -119,13 +119,13 @@ export async function resetCredits(targetUserId: string, newCredits: number) {
 
   const { data: before } = await admin
     .from("profiles")
-    .select("daily_credits")
+    .select("credits_remaining")
     .eq("id", targetUserId)
     .single();
 
   const { error } = await admin
     .from("profiles")
-    .update({ daily_credits: newCredits })
+    .update({ credits_remaining: newCredits })
     .eq("id", targetUserId);
 
   if (error) return { error: error.message };
@@ -137,7 +137,7 @@ export async function resetCredits(targetUserId: string, newCredits: number) {
     targetType: "user",
     targetId:   targetUserId,
     before:     before as Record<string, unknown> | null,
-    after:      { daily_credits: newCredits },
+    after:      { credits_remaining: newCredits },
   });
 
   revalidatePath("/dashboard/admin");

@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   }
 
   const tier = ((profile?.tier as string | null) ?? "free") as UserTier;
-  const credits = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
+  const credits = (profile?.credits_remaining as number | null) ?? 0;
 
   // Feature gate
   if (!canAccess(tier as Parameters<typeof canAccess>[0], "evaluate")) {
@@ -214,9 +214,8 @@ export async function POST(req: NextRequest) {
 
   await admin.from("usage_log").insert({
     user_id: userId,
-    task_type: "evaluate",
-    model: route.model,
-    credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
+    activity_type: "evaluate",
+    credits_used: CREDIT_COSTS.evaluate,
   });
 
   // Award first_evaluation grant + check referral threshold (fire-and-forget)

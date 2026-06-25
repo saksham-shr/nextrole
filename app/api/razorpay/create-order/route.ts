@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
       const admin = createAdminClient();
       const { data: profile } = await admin
         .from("profiles")
-        .select("tier, subscription_status, topup_credits")
+        .select("tier, subscription_status, credits_remaining")
         .eq("id", user.id)
         .single();
 
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Starter plan only supports the 100 credit pack" }, { status: 403 });
       }
       // Starter: cap check (RPC also enforces, this is a fast preflight)
-      if (profile.tier === "starter" && ((profile.topup_credits as number) + pack.credits) > 500) {
+      if (profile.tier === "starter" && ((profile.credits_remaining as number) + pack.credits) > 500) {
         return NextResponse.json({ error: "Starter plan maximum topup balance is 500 credits" }, { status: 403 });
       }
     }

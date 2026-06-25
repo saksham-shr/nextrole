@@ -3,7 +3,7 @@
 import { useState, useEffect, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createJob, deleteJob, updateJobStatus, batchDeleteJobs, batchUpdateJobStatus } from "@/app/actions/jobs";
+import { deleteJob, updateJobStatus, batchDeleteJobs, batchUpdateJobStatus } from "@/app/actions/jobs";
 import type { JobRow, JobStatus } from "@/lib/db/types";
 
 function ScoreBadge({ score }: { score: number | null | undefined }) {
@@ -23,13 +23,6 @@ function ScoreBadge({ score }: { score: number | null | undefined }) {
     </span>
   );
 }
-
-const ARCHETYPES = [
-  "FDE", "SA", "PM", "LLMOps", "Agentic", "Transformation",
-  "AI Platform", "Technical PM", "Backend", "Platform", "Product Eng",
-];
-
-const SOURCES = ["manual", "scanner", "batch", "referral", "linkedin", "other"];
 
 // Company logo placeholder (consistent with dashboard-home)
 function CompanyLogo({ name, size = 32 }: { name: string; size?: number }) {
@@ -61,117 +54,11 @@ function CompanyLogo({ name, size = 32 }: { name: string; size?: number }) {
   );
 }
 
-function LabelEl({ children }: { children: React.ReactNode }) {
-  return (
-    <div
-      className="uppercase text-[var(--muted-foreground)]"
-      style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, letterSpacing: "0.12em", marginBottom: 6 }}
-    >
-      {children}
-    </div>
-  );
-}
-
-function AddJobForm({
-  onDone,
-  existingJobs,
-}: {
-  onDone: () => void;
-  existingJobs: Array<{ title: string; company: string }>;
-}) {
-  const [title, setTitle] = useState("");
-  const [company, setCompany] = useState("");
-
-  const duplicate = title.trim() && company.trim()
-    ? existingJobs.find(
-        (j) =>
-          j.title.toLowerCase() === title.trim().toLowerCase() &&
-          j.company.toLowerCase() === company.trim().toLowerCase(),
-      )
-    : null;
-
-  const inputCls = "w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]";
-
-  return (
-    <div className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]" style={{ padding: 24 }}>
-      <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>Add job to pipeline</div>
-      <div className="text-[13px] text-[var(--muted-foreground)] mb-5">Manually enter a role — will evaluate from here.</div>
-
-      <form action={createJob} className="space-y-4">
-        {duplicate && (
-          <p className="rounded-[6px] border border-[var(--warn)] px-4 py-3 text-[12px] text-[var(--warn)]"
-            style={{ background: "var(--warn-bg)" }}>
-            Possible duplicate — this role already exists in your pipeline.
-          </p>
-        )}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <LabelEl>Job title</LabelEl>
-            <input name="title" placeholder="Senior Software Engineer" value={title}
-              onChange={(e) => setTitle(e.target.value)} className={inputCls} />
-          </label>
-          <label className="block">
-            <LabelEl>Company</LabelEl>
-            <input name="company" placeholder="Stripe" value={company}
-              onChange={(e) => setCompany(e.target.value)} className={inputCls} />
-          </label>
-        </div>
-        <label className="block">
-          <LabelEl>URL</LabelEl>
-          <input name="url" placeholder="https://stripe.com/jobs/..." className={inputCls} />
-        </label>
-        <label className="block">
-          <LabelEl>Job description (paste full text)</LabelEl>
-          <textarea
-            name="description"
-            placeholder="Paste the full JD here — used by the evaluator"
-            rows={5}
-            className={`${inputCls} resize-y leading-[1.55]`}
-          />
-        </label>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <LabelEl>Source</LabelEl>
-            <select name="source" className={inputCls}>
-              {SOURCES.map((s) => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <LabelEl>Archetype</LabelEl>
-            <select name="archetype" className={inputCls}>
-              <option value="">Detect automatically</option>
-              {ARCHETYPES.map((a) => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </label>
-        </div>
-        <div className="flex gap-2 pt-1">
-          <button
-            type="submit"
-            className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
-          >
-            Add to pipeline
-          </button>
-          <button
-            type="button"
-            onClick={onDone}
-            className="inline-flex items-center rounded-[6px] border border-[var(--line-soft)] px-4 py-2 text-[13px] text-[var(--foreground)] transition hover:border-[var(--line)]"
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 const FILTERS = ["All", "Pending", "Applied", "Interview", "Offer", "Evaluated"] as const;
 type FilterKey = typeof FILTERS[number];
 
 export function PipelinePageContent({
   jobs,
-  existingJobs = [],
   error,
   message,
   page = 1,
@@ -186,7 +73,6 @@ export function PipelinePageContent({
   statusCounts = {},
 }: {
   jobs: JobRow[];
-  existingJobs?: Array<{ title: string; company: string }>;
   error?: string;
   message?: string;
   page?: number;
@@ -200,7 +86,6 @@ export function PipelinePageContent({
   totalAll?: number;
   statusCounts?: Record<string, number>;
 }) {
-  const [showForm, setShowForm] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [searchInput, setSearchInput] = useState(q);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -325,15 +210,6 @@ export function PipelinePageContent({
             <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>· {totalAll}</span>
           </h1>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowForm((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
-          >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-            Add job
-          </button>
-        </div>
       </div>
 
       {/* ── Alerts ── */}
@@ -348,11 +224,6 @@ export function PipelinePageContent({
           style={{ background: "var(--ok-bg)" }}>
           {message}
         </p>
-      )}
-
-      {/* ── Add job form ── */}
-      {showForm && (
-        <AddJobForm onDone={() => setShowForm(false)} existingJobs={existingJobs} />
       )}
 
       {/* ── Filter bar ── */}
@@ -501,17 +372,22 @@ export function PipelinePageContent({
             </div>
             <h2 style={{ fontSize: 18, marginBottom: 6 }}>No jobs yet</h2>
             <p className="text-[14px] text-[var(--muted-foreground)] mb-5">
-              {q ? "No jobs match your search." : "Add a job above or install the extension to start saving."}
+              {q ? "No jobs match your search." : "Install the extension to save jobs from any job board, or browse community jobs to discover new ones."}
             </p>
             {!q && (
               <div className="flex justify-center gap-2">
-                <button
-                  onClick={() => setShowForm(true)}
+                <Link
+                  href="/connect-extension"
                   className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
                 >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 5v14M5 12h14"/></svg>
-                  Add manually
-                </button>
+                  Install extension
+                </Link>
+                <Link
+                  href="/dashboard/explore"
+                  className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--line-soft)] px-3 py-1.5 text-[13px] text-[var(--foreground)] transition hover:border-[var(--line)]"
+                >
+                  Browse community jobs
+                </Link>
               </div>
             )}
           </div>

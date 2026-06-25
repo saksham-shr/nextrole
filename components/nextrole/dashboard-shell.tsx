@@ -65,6 +65,7 @@ const NAV_PRIMARY = [
   { label: "Resumes",   href: "/dashboard/resumes",  icon: ResumeIcon },
   { label: "Evaluate",  href: "/dashboard/evaluate", icon: EvalIcon },
   { label: "Pipeline",  href: "/dashboard/pipeline", icon: PipelineIcon },
+  { label: "Explore",   href: "/dashboard/explore",  icon: ExploreIcon },
 ] as const;
 
 const NAV_SECONDARY = [
@@ -787,6 +788,13 @@ function PipelineIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="5" width="18" height="3" rx="1"/><rect x="3" y="11" width="14" height="3" rx="1"/><rect x="3" y="17" width="10" height="3" rx="1"/>
+    </svg>
+  );
+}
+function ExploreIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
     </svg>
   );
 }

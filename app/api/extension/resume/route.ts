@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("base_cv, full_name, tier, daily_credits, topup_credits")
+    .select("base_cv, full_name, tier, credits_remaining")
     .eq("id", userId)
     .single();
 
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Daily resume limit reached â€” upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
     }
   } else {
-    const creditsLeft = ((profile?.daily_credits as number | null) ?? 0) + ((profile?.topup_credits as number | null) ?? 0);
+    const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
     if (creditsLeft < CREDIT_COSTS.resume_standard) {
       return NextResponse.json({ error: "No credits remaining", upgrade: true }, { status: 402 });
     }
@@ -163,9 +163,8 @@ export async function POST(req: NextRequest) {
 
   await admin.from("usage_log").insert({
     user_id: userId,
-    task_type: "resume_standard",
-    model: route.model,
-    credits_used: tier === "free" ? 0 : CREDIT_COSTS.resume_standard,
+    activity_type: "tailor_resume",
+    credits_used: CREDIT_COSTS.resume_standard,
   });
 
   // Check referral threshold after credit usage (fire-and-forget)

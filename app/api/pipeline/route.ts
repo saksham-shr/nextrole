@@ -182,12 +182,15 @@ export async function POST(request: NextRequest) {
             results.status_update = { new_status: newStatus };
           }
 
-          await supabase.from("usage_log").insert({
-            user_id: userId,
-            task_type: "evaluate",
-            model: route.model,
-            credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
-          });
+          {
+            const adminForLog = createAdminClient();
+            const { error: logErr } = await adminForLog.from("usage_log").insert({
+              user_id: userId,
+              activity_type: "evaluate",
+              credits_used: CREDIT_COSTS.evaluate,
+            });
+            if (logErr) console.error("[pipeline] usage_log insert failed:", logErr.message, logErr.code);
+          }
 
           // Award first_evaluation grant + check referral threshold (fire-and-forget)
           {

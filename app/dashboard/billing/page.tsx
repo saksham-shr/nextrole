@@ -19,7 +19,7 @@ export default async function Billing() {
   const [{ data: profile }, { data: usageRow }, { data: creditLog }, { data: paymentRecords }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("tier, daily_credits, topup_credits, signup_credits, subscription_ends_at, subscription_status, topup_forfeit_at, referral_code, referred_by")
+      .select("tier, credits_remaining, subscription_ends_at, subscription_status, topup_forfeit_at, referral_code, referred_by")
       .eq("id", user.id)
       .single(),
     supabase
@@ -30,7 +30,7 @@ export default async function Billing() {
       .maybeSingle(),
     supabase
       .from("usage_log")
-      .select("id, task_type, credits_used, created_at")
+      .select("id, activity_type, credits_used, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30),
@@ -76,7 +76,7 @@ export default async function Billing() {
   const tier: UserTier = isAdmin ? "pro" : ((profile?.tier as UserTier) ?? "free");
   const creditsRemaining = isAdmin
     ? 300
-    : (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
+    : (profile?.credits_remaining ?? 0);
 
   return (
     <BillingPage
@@ -94,7 +94,7 @@ export default async function Billing() {
       isAdmin={isAdmin}
       creditLog={creditLog ?? []}
       paymentRecords={(paymentRecords ?? []) as PaymentRecord[]}
-      signupCredits={isAdmin ? 0 : ((profile?.signup_credits as number) ?? 0)}
+      signupCredits={0}
       topupForfeitAt={isAdmin ? null : ((profile?.topup_forfeit_at as string | null) ?? null)}
       referralCode={(profile?.referral_code as string | null) ?? null}
       referredBy={(profile?.referred_by as string | null) ?? null}

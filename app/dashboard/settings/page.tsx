@@ -18,12 +18,12 @@ export default async function SettingsPage() {
   const [{ data: profile }, { data: creditLog }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("tier, daily_credits, topup_credits, subscription_ends_at, subscription_status, preferred_language, eval_score_apply, eval_score_watch, custom_eval_focus, custom_archetypes, target_archetypes, preferred_company_types")
+      .select("tier, credits_remaining, subscription_ends_at, subscription_status, preferred_language, eval_score_apply, eval_score_watch, custom_eval_focus, custom_archetypes, target_archetypes, preferred_company_types")
       .eq("id", user.id)
       .single(),
     supabase
       .from("usage_log")
-      .select("id, task_type, credits_used, created_at")
+      .select("id, activity_type, credits_used, created_at")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(30),
@@ -35,7 +35,7 @@ export default async function SettingsPage() {
     <SettingsPageContent
       tier={tier}
       email={user.email ?? ""}
-      creditsRemaining={isAdmin ? 300 : (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0)}
+      creditsRemaining={isAdmin ? 300 : (profile?.credits_remaining ?? 0)}
       renewsAt={isAdmin ? null : (profile?.subscription_ends_at ?? null)}
       subscriptionStatus={isAdmin ? "active" : (profile?.subscription_status ?? null)}
       portalUrl={null}

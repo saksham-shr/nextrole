@@ -243,15 +243,15 @@ function PasswordSection({ email }: { email: string }) {
 // ─── Activity log section ─────────────────────────────────────────────────────
 
 const TASK_LABELS: Record<string, string> = {
-  evaluate:        "Evaluation",
-  resume_standard: "Resume",
-  resume_premium:  "Resume (Premium)",
-  tailor:          "Tailor",
-  autofill:        "Autofill",
-  topup:           "Top-up",
+  evaluate:       "Evaluation",
+  tailor_resume:  "Resume",
+  autofill:       "Autofill",
+  topup:          "Top-up",
+  daily_reset:    "Daily reset",
+  credits_expired: "Credits expired",
 };
 
-function ActivitySection({ log }: { log: Array<{ id: string; task_type: string; credits_used: number; created_at: string }> }) {
+function ActivitySection({ log }: { log: Array<{ id: string; activity_type: string; credits_used: number; created_at: string }> }) {
   function fmtDateTime(iso: string) {
     return new Date(iso).toLocaleString("en-GB", {
       day: "2-digit", month: "short", year: "numeric",
@@ -279,7 +279,7 @@ function ActivitySection({ log }: { log: Array<{ id: string; task_type: string; 
               {log.map((entry) => (
                 <tr key={entry.id} className="border-b border-dashed border-[var(--line-softer)] last:border-0">
                   <td className="px-4 py-2.5 text-[13px]">
-                    {TASK_LABELS[entry.task_type] ?? entry.task_type}
+                    {TASK_LABELS[entry.activity_type] ?? entry.activity_type}
                   </td>
                   <td className="px-4 py-2.5">
                     <span
@@ -573,7 +573,7 @@ export function SettingsPageContent({
   renewsAt: string | null;
   subscriptionStatus: string | null;
   portalUrl: string | null;
-  creditLog: Array<{ id: string; task_type: string; credits_used: number; created_at: string }>;
+  creditLog: Array<{ id: string; activity_type: string; credits_used: number; created_at: string }>;
   aiPrefs?: AiPrefs;
 }) {
   const [activeSection, setActiveSection] = useState("billing");

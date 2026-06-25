@@ -303,7 +303,7 @@ export async function POST(request: NextRequest) {
 
       await admin.from("profiles").update({
         subscription_status: "halted",
-        daily_credits:       0,
+        credits_remaining:   0,
         topup_forfeit_at:    forfeitAt,
       }).eq("id", userId);
 
@@ -344,8 +344,7 @@ export async function POST(request: NextRequest) {
       await admin.from("profiles").update({
         tier:                     "free",
         subscription_status:      "expired",
-        daily_credits:            0,
-        topup_credits:            0,
+        credits_remaining:        0,
         topup_forfeit_at:         null,
         subscription_ends_at:     null,
         subscription_period:      null,
@@ -394,8 +393,7 @@ export async function POST(request: NextRequest) {
         await admin.from("profiles").update({
           tier:                     "free",
           subscription_status:      "expired",
-          daily_credits:            0,
-          topup_credits:            0,
+          credits_remaining:        0,
           topup_forfeit_at:         null,
           subscription_ends_at:     null,
           subscription_period:      null,

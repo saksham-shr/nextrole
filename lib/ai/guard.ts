@@ -35,13 +35,13 @@ export async function requireFeature(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, signup_credits, subscription_status")
+    .select("tier, credits_remaining, subscription_status")
     .eq("id", user.id)
     .single();
 
   const tier    = (isAdmin ? "pro" : (profile?.tier ?? "free")) as Tier;
   const status  = (profile?.subscription_status ?? null) as SubStatus;
-  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0) + (profile?.signup_credits ?? 0);
+  const credits = profile?.credits_remaining ?? 0;
 
   if (!isAdmin && status === "paused") {
     return NextResponse.json({ error: "SUBSCRIPTION_PAUSED", currentTier: tier }, { status: 402 });
@@ -51,7 +51,7 @@ export async function requireFeature(
     return NextResponse.json({ error: "UPGRADE_REQUIRED", feature, currentTier: tier }, { status: 403 });
   }
 
-  // All tiers: check credit balance. Admin is exempt — admin account carries no real balance.
+  // All tiers: block when credits exhausted. Admin is exempt.
   if (!isAdmin && credits <= 0) {
     return NextResponse.json({ error: "NO_CREDITS", currentTier: tier }, { status: 402 });
   }
@@ -74,12 +74,12 @@ export async function requireJobSlot(): Promise<GuardResult | GuardError> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, subscription_status")
+    .select("tier, credits_remaining, subscription_status")
     .eq("id", user.id)
     .single();
 
   const tier    = (isAdmin ? "pro" : profile?.tier ?? "free") as Tier;
-  const credits = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
+  const credits = profile?.credits_remaining ?? 0;
   const status  = (profile?.subscription_status ?? null) as SubStatus;
 
   if (!isAdmin && status === "paused") {

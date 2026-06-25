@@ -67,12 +67,9 @@ export default async function PipelinePage({
   const totalCount = count ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
 
-  const allJobs = (jobs ?? []).map((j) => ({ title: j.title, company: j.company }));
-
   return (
     <PipelinePageContent
       jobs={jobs ?? []}
-      existingJobs={allJobs}
       error={error}
       message={message}
       page={page}

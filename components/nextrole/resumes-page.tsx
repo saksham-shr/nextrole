@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import type React from "react";
+import { useState, useTransition, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { batchDeleteResumes } from "@/app/actions/resumes";
+import { batchDeleteResumes, updateResume } from "@/app/actions/resumes";
 import { Badge } from "@/components/nextrole/ui";
 import type { ResumeRow, JobRow, UserTier } from "@/lib/db/types";
-import type { ResumeData } from "@/lib/resume/template";
+import type { ResumeData, ResumeExperience, ResumeEducation, ResumeCertification, ResumeProject } from "@/lib/resume/template";
 
 export type ResumeWithJob = ResumeRow & {
   jobs: Pick<JobRow, "title" | "company"> | null;
@@ -61,97 +62,450 @@ function parseResumeData(content: string | null): ResumeData | null {
   try { return JSON.parse(content) as ResumeData; } catch { return null; }
 }
 
-// ── Resume preview pane ───────────────────────────────────────────────────────
+// ── Resume panel (preview + edit) ────────────────────────────────────────────
 
-function ResumePreview({ resume }: { resume: ResumeWithJob }) {
-  const data = parseResumeData(resume.content);
+const inputCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[12.5px] outline-none focus:border-[var(--accent)] transition-colors";
+const labelCls = "block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)] mb-1.5";
+
+function Lbl({ children }: { children: React.ReactNode }) {
+  return <label className={labelCls}>{children}</label>;
+}
+
+function ResumeEditor({
+  resume,
+  onSaved,
+}: {
+  resume: ResumeWithJob;
+  onSaved: (content: string, html: string) => void;
+}) {
+  const parsed = parseResumeData(resume.content);
+  const [draft, setDraft] = useState<ResumeData>(parsed ?? {
+    name: "", contact: {}, summary: "", competencies: [], experience: [],
+    skills: [], education: [], certifications: [], projects: [], coverage: 0,
+  } as unknown as ResumeData);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function setField<K extends keyof ResumeData>(key: K, val: ResumeData[K]) {
+    setDraft((d) => ({ ...d, [key]: val }));
+  }
+
+  function setContact(key: keyof ResumeData["contact"], val: string) {
+    setDraft((d) => ({ ...d, contact: { ...d.contact, [key]: val } }));
+  }
+
+  function setExp(idx: number, key: keyof ResumeExperience, val: string | string[]) {
+    setDraft((d) => {
+      const exp = [...(d.experience ?? [])];
+      exp[idx] = { ...exp[idx], [key]: val };
+      return { ...d, experience: exp };
+    });
+  }
+
+  function setBullet(expIdx: number, bulletIdx: number, val: string) {
+    setDraft((d) => {
+      const exp = [...(d.experience ?? [])];
+      const bullets = [...(exp[expIdx].bullets ?? [])];
+      bullets[bulletIdx] = val;
+      exp[expIdx] = { ...exp[expIdx], bullets };
+      return { ...d, experience: exp };
+    });
+  }
+
+  function removeBullet(expIdx: number, bulletIdx: number) {
+    setDraft((d) => {
+      const exp = [...(d.experience ?? [])];
+      exp[expIdx] = { ...exp[expIdx], bullets: exp[expIdx].bullets.filter((_, i) => i !== bulletIdx) };
+      return { ...d, experience: exp };
+    });
+  }
+
+  function addBullet(expIdx: number) {
+    setDraft((d) => {
+      const exp = [...(d.experience ?? [])];
+      exp[expIdx] = { ...exp[expIdx], bullets: [...(exp[expIdx].bullets ?? []), ""] };
+      return { ...d, experience: exp };
+    });
+  }
+
+  function addExp() {
+    setDraft((d) => ({
+      ...d,
+      experience: [...(d.experience ?? []), { role: "", company: "", period: "", bullets: [""] }],
+    }));
+  }
+
+  function removeExp(idx: number) {
+    setDraft((d) => ({ ...d, experience: (d.experience ?? []).filter((_, i) => i !== idx) }));
+  }
+
+  function setEdu(idx: number, key: keyof ResumeEducation, val: string) {
+    setDraft((d) => {
+      const edu = [...(d.education ?? [])];
+      edu[idx] = { ...edu[idx], [key]: val };
+      return { ...d, education: edu };
+    });
+  }
+
+  function removeEdu(idx: number) {
+    setDraft((d) => ({ ...d, education: (d.education ?? []).filter((_, i) => i !== idx) }));
+  }
+
+  function setCert(idx: number, key: keyof ResumeCertification, val: string) {
+    setDraft((d) => {
+      const certs = [...(d.certifications ?? [])];
+      certs[idx] = { ...certs[idx], [key]: val };
+      return { ...d, certifications: certs };
+    });
+  }
+
+  function removeCert(idx: number) {
+    setDraft((d) => ({ ...d, certifications: (d.certifications ?? []).filter((_, i) => i !== idx) }));
+  }
+
+  function setProject(idx: number, key: keyof ResumeProject, val: string | string[]) {
+    setDraft((d) => {
+      const projects = [...(d.projects ?? [])];
+      projects[idx] = { ...projects[idx], [key]: val };
+      return { ...d, projects };
+    });
+  }
+
+  function removeProject(idx: number) {
+    setDraft((d) => ({ ...d, projects: (d.projects ?? []).filter((_, i) => i !== idx) }));
+  }
+
+  function setSkillItems(cat: string, val: string) {
+    setDraft((d) => ({
+      ...d,
+      skills: { ...(d.skills ?? {}), [cat]: val.split(",").map((s) => s.trim()).filter(Boolean) },
+    }));
+  }
+
+  function addSkillCat() {
+    const cat = prompt("Skill category name (e.g. Languages, Frameworks):");
+    if (!cat?.trim()) return;
+    setDraft((d) => ({ ...d, skills: { ...(d.skills ?? {}), [cat.trim()]: [] } }));
+  }
+
+  function removeSkillCat(cat: string) {
+    setDraft((d) => {
+      const skills = { ...(d.skills ?? {}) };
+      delete skills[cat];
+      return { ...d, skills };
+    });
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      const result = await updateResume(resume.id, draft);
+      if ("error" in result) { setError(result.error); return; }
+      onSaved(result.content, result.html);
+    } catch {
+      setError("Failed to save — please try again");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const sectionHdr = "mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]";
+  const removeBtn = "ml-2 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition";
+  const addBtn = "mt-2 text-[11px] text-[var(--accent)] hover:underline";
+
+  return (
+    <div className="flex-1 overflow-auto px-5 py-4 space-y-6" style={{ minHeight: 0 }}>
+      {/* Contact */}
+      <div>
+        <p className={sectionHdr}>Contact</p>
+        <div className="grid grid-cols-2 gap-3">
+          {(["name", "email", "phone", "location", "linkedin", "github", "portfolio"] as const).map((f) => (
+            <div key={f} className={f === "name" ? "col-span-2" : ""}>
+              <Lbl>{f}</Lbl>
+              <input
+                className={inputCls}
+                value={f === "name" ? (draft.name ?? "") : ((draft.contact?.[f as keyof typeof draft.contact] as string) ?? "")}
+                onChange={(e) => f === "name" ? setField("name", e.target.value) : setContact(f as keyof ResumeData["contact"], e.target.value)}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Summary */}
+      <div>
+        <Lbl>Professional summary</Lbl>
+        <textarea
+          className={inputCls}
+          rows={4}
+          value={draft.summary ?? ""}
+          onChange={(e) => setField("summary", e.target.value)}
+          style={{ resize: "vertical" }}
+        />
+      </div>
+
+      {/* Competencies */}
+      <div>
+        <Lbl>Core competencies (comma-separated)</Lbl>
+        <input
+          className={inputCls}
+          value={(draft.competencies ?? []).join(", ")}
+          onChange={(e) => setField("competencies", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))}
+        />
+      </div>
+
+      {/* Experience */}
+      <div>
+        <p className={sectionHdr}>Experience</p>
+        <div className="space-y-5">
+          {(draft.experience ?? []).map((exp, ei) => (
+            <div key={ei} className="rounded-xl border border-[var(--line-soft)] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[12px] font-medium text-[var(--muted-foreground)]">Job {ei + 1}</span>
+                <button type="button" onClick={() => removeExp(ei)} className="text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition">Remove</button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Lbl>Role</Lbl><input className={inputCls} value={exp.role} onChange={(e) => setExp(ei, "role", e.target.value)} /></div>
+                <div><Lbl>Company</Lbl><input className={inputCls} value={exp.company} onChange={(e) => setExp(ei, "company", e.target.value)} /></div>
+                <div><Lbl>Period</Lbl><input className={inputCls} value={exp.period} onChange={(e) => setExp(ei, "period", e.target.value)} /></div>
+                <div><Lbl>Location</Lbl><input className={inputCls} value={exp.location ?? ""} onChange={(e) => setExp(ei, "location", e.target.value)} /></div>
+              </div>
+              <div>
+                <Lbl>Bullets</Lbl>
+                <div className="space-y-2">
+                  {(exp.bullets ?? []).map((b, bi) => (
+                    <div key={bi} className="flex gap-2 items-start">
+                      <textarea
+                        className={`${inputCls} flex-1`}
+                        rows={2}
+                        value={b}
+                        onChange={(e) => setBullet(ei, bi, e.target.value)}
+                        style={{ resize: "vertical" }}
+                      />
+                      <button type="button" onClick={() => removeBullet(ei, bi)} className="mt-1 text-[var(--muted-foreground)] hover:text-[var(--bad)] transition">
+                        <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button type="button" onClick={() => addBullet(ei)} className={addBtn}>+ Add bullet</button>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={addExp} className={addBtn}>+ Add experience</button>
+        </div>
+      </div>
+
+      {/* Skills */}
+      {draft.skills && Object.keys(draft.skills).length > 0 && (
+        <div>
+          <p className={sectionHdr}>Skills</p>
+          <div className="space-y-3">
+            {Object.entries(draft.skills).map(([cat, items]) => (
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-1">
+                  <Lbl>{cat}</Lbl>
+                  <button type="button" onClick={() => removeSkillCat(cat)} className={`${removeBtn} mb-1.5`}>Remove</button>
+                </div>
+                <input
+                  className={inputCls}
+                  value={items.join(", ")}
+                  onChange={(e) => setSkillItems(cat, e.target.value)}
+                  placeholder="Comma-separated items"
+                />
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={addSkillCat} className={addBtn}>+ Add skill category</button>
+        </div>
+      )}
+      {(!draft.skills || Object.keys(draft.skills).length === 0) && (
+        <div>
+          <p className={sectionHdr}>Skills</p>
+          <button type="button" onClick={addSkillCat} className={addBtn}>+ Add skill category</button>
+        </div>
+      )}
+
+      {/* Education */}
+      <div>
+        <p className={sectionHdr}>Education</p>
+        <div className="space-y-3">
+          {(draft.education ?? []).map((edu, i) => (
+            <div key={i} className="rounded-xl border border-[var(--line-soft)] p-4">
+              <div className="flex justify-end mb-2">
+                <button type="button" onClick={() => removeEdu(i)} className="text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition">Remove</button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Lbl>Degree</Lbl><input className={inputCls} value={edu.degree} onChange={(e) => setEdu(i, "degree", e.target.value)} /></div>
+                <div><Lbl>Institution</Lbl><input className={inputCls} value={edu.institution} onChange={(e) => setEdu(i, "institution", e.target.value)} /></div>
+                <div><Lbl>Year</Lbl><input className={inputCls} value={edu.year ?? ""} onChange={(e) => setEdu(i, "year", e.target.value)} /></div>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => setDraft((d) => ({ ...d, education: [...(d.education ?? []), { degree: "", institution: "" }] }))} className={addBtn}>+ Add education</button>
+        </div>
+      </div>
+
+      {/* Certifications */}
+      <div>
+        <p className={sectionHdr}>Certifications</p>
+        <div className="space-y-3">
+          {(draft.certifications ?? []).map((cert, i) => (
+            <div key={i} className="rounded-xl border border-[var(--line-soft)] p-4">
+              <div className="flex justify-end mb-2">
+                <button type="button" onClick={() => removeCert(i)} className="text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition">Remove</button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Lbl>Title</Lbl><input className={inputCls} value={cert.title} onChange={(e) => setCert(i, "title", e.target.value)} /></div>
+                <div><Lbl>Issuer</Lbl><input className={inputCls} value={cert.issuer ?? ""} onChange={(e) => setCert(i, "issuer", e.target.value)} /></div>
+                <div><Lbl>Year</Lbl><input className={inputCls} value={cert.year ?? ""} onChange={(e) => setCert(i, "year", e.target.value)} /></div>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => setDraft((d) => ({ ...d, certifications: [...(d.certifications ?? []), { title: "" }] }))} className={addBtn}>+ Add certification</button>
+        </div>
+      </div>
+
+      {/* Projects */}
+      <div>
+        <p className={sectionHdr}>Projects</p>
+        <div className="space-y-3">
+          {(draft.projects ?? []).map((proj, i) => (
+            <div key={i} className="rounded-xl border border-[var(--line-soft)] p-4">
+              <div className="flex justify-end mb-2">
+                <button type="button" onClick={() => removeProject(i)} className="text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition">Remove</button>
+              </div>
+              <div className="space-y-3">
+                <div><Lbl>Title</Lbl><input className={inputCls} value={proj.title} onChange={(e) => setProject(i, "title", e.target.value)} /></div>
+                <div>
+                  <Lbl>Description</Lbl>
+                  <textarea className={inputCls} rows={2} value={proj.description} onChange={(e) => setProject(i, "description", e.target.value)} style={{ resize: "vertical" }} />
+                </div>
+                <div>
+                  <Lbl>Tech (comma-separated)</Lbl>
+                  <input className={inputCls} value={(proj.tech ?? []).join(", ")} onChange={(e) => setProject(i, "tech", e.target.value.split(",").map((s) => s.trim()).filter(Boolean))} />
+                </div>
+              </div>
+            </div>
+          ))}
+          <button type="button" onClick={() => setDraft((d) => ({ ...d, projects: [...(d.projects ?? []), { title: "", description: "" }] }))} className={addBtn}>+ Add project</button>
+        </div>
+      </div>
+
+      {/* Error + Save */}
+      {error && (
+        <p className="rounded-lg border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-center font-mono text-[11px] text-[var(--bad)]">{error}</p>
+      )}
+      <button
+        type="button"
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Save changes"}
+      </button>
+    </div>
+  );
+}
+
+function ResumePanel({
+  resume,
+  onResumeUpdated,
+}: {
+  resume: ResumeWithJob;
+  onResumeUpdated: (id: string, content: string, html: string) => void;
+}) {
+  const [mode, setMode] = useState<"preview" | "edit">("preview");
+  const [downloading, setDownloading] = useState(false);
   const company = resume.jobs?.company ?? "";
   const title = resume.jobs?.title ?? resume.title;
 
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/resume/${resume.id}/pdf`);
+      if (!res.ok) { setDownloading(false); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${resume.title ?? "resume"}.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  function handleSaved(content: string, html: string) {
+    onResumeUpdated(resume.id, content, html);
+    setMode("preview");
+  }
+
   return (
-    <div className="flex flex-col overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)]" style={{ minHeight: 0 }}>
-      {/* Preview header */}
+    <div className="flex flex-col overflow-hidden rounded-xl border border-[var(--line-soft)] bg-[var(--surface)]" style={{ minHeight: 0, height: "100%" }}>
+      {/* Header */}
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line-soft)] px-4 py-3">
         {company && <CompanyLogo name={company} size={26} />}
         <div className="flex-1 min-w-0">
           <div className="truncate text-[13px] font-medium">{company ? `${company} — ${title}` : resume.title}</div>
           <div className="text-[11.5px] text-[var(--muted-foreground)]">
-            Tailored {formatRelative(resume.created_at)}
-            {resume.coverage !== null ? ` · ${resume.coverage}% coverage` : ""}
+            {formatRelative(resume.created_at)}
+            {resume.coverage !== null ? ` · ${resume.coverage}% match` : ""}
+            {" · "}<span>{resume.source === "custom" ? "Generic" : "Job-tied"}</span>
           </div>
         </div>
-        <a
-          href={`/api/resume/${resume.id}/html`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+        {/* Mode tabs */}
+        <div className="flex rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-0.5">
+          {(["preview", "edit"] as const).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMode(m)}
+              className="rounded-md px-3 py-1 text-[11.5px] font-medium capitalize transition"
+              style={{
+                background: mode === m ? "var(--surface)" : "transparent",
+                color: mode === m ? "var(--foreground)" : "var(--muted-foreground)",
+                boxShadow: mode === m ? "var(--shadow)" : "none",
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleDownload}
+          disabled={downloading}
+          className="flex items-center gap-1.5 rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
         >
-          Download PDF
-        </a>
-        <Link
-          href={`/dashboard/resumes/${resume.id}`}
-          className="flex items-center gap-1.5 rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
-        >
-          Edit
-        </Link>
+          <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          {downloading ? "Downloading…" : "Download PDF"}
+        </button>
       </div>
 
-      {/* PDF-style preview */}
-      <div className="flex-1 overflow-auto bg-[var(--surface-soft)] p-6" style={{ minHeight: 0 }}>
-        {data ? (
-          <div
-            className="mx-auto bg-white text-[#1a1814]"
-            style={{ width: 612, padding: "44px 52px", fontSize: 11, lineHeight: 1.5, fontFamily: "Inter, sans-serif", boxShadow: "0 4px 16px rgba(42,38,32,0.07)" }}
-          >
-            {/* Header */}
-            <div style={{ borderBottom: "2px solid #1a1814", paddingBottom: 12, marginBottom: 16 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: "-0.01em" }}>{data.name}</div>
-              {data.summary && (
-                <div style={{ fontSize: 11, color: "#6b6358", marginTop: 3 }}>{data.summary.slice(0, 100)}…</div>
-              )}
-              <div style={{ fontSize: 10, color: "#6b6358", marginTop: 4, fontFamily: "DM Mono, monospace" }}>
-                {[data.contact?.email, data.contact?.linkedin, data.contact?.github].filter(Boolean).join(" · ")}
-              </div>
+      {mode === "preview" ? (
+        <div className="flex-1 overflow-auto bg-[#f0ede8]" style={{ minHeight: 0 }}>
+          {resume.html ? (
+            <iframe
+              key={resume.id}
+              srcDoc={resume.html}
+              title={resume.title}
+              className="w-full border-none"
+              style={{ minHeight: "900px", display: "block" }}
+              sandbox="allow-same-origin"
+            />
+          ) : (
+            <div className="flex h-48 items-center justify-center text-[13px] text-[var(--muted-foreground)]">
+              No preview available — try regenerating this resume
             </div>
-
-            {/* Experience */}
-            {data.experience && data.experience.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 6, fontWeight: 600 }}>
-                  Experience
-                </div>
-                {data.experience.slice(0, 3).map((e, i) => (
-                  <div key={i} style={{ marginBottom: 10 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ fontWeight: 600 }}>{e.role} · {e.company}</span>
-                      <span style={{ color: "#6b6358", fontFamily: "DM Mono, monospace", fontSize: 10 }}>{e.period}</span>
-                    </div>
-                    <ul style={{ margin: "3px 0 0 14px", padding: 0 }}>
-                      {e.bullets.slice(0, 3).map((b, j) => (
-                        <li key={j} style={{ marginBottom: 2 }}>{b}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Skills */}
-            {data.skills && Object.keys(data.skills).length > 0 && (
-              <div>
-                <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 4, fontWeight: 600 }}>
-                  Skills
-                </div>
-                <p>{Object.values(data.skills).flat().join(" · ")}</p>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex h-48 items-center justify-center text-[13px] text-[var(--muted-foreground)]">
-            No preview available
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      ) : (
+        <ResumeEditor resume={resume} onSaved={handleSaved} />
+      )}
     </div>
   );
 }
@@ -616,10 +970,32 @@ export function ResumesPageContent({
   const [displayCount, setDisplayCount] = useState(25);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [batchPending, startBatch] = useTransition();
+  const [sortBy, setSortBy] = useState<"newest" | "oldest" | "coverage">("newest");
+  const [filterBy, setFilterBy] = useState<"all" | "ai" | "custom">("all");
+  // Local overrides so edits show immediately without a full page reload
+  const [resumeOverrides, setResumeOverrides] = useState<Map<string, Pick<ResumeWithJob, "content" | "html">>>(new Map());
+
+  const handleResumeUpdated = useCallback((id: string, content: string, html: string) => {
+    setResumeOverrides((prev) => new Map(prev).set(id, { content, html }));
+  }, []);
+
+  const filtered = resumes
+    .filter((r) => filterBy === "all" || r.source === filterBy)
+    .sort((a, b) => {
+      if (sortBy === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      if (sortBy === "coverage") return (b.coverage ?? -1) - (a.coverage ?? -1);
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+  function resolveResume(r: ResumeWithJob): ResumeWithJob {
+    const override = resumeOverrides.get(r.id);
+    return override ? { ...r, ...override } : r;
+  }
 
   const selected = resumes.find((r) => r.id === selectedId) ?? null;
-  const visible = resumes.slice(0, displayCount);
-  const remaining = resumes.length - displayCount;
+  const resolvedSelected = selected ? resolveResume(selected) : null;
+  const visible = filtered.slice(0, displayCount);
+  const remaining = filtered.length - displayCount;
 
   function toggleCheck(id: string) {
     setCheckedIds((prev) => {
@@ -683,7 +1059,28 @@ export function ResumesPageContent({
       {/* Split pane — sidebar on top on mobile, side-by-side on md+ */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 md:flex-row">
         {/* Sidebar list */}
-        <div className="shrink-0 overflow-auto rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] md:w-[300px]" style={{ maxHeight: "calc(50vh)" }}>
+        <div className="shrink-0 flex flex-col rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] md:w-[300px]" style={{ maxHeight: "calc(100vh - 200px)" }}>
+          {/* Filter + sort toolbar */}
+          <div className="shrink-0 border-b border-[var(--line-soft)] px-3 py-2 flex items-center gap-2">
+            <select
+              value={filterBy}
+              onChange={(e) => { setFilterBy(e.target.value as typeof filterBy); setDisplayCount(25); }}
+              className="flex-1 rounded-md border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-1 text-[11px] outline-none focus:border-[var(--accent)]"
+            >
+              <option value="all">All resumes</option>
+              <option value="ai">Job-tied</option>
+              <option value="custom">Generic</option>
+            </select>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+              className="rounded-md border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-1 text-[11px] outline-none focus:border-[var(--accent)]"
+            >
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="coverage">Coverage</option>
+            </select>
+          </div>
           {/* Batch toolbar */}
           {checkedIds.size > 0 && (
             <div className="flex items-center gap-2 border-b border-[var(--line-soft)] px-3 py-2">
@@ -701,11 +1098,17 @@ export function ResumesPageContent({
               </button>
             </div>
           )}
-          <div className="p-2">
-          {resumes.length === 0 ? (
+          <div className="flex-1 overflow-auto p-2">
+          {filtered.length === 0 ? (
             <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--muted-foreground)]">
-              <p>No resumes yet</p>
-              <button onClick={() => setShowGenerate(true)} className="text-[var(--accent)] hover:underline">Generate one</button>
+              {resumes.length === 0 ? (
+                <>
+                  <p>No resumes yet</p>
+                  <button onClick={() => setShowGenerate(true)} className="text-[var(--accent)] hover:underline">Generate one</button>
+                </>
+              ) : (
+                <p>No resumes match the current filter</p>
+              )}
             </div>
           ) : (
             <>
@@ -801,12 +1204,12 @@ export function ResumesPageContent({
           </div>
         </div>
 
-        {/* Main preview */}
+        {/* Main panel */}
         <div className="min-w-0 min-h-[300px] flex-1">
-          {showGenerate || !selected ? (
+          {showGenerate || !resolvedSelected ? (
             <GeneratePanel jobs={jobs} tier={tier} onGenerated={handleGenerated} />
           ) : (
-            <ResumePreview resume={selected} />
+            <ResumePanel resume={resolvedSelected} onResumeUpdated={handleResumeUpdated} />
           )}
         </div>
       </div>

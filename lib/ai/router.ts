@@ -13,6 +13,15 @@
 import { type Provider, callProvider, parseJSON } from "@/lib/ai/providers";
 import { CREDIT_COSTS, type CreditTask } from "@/lib/ai/gates";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+const TASK_TO_ACTIVITY: Record<CreditTask, "evaluate" | "tailor_resume" | "autofill"> = {
+  evaluate:        "evaluate",
+  resume_standard: "tailor_resume",
+  resume_premium:  "tailor_resume",
+  autofill:        "autofill",
+  tailor:          "tailor_resume",
+};
 
 // â”€â”€ Primary model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Gemini Flash Lite â€” cheapest stable paid model ($0.075/1M tokens).
@@ -110,7 +119,7 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
   const route = opts.routeOverride ?? resolveRoute(opts.task);
 
   // Deduct credits atomically
-  const { data: ok, error } = await supabase.rpc("deduct_credits", {
+  const { data: ok, error } = await supabase.rpc("deduct_credit", {
     p_user_id: opts.userId,
     p_amount:  credits,
   });
@@ -128,12 +137,14 @@ export async function callAI(opts: CallAIOptions): Promise<string> {
     fallbackModels: route.fallbackModels,
   });
 
-  await supabase.from("usage_log").insert({
-    user_id:      opts.userId,
-    task_type:    opts.task,
-    model:        route.model,
-    credits_used: credits,
-  });
+  {
+    const adminLog = createAdminClient();
+    await adminLog.from("usage_log").insert({
+      user_id:       opts.userId,
+      activity_type: TASK_TO_ACTIVITY[opts.task],
+      credits_used:  credits,
+    });
+  }
 
   return result;
 }

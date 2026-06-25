@@ -66,7 +66,7 @@ interface UsageData {
 }
 
 interface CreditLogEntry {
-  id: string; task_type: string; credits_used: number; created_at: string;
+  id: string; activity_type: string; credits_used: number; created_at: string;
 }
 
 interface CommerceProps {
@@ -128,8 +128,9 @@ function relativeTime(iso: string) {
 const DAILY_BASE: Record<string, number> = { starter: 100, pro: 300 };
 const PLAN_NAME:  Record<string, string>  = { free: "Free", starter: "Starter", pro: "Pro" };
 const TASK_LABELS: Record<string, string> = {
-  evaluate: "Job evaluation", resume_standard: "Standard resume", resume_premium: "Premium resume",
-  autofill: "Autofill", tailor: "AI tailoring", topup: "Top-up purchase",
+  evaluate: "Job evaluation", tailor_resume: "Resume tailoring",
+  autofill: "Autofill", topup: "Top-up purchase",
+  daily_reset: "Daily reset", credits_expired: "Credits expired",
   subscription: "Subscription payment",
 };
 
@@ -298,7 +299,7 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
     );
   }
 
-  const totalSpent = entries.filter((e) => e.task_type !== "topup" && e.credits_used > 0).reduce((s, e) => s + e.credits_used, 0);
+  const totalSpent = entries.filter((e) => e.activity_type !== "topup" && e.credits_used > 0).reduce((s, e) => s + e.credits_used, 0);
 
   return (
     <div className="rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
@@ -319,8 +320,8 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
           <tbody className="divide-y divide-[var(--line-soft)]">
             {entries.map((e) => (
               <tr key={e.id} className="hover:bg-[var(--surface-soft)] transition-colors">
-                <td className="px-4 py-3">{TASK_LABELS[e.task_type] ?? e.task_type.replace(/_/g, " ")}</td>
-                {e.task_type === "topup" || e.task_type === "subscription" ? (
+                <td className="px-4 py-3">{TASK_LABELS[e.activity_type] ?? e.activity_type.replace(/_/g, " ")}</td>
+                {e.activity_type === "topup" || e.activity_type === "subscription" ? (
                   <td className="px-4 py-3 text-right font-mono text-[var(--ok)]">—</td>
                 ) : e.credits_used === 0 ? (
                   <td className="px-4 py-3 text-right font-mono text-[var(--muted-foreground)]">—</td>

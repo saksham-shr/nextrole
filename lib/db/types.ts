@@ -181,10 +181,8 @@ export type ProfileRow = {
   // Account & billing
   onboarding_completed: boolean;
   tier: UserTier;
-  daily_credits: number;
-  daily_credits_reset_at: string;
-  topup_credits: number;
-  signup_credits: number;
+  credits_remaining: number;
+  credits_reset_at: string;
   credit_grants_given: Record<string, string>;
   topup_forfeit_at: string | null;
   subscription_status: SubscriptionStatus | null;
@@ -223,8 +221,7 @@ export type ResumeRow = {
 export type UsageLogRow = {
   id: string;
   user_id: string;
-  task_type: string;
-  model: string;
+  activity_type: "evaluate" | "tailor_resume" | "autofill" | "topup" | "daily_reset" | "credits_expired";
   credits_used: number;
   razorpay_payment_id: string | null;
   created_at: string;
@@ -507,8 +504,7 @@ export type Database = {
         Insert: {
           id?: string;
           user_id: string;
-          task_type: string;
-          model: string;
+          activity_type: "evaluate" | "tailor_resume" | "autofill" | "topup" | "daily_reset" | "credits_expired";
           credits_used?: number;
           razorpay_payment_id?: string | null;
           created_at?: string;
@@ -854,7 +850,7 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
-      deduct_credits: {
+      deduct_credit: {
         Args: { p_user_id: string; p_amount?: number };
         Returns: boolean;
       };

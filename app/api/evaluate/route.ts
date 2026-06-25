@@ -10,6 +10,7 @@ import { reserveExtensionAiCharge, type ChargeReservation } from "@/lib/extensio
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { isSameOrigin } from "@/lib/security/csrf";
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { UserTier } from "@/lib/db/types";
 import { awardActionCredit, checkReferralThreshold } from "@/lib/credits/grant";
 
 export const maxDuration = 60;
@@ -140,10 +141,11 @@ export async function POST(request: NextRequest) {
   // they can't both burn provider tokens and only race on credits after.
   let reservation: ChargeReservation | null = null;
   if (!isLitePass) {
+    const admin = createAdminClient();
     try {
-      reservation = await reserveExtensionAiCharge(supabase, {
+      reservation = await reserveExtensionAiCharge(admin, {
         userId,
-        tier,
+        tier: tier as UserTier,
         task: "evaluate",
         freeUsageField: "evaluations",
         freeDailyLimit: FREE_DAILY_LIMITS.evaluations,
@@ -228,12 +230,15 @@ export async function POST(request: NextRequest) {
     raw_output: rawOutput, provider: route.provider, model: route.model,
   }).select("id").single();
 
-  await supabase.from("usage_log").insert({
-    user_id: userId,
-    task_type: "evaluate",
-    model: route.model,
-    credits_used: tier === "free" ? 0 : CREDIT_COSTS.evaluate,
-  });
+  {
+    const adminForLog = createAdminClient();
+    const { error: logErr } = await adminForLog.from("usage_log").insert({
+      user_id: userId,
+      activity_type: "evaluate",
+      credits_used: CREDIT_COSTS.evaluate,
+    });
+    if (logErr) console.error("[evaluate] usage_log insert failed:", logErr.message, logErr.code);
+  }
 
   await supabase.from("jobs").update({ status: "evaluated", archetype: archetype ?? job.archetype, updated_at: new Date().toISOString() })
     .eq("id", jobId).eq("user_id", userId);

@@ -80,7 +80,7 @@ export async function POST(req: NextRequest) {
   const admin = createAdminClient();
   const { data: profile } = await admin
     .from("profiles")
-    .select("tier, subscription_status, razorpay_subscription_id, daily_credits")
+    .select("tier, subscription_status, razorpay_subscription_id, credits_remaining")
     .eq("id", user.id)
     .single();
 
@@ -121,22 +121,22 @@ export async function POST(req: NextRequest) {
   // Step 2: Immediately adjust credits for upgrade (Starter→Pro: add difference)
   // For downgrade (Pro→Starter: cap daily_credits at 100)
   if (isUpgrade) {
-    const currentDaily = (profile.daily_credits as number) ?? 0;
+    const current = (profile.credits_remaining as number) ?? 0;
     const proDailyMax = DAILY_CREDITS.pro;
     const starterDailyMax = DAILY_CREDITS.starter;
-    const bonus = Math.min(proDailyMax - starterDailyMax, proDailyMax - currentDaily);
+    const bonus = Math.min(proDailyMax - starterDailyMax, proDailyMax - current);
     if (bonus > 0) {
       await admin.from("profiles")
-        .update({ daily_credits: currentDaily + bonus })
+        .update({ credits_remaining: current + bonus })
         .eq("id", user.id);
     }
   } else {
-    // Downgrade: cap daily_credits at starter max
-    const currentDaily = (profile.daily_credits as number) ?? 0;
+    // Downgrade: cap credits_remaining at starter max
+    const current = (profile.credits_remaining as number) ?? 0;
     const starterMax = DAILY_CREDITS.starter;
-    if (currentDaily > starterMax) {
+    if (current > starterMax) {
       await admin.from("profiles")
-        .update({ daily_credits: starterMax })
+        .update({ credits_remaining: starterMax })
         .eq("id", user.id);
     }
   }

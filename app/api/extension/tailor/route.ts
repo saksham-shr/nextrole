@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
   // â”€â”€ Tier check + daily/credit gating â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   const { data: profile } = await admin
     .from("profiles")
-    .select("tier, daily_credits, topup_credits, full_name, seniority, years_experience, target_roles, skills, work_experience, base_cv")
+    .select("tier, credits_remaining, full_name, seniority, years_experience, target_roles, skills, work_experience, base_cv")
     .eq("id", userId)
     .single();
 
@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
       }, { status: 429 });
     }
   } else if (tier === "pro") {
-    const creditsLeft = ((profile.daily_credits ?? 0) as number) + ((profile.topup_credits ?? 0) as number);
+    const creditsLeft = (profile.credits_remaining ?? 0) as number;
     if (creditsLeft < CREDIT_COSTS.tailor) {
       return NextResponse.json({
         error: `Insufficient credits (${CREDIT_COSTS.tailor} required). Top up or wait for daily reset.`,
@@ -358,8 +358,7 @@ export async function POST(req: NextRequest) {
 
     await admin.from("usage_log").insert({
       user_id: userId,
-      task_type: "tailor",
-      model: route.model,
+      activity_type: "tailor_resume",
       credits_used: reservation.charged,
     });
 
@@ -372,7 +371,7 @@ export async function POST(req: NextRequest) {
       skills_to_emphasize:  Array.isArray(parsed.skills_to_emphasize) ? parsed.skills_to_emphasize : [],
       tier,
       tailor_sessions_today: sessionsToday + 1,
-      credits_remaining:     tier === "pro" ? Math.max(0, ((profile.daily_credits ?? 0) + (profile.topup_credits ?? 0)) - CREDIT_COSTS.tailor) : undefined,
+      credits_remaining:     tier === "pro" ? Math.max(0, ((profile.credits_remaining ?? 0) as number) - CREDIT_COSTS.tailor) : undefined,
     });
   } catch (err) {
     await reservation.refund();

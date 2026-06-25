@@ -3,46 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { requireJobSlot } from "@/lib/ai/guard";
-import { NextResponse } from "next/server";
 import type { JobStatus } from "@/lib/db/types";
-
-export async function createJob(formData: FormData) {
-  const slot = await requireJobSlot();
-  if (slot instanceof NextResponse) {
-    const body = await slot.json() as { error: string; limit?: number };
-    if (body.error === "JOB_LIMIT_REACHED") {
-      redirect(`/dashboard/pipeline?error=Job+limit+reached+(${body.limit}+jobs).+Upgrade+to+add+more.`);
-    }
-    redirect("/dashboard/pipeline?error=Access+denied");
-  }
-
-  const supabase = await createClient();
-  const title = (formData.get("title") as string)?.trim();
-  const company = (formData.get("company") as string)?.trim();
-
-  if (!title || !company) {
-    redirect("/dashboard/pipeline?error=Title+and+company+are+required");
-  }
-
-  const { error } = await supabase.from("jobs").insert({
-    user_id: slot.userId,
-    title,
-    company,
-    url: (formData.get("url") as string)?.trim() || null,
-    description: (formData.get("description") as string)?.trim() || null,
-    source: (formData.get("source") as string)?.trim() || "manual",
-    archetype: (formData.get("archetype") as string)?.trim() || null,
-    status: "pending",
-  });
-
-  if (error) {
-    redirect(`/dashboard/pipeline?error=${encodeURIComponent(error.message)}`);
-  }
-
-  revalidatePath("/dashboard/pipeline");
-  redirect("/dashboard/pipeline?message=Job+added+to+pipeline");
-}
 
 export async function updateJobStatus(formData: FormData) {
   const supabase = await createClient();

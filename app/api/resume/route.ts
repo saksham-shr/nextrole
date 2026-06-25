@@ -15,7 +15,7 @@ import { isSameOrigin } from "@/lib/security/csrf";
 export const maxDuration = 120;
 
 // Token caps by resume type
-const STANDARD_MAX_TOKENS = 2500;
+const STANDARD_MAX_TOKENS = 3500;
 const PREMIUM_MAX_TOKENS  = 4000;
 
 export async function POST(request: NextRequest) {
@@ -61,8 +61,12 @@ export async function POST(request: NextRequest) {
     job = data;
   }
 
-  const { data: profile } = await supabase.from("profiles").select("base_cv, daily_credits, topup_credits").eq("id", userId).single();
-  if (!profile?.base_cv) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("base_cv, credits_remaining").eq("id", userId).single();
+  if (profileError) {
+    console.error("[resume] profile query failed:", profileError.message, profileError.code, profileError.details);
+    return NextResponse.json({ error: "Could not load your profile — please try again" }, { status: 500 });
+  }
+  if (!profile?.base_cv?.trim()) return NextResponse.json({ error: "No CV in your profile — add it in Settings first" }, { status: 400 });
 
   // Premium resume lifetime cap check
   if (isPremium && !isAdmin) {
@@ -103,7 +107,7 @@ export async function POST(request: NextRequest) {
   // Pre-flight credit check — deduction happens after AI succeeds to avoid charging for failures
   if (!isAdmin && tier !== "free") {
     const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
-    const creditsLeft = (profile?.daily_credits ?? 0) + (profile?.topup_credits ?? 0);
+    const creditsLeft = profile?.credits_remaining ?? 0;
     if (creditsLeft < creditAmount) {
       return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
@@ -141,23 +145,31 @@ export async function POST(request: NextRequest) {
 
   let resumeData: ResumeData;
   try {
-    resumeData = parseJSON(rawOutput) as ResumeData;
-  } catch {
+    const parsed = parseJSON(rawOutput) as ResumeData;
+    if (!parsed || typeof parsed !== "object") throw new Error("Not an object");
+    if (!Array.isArray(parsed.experience)) parsed.experience = [];
+    resumeData = parsed;
+  } catch (parseErr) {
+    console.error("[resume] JSON parse failed:", (parseErr as Error).message);
+    console.error("[resume] raw AI output (first 500 chars):", rawOutput.slice(0, 500));
     return NextResponse.json({ error: "AI returned invalid JSON" }, { status: 502 });
   }
 
   // AI succeeded — NOW deduct credits / increment usage
   const creditAmount = isPremium ? CREDIT_COSTS.resume_premium : CREDIT_COSTS.resume_standard;
-  if (tier === "free" && !isPremium) {
-    await supabase.rpc("increment_daily_usage", { p_field: "resumes", p_user: userId });
-  } else if (!isAdmin && tier !== "free") {
-    const { data: ok, error } = await supabase.rpc("deduct_credits", {
+  console.log(`[resume] credit deduction: tier=${tier} isAdmin=${isAdmin} isPremium=${isPremium} amount=${creditAmount} userId=${userId}`);
+  if (!isAdmin) {
+    const admin = createAdminClient();
+    const { data: ok, error } = await admin.rpc("deduct_credit", {
       p_user_id: userId,
       p_amount: creditAmount,
     });
+    console.log(`[resume] deduct_credit result: ok=${ok} error=${error?.message ?? null}`);
     if (error || ok !== true) {
       return NextResponse.json({ error: "NO_CREDITS" }, { status: 402 });
     }
+  } else {
+    console.log("[resume] admin user — credit deduction skipped");
   }
 
   const html = renderResumeHtml(resumeData);
@@ -169,7 +181,7 @@ export async function POST(request: NextRequest) {
       : `${body.target_role} (Generic)`
     : `${job!.title} at ${job!.company}`;
 
-  const { data: resume } = await supabase.from("resumes").insert({
+  const { data: resume, error: resumeInsertError } = await supabase.from("resumes").insert({
     user_id: userId, job_id: jobId,
     title: resumeTitle,
     content: JSON.stringify(resumeData), html, coverage,
@@ -178,12 +190,20 @@ export async function POST(request: NextRequest) {
     version: 1,
   }).select("id").single();
 
-  await supabase.from("usage_log").insert({
-    user_id: userId,
-    task_type: isPremium ? "resume_premium" : "resume_standard",
-    model: route.model,
-    credits_used: tier === "free" ? 0 : creditAmount,
-  });
+  if (resumeInsertError || !resume?.id) {
+    console.error("[resume] DB insert failed:", resumeInsertError?.message, resumeInsertError?.details, resumeInsertError?.hint);
+    return NextResponse.json({ error: "Failed to save resume — please try again" }, { status: 500 });
+  }
+
+  {
+    const adminForLog = createAdminClient();
+    const { error: logErr } = await adminForLog.from("usage_log").insert({
+      user_id: userId,
+      activity_type: "tailor_resume",
+      credits_used: isAdmin ? 0 : creditAmount,
+    });
+    if (logErr) console.error("[resume] usage_log insert failed:", logErr.message, logErr.code, logErr.details);
+  }
 
   // Check referral threshold after credit usage (fire-and-forget)
   {

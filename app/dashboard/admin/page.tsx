@@ -128,12 +128,12 @@ export default async function AdminDashboardPage({
     admin.from("jobs").select("*", { count: "exact", head: true }),
     admin.from("evaluations").select("*", { count: "exact", head: true }),
     admin.from("resumes").select("*", { count: "exact", head: true }),
-    admin.from("profiles").select("id, tier, daily_credits, topup_credits, subscription_ends_at, referred_by"),
+    admin.from("profiles").select("id, tier, credits_remaining, subscription_ends_at, referred_by"),
     admin.from("invites").select("*").order("created_at", { ascending: false }),
     admin.from("admin_audit_log").select("*").order("created_at", { ascending: false }).limit(200),
     admin.from("profiles").select("created_at").gte("created_at", sevenDaysAgo),
     admin.from("usage_log").select("user_id").gte("created_at", sevenDaysAgo),
-    admin.from("usage_log").select("credits_used, created_at").eq("task_type", "topup").gte("created_at", thirtyDaysAgo),
+    admin.from("usage_log").select("credits_used, created_at").eq("activity_type", "topup").gte("created_at", thirtyDaysAgo),
     admin.from("error_reports").select("*").order("created_at", { ascending: false }).limit(500),
   ]);
 
@@ -142,7 +142,7 @@ export default async function AdminDashboardPage({
   for (const p of (profilesResult.data ?? [])) {
     profilesById.set(p.id, {
       tier: (p.tier as UserTier) ?? "free",
-      credits: (p.daily_credits ?? 0) + (p.topup_credits ?? 0),
+      credits: (p.credits_remaining ?? 0),
       subscriptionEndsAt: (p.subscription_ends_at as string | null) ?? null,
       referredBy: (p.referred_by as string | null) ?? null,
     });
