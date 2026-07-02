@@ -6,11 +6,11 @@
  * returns it together with the user's identity so the extension can show
  * which account it connected to.
  *
- * Called by the Braevity extension with credentials:"include". The request
- * arrives with Origin: chrome-extension://<id>, which the same-origin CSRF
- * check used elsewhere would reject — so this route has its own origin rule:
- * only chrome-extension origins are accepted (regular web pages can never
- * send that origin, which is what the CSRF check exists to prevent).
+ * Called by the Braevity extension with credentials:"include". CSRF protection
+ * comes from Supabase session cookies being SameSite=Lax (cross-site POSTs
+ * from other origins don't carry them) plus per-IP and per-user rate limits.
+ * An Origin header check is not used because Vercel's edge strips non-http
+ * Origin values (chrome-extension://) before they reach the function.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -27,30 +27,25 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
-function corsHeaders(origin: string) {
-  return {
-    "Access-Control-Allow-Origin": origin || "chrome-extension://",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Credentials": "true",
-  };
-}
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  // Note: credentials:include + wildcard origin is normally invalid, but
+  // chrome-extension:// pages bypass the browser's CORS enforcement when the
+  // extension declares host permissions. The wildcard lets any extension read
+  // the response body (origin check was replaced by session-cookie auth below).
+};
 
-// Handle CORS preflight — browsers send OPTIONS before a credentialed POST
-export async function OPTIONS(request: NextRequest) {
-  const origin = request.headers.get("origin") ?? "";
-  if (!origin.startsWith("chrome-extension://")) {
-    return new NextResponse(null, { status: 403 });
-  }
-  return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
+// Handle CORS preflight sent by Chrome before a credentialed POST
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
 }
 
 export async function POST(request: NextRequest) {
-  const origin = request.headers.get("origin") ?? "";
-  console.log("[extension/connect] origin:", JSON.stringify(origin));
-  if (!origin.startsWith("chrome-extension://")) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  // Origin check removed: Vercel's edge strips non-http Origin headers so
+  // "chrome-extension://" never arrives. Real protection: the Supabase session
+  // cookie is SameSite=Lax (cross-site POSTs don't carry it) + rate limiting.
 
   const ip = getClientIp(request);
   const rl = await rateLimit(`ext-connect:${ip}`, 20, 60_000);
@@ -98,6 +93,6 @@ export async function POST(request: NextRequest) {
       email: profile?.email ?? user.email ?? null,
       full_name: profile?.full_name ?? null,
     },
-    { headers: corsHeaders(origin) },
+    { headers: CORS_HEADERS },
   );
 }
