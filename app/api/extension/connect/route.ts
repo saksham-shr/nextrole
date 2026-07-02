@@ -27,8 +27,27 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+function corsHeaders(origin: string) {
+  return {
+    "Access-Control-Allow-Origin": origin || "chrome-extension://",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Credentials": "true",
+  };
+}
+
+// Handle CORS preflight — browsers send OPTIONS before a credentialed POST
+export async function OPTIONS(request: NextRequest) {
+  const origin = request.headers.get("origin") ?? "";
+  if (!origin.startsWith("chrome-extension://")) {
+    return new NextResponse(null, { status: 403 });
+  }
+  return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
+}
+
 export async function POST(request: NextRequest) {
   const origin = request.headers.get("origin") ?? "";
+  console.log("[extension/connect] origin:", JSON.stringify(origin));
   if (!origin.startsWith("chrome-extension://")) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -73,9 +92,12 @@ export async function POST(request: NextRequest) {
     .eq("id", user.id)
     .single();
 
-  return NextResponse.json({
-    token,
-    email: profile?.email ?? user.email ?? null,
-    full_name: profile?.full_name ?? null,
-  });
+  return NextResponse.json(
+    {
+      token,
+      email: profile?.email ?? user.email ?? null,
+      full_name: profile?.full_name ?? null,
+    },
+    { headers: corsHeaders(origin) },
+  );
 }
