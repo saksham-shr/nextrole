@@ -337,6 +337,40 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
 
   useEffect(() => { load(); }, []);
 
+  const [generating, setGenerating] = useState(false);
+  // Token value is only returned at creation time — shown once, then gone.
+  const [newToken, setNewToken] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const generate = async () => {
+    setGenerating(true);
+    setNewToken(null);
+    setCopied(false);
+    try {
+      const res = await fetch("/api/extension/token", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "Manual token" }),
+      });
+      if (!res.ok) throw new Error("Failed to generate token");
+      const data = await res.json();
+      setNewToken(data.token);
+      await load();
+    } catch (err) {
+      toast.error((err as Error).message);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const copyToken = async () => {
+    if (!newToken) return;
+    await navigator.clipboard.writeText(newToken);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const revoke = async (id: string, name: string) => {
     if (!(await toast.confirm(`Revoke "${name}"? This will sign out any browser using this token.`))) return;
     setRevoking(id);
@@ -419,9 +453,41 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
         </div>
       )}
 
-      <div className="mt-4 border-t border-[var(--line-soft)] pt-4 text-[12px] text-[var(--muted-foreground)]">
-        Revoking a token signs the extension out of your account on that browser.
-        The user will need to click "Connect account" again to reconnect.
+      <div className="mt-4 border-t border-[var(--line-soft)] pt-4">
+        {newToken && (
+          <div className="mb-3 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-3">
+            <p className="mb-2 text-[12px] font-medium text-[var(--foreground)]">
+              Token created — copy it now, it won't be shown again.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded bg-[var(--surface)] px-2 py-1.5 font-mono text-[11px] text-[var(--foreground)]">
+                {newToken}
+              </code>
+              <button
+                onClick={copyToken}
+                className="shrink-0 rounded-[5px] border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--foreground)] transition hover:bg-[var(--surface)]"
+              >
+                {copied ? "Copied ✓" : "Copy"}
+              </button>
+            </div>
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-[12px] text-[var(--muted-foreground)]">
+            Generate a token to connect the extension manually — paste it in the
+            extension under "Connect with a token instead".
+          </p>
+          <button
+            onClick={generate}
+            disabled={generating}
+            className="shrink-0 rounded-[5px] border border-[var(--line-soft)] bg-transparent px-3 py-1.5 text-[12px] text-[var(--foreground)] transition hover:bg-[var(--surface)] disabled:opacity-50"
+          >
+            {generating ? "Generating…" : "Generate token"}
+          </button>
+        </div>
+        <p className="mt-3 text-[12px] text-[var(--muted-foreground)]">
+          Revoking a token signs the extension out of your account on that browser.
+        </p>
       </div>
     </Card>
   );
