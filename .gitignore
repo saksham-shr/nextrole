@@ -42,7 +42,8 @@ yarn-error.log*
 next-env.d.ts
 
 # project-specific — local tooling, internal docs, and proprietary code
-extension/
+# (root-anchored: an unanchored "extension/" also matches app/api/extension/)
+/extension/
 graphify-out/
 .claude/
 docs/
