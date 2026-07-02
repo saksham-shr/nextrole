@@ -1,49 +1,67 @@
 import type { Metadata } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { getSiteUrl } from "@/lib/site";
 import { ToastProvider } from "@/components/nextrole/toast";
+
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-body",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono-stack",
+  display: "swap",
+  preload: false,
+});
 
 const siteUrl = getSiteUrl();
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "NextRole",
-    template: "%s | NextRole",
+    default: "Braevity",
+    template: "%s | Braevity",
   },
   description:
-    "NextRole is a job search operating system for evaluating roles, tailoring resumes, tracking applications, preparing interviews, and improving the whole search pipeline in one place.",
-  applicationName: "NextRole",
+    "Braevity is a job search assistant for evaluating roles, tailoring resumes, tracking applications, and preparing to apply — all in one workspace.",
+  applicationName: "Braevity",
   keywords: [
     "job search",
     "resume tailoring",
-    "career ops",
     "application tracker",
-    "interview prep",
     "job evaluation",
     "career dashboard",
+    "autofill assistance",
+    "job search assistant",
   ],
   alternates: {
     canonical: "/",
   },
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: [
+      { url: "/braevity-icon.png", type: "image/png" },
+    ],
+    shortcut: "/braevity-icon.png",
+    apple:    { url: "/braevity-app-icon.png", sizes: "512x512" },
   },
   openGraph: {
     type: "website",
     url: siteUrl,
-    title: "NextRole",
+    title: "Braevity",
     description:
-      "Run your job search like a real pipeline with evaluation, scanning, tracking, resumes, follow-up, and analytics in one workspace.",
-    siteName: "NextRole",
+      "Evaluate roles, tailor resumes, autofill applications, and track every opportunity — your complete job search assistant.",
+    siteName: "Braevity",
+    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Braevity" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "NextRole",
+    title: "Braevity",
     description:
-      "A candidate-first job search operating system for evaluation, resumes, tracking, and interview preparation.",
+      "A job search assistant for evaluation, resume tailoring, autofill, and pipeline tracking.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
@@ -65,8 +83,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased" suppressHydrationWarning>
-      <body className="min-h-full flex flex-col"><ToastProvider>{children}</ToastProvider></body>
+    <html
+      lang="en"
+      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
+      <body className="min-h-full flex flex-col">
+        <ToastProvider>{children}</ToastProvider>
+      </body>
     </html>
   );
 }

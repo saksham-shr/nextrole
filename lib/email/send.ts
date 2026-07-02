@@ -6,7 +6,7 @@
  * to console and silently skipped (safe for local dev without SMTP).
  */
 
-const FROM = process.env.TRIAL_EMAIL_FROM ?? "NextRole <billing@nextrole.live>";
+const FROM = process.env.TRIAL_EMAIL_FROM ?? "Braevity <billing@braevity.com>";
 const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextrole.live").replace(/\/$/, "");
 
 // ── Base sender ──────────────────────────────────────────────────────────────
@@ -40,20 +40,20 @@ async function sendEmail(to: string, subject: string, html: string): Promise<voi
 function shell(bodyHtml: string) {
   return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>NextRole</title></head>
+<title>Braevity</title></head>
 <body style="margin:0;padding:0;background:#f7f3ec;font-family:Inter,system-ui,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f7f3ec;padding:40px 16px">
 <tr><td align="center">
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px">
   <tr><td style="padding-bottom:24px">
-    <span style="font-family:'DM Mono',monospace;font-size:13px;font-weight:600;letter-spacing:.1em;color:#1a1814">nextrole</span>
+    <span style="font-family:'Archivo Expanded',system-ui,sans-serif;font-size:14px;font-weight:700;color:#211c19">Braevity</span>
   </td></tr>
   <tr><td style="background:#fffdf8;border:1px solid #e8e2d8;border-radius:12px;padding:32px">
     ${bodyHtml}
   </td></tr>
   <tr><td style="padding-top:20px;font-size:12px;color:#8a8278;line-height:1.6">
-    NextRole · <a href="${SITE}" style="color:#c84a1f;text-decoration:none">${SITE.replace("https://", "")}</a><br>
-    You're receiving this because you have an account with NextRole.
+    Braevity · <a href="${SITE}" style="color:#c84a1f;text-decoration:none">${SITE.replace("https://", "")}</a><br>
+    You're receiving this because you have an account with Braevity.
   </td></tr>
 </table>
 </td></tr></table>
@@ -86,7 +86,7 @@ export async function sendPaymentFailedEmail(to: string, plan: string): Promise<
     ${p("Your access continues for now, but you'll lose access if the payment isn't resolved soon.")}
     ${btn("Retry payment", `${SITE}/dashboard/billing`)}
     ${divider()}
-    ${p(`If you continue to have trouble, <a href="mailto:support@nextrole.live" style="color:#c84a1f">contact support</a> and we'll sort it out.`)}
+    ${p(`If you continue to have trouble, <a href="mailto:support@braevity.com" style="color:#c84a1f">contact support</a> and we'll sort it out.`)}
   `);
   await sendEmail(to, "Payment failed — action required", html);
 }
@@ -144,7 +144,7 @@ export async function sendRefundEmail(
     ${p("Your account has been moved to the Free tier.")}
     ${btn("Go to dashboard", `${SITE}/dashboard`)}
     ${divider()}
-    ${p(`Questions? <a href="mailto:support@nextrole.live" style="color:#c84a1f">Contact support</a>`)}
+    ${p(`Questions? <a href="mailto:support@braevity.com" style="color:#c84a1f">Contact support</a>`)}
   `);
   await sendEmail(to, `Refund of ${amount} processed`, html);
 }
@@ -157,7 +157,7 @@ export async function sendHaltedEmail(to: string, plan: string): Promise<void> {
     ${p("You can re-subscribe at any time to restore full access.")}
     ${btn("Re-subscribe", `${SITE}/dashboard/billing`)}
     ${divider()}
-    ${p(`Need help? <a href="mailto:support@nextrole.live" style="color:#c84a1f">Contact support</a>`)}
+    ${p(`Need help? <a href="mailto:support@braevity.com" style="color:#c84a1f">Contact support</a>`)}
   `);
   await sendEmail(to, "Subscription suspended — action required", html);
 }

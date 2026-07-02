@@ -4,7 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ConnectExtensionLoginClient, InstallExtensionPage } from "./client";
 
-export const metadata = { title: "Connect Extension — NextRole" };
+export const metadata = { title: "Connect Extension — Braevity" };
 
 function isValidRedirectTo(value: string | null): value is string {
   if (!value) return false;

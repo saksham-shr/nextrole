@@ -182,7 +182,7 @@ export const DashboardTour = forwardRef<DashboardTourHandle>(function DashboardT
           style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.14)" }}
         >
           {/* Step label */}
-          <p className="mb-1 font-['DM_Mono'] text-[9px] uppercase tracking-[0.2em] text-[var(--muted-foreground-2)]">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
             {step + 1} / {TOUR_STEPS.length}
           </p>
 

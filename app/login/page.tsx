@@ -1,6 +1,6 @@
 import { LoginPage } from "@/components/nextrole/auth-pages";
 
-export const metadata = { title: "Sign in — NextRole" };
+export const metadata = { title: "Sign in — Braevity" };
 
 export default async function Page({
   searchParams,

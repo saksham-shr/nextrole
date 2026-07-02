@@ -31,7 +31,7 @@ function tierBadge(tier: UserTier) {
   const c = map[tier] ?? map.free!;
   return (
     <span
-      className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em]"
       style={{ background: c.bg, color: c.fg, border: `1px solid ${c.fg}33` }}
     >
       {tier}
@@ -57,7 +57,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by email…"
-          className="w-full max-w-xs rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-sm outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
+          className="w-full max-w-xs rounded-[8px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
         />
         <span className="font-mono text-[11px] text-[var(--muted-foreground)]">
           {filtered.length} of {users.length}
@@ -71,7 +71,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
               {["Email", "Tier", "Credits", "Referred by", "Signed up", "Last seen", ""].map((h) => (
                 <th
                   key={h}
-                  className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                  className="border-b border-[var(--line)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]"
                 >
                   {h}
                 </th>
@@ -96,7 +96,7 @@ export function AdminUsersTable({ users }: { users: AdminUserRow[] }) {
                 <td className="px-4 py-3 text-right">
                   <button
                     onClick={() => setSelected(u)}
-                    className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] hover:underline"
+                    className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)] hover:underline"
                   >
                     Manage
                   </button>
@@ -164,19 +164,19 @@ function UserActionsModal({ user, onClose }: { user: AdminUserRow; onClose: () =
         </div>
 
         {error && (
-          <p className="mt-4 rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
+          <p className="mt-4 rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
             {error}
           </p>
         )}
         {success && (
-          <p className="mt-4 rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--ok)]">
+          <p className="mt-4 rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--ok)]">
             {success}
           </p>
         )}
 
         {/* Grant tier */}
         <div className="mt-5 space-y-3">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
             Grant tier
           </h3>
           <div className="flex gap-2">
@@ -210,7 +210,7 @@ function UserActionsModal({ user, onClose }: { user: AdminUserRow; onClose: () =
 
         {/* Add bonus credits */}
         <div className="mt-5 space-y-3 border-t border-[var(--line-soft)] pt-5">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
             Add bonus credits
           </h3>
           <p className="text-[11px] text-[var(--muted-foreground)]">Goes into bonus bucket · logged in user&apos;s credit history</p>
@@ -235,7 +235,7 @@ function UserActionsModal({ user, onClose }: { user: AdminUserRow; onClose: () =
 
         {/* Destructive */}
         <div className="mt-5 space-y-3 border-t border-[var(--line-soft)] pt-5">
-          <h3 className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--bad)]">
+          <h3 className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
             Danger zone
           </h3>
           <div className="flex items-center justify-between">

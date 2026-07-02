@@ -194,22 +194,15 @@ export function PipelinePageContent({
     );
 
   return (
-    <div className="max-w-[1200px] mx-auto space-y-5">
+    <div className="max-w-[1060px] mx-auto space-y-5">
 
       {/* ── Page header ── */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div
-            className="uppercase text-[var(--muted-foreground)]"
-            style={{ fontFamily: "var(--font-mono-stack)", fontSize: 10, letterSpacing: "0.12em", marginBottom: 6 }}
-          >
-            Pipeline
-          </div>
-          <h1 style={{ fontSize: 26, letterSpacing: "-0.02em", fontWeight: 600 }}>
-            All jobs{" "}
-            <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>· {totalAll}</span>
-          </h1>
+          <h1 className="nr-display" style={{ fontSize: 24, marginBottom: 4 }}>Pipeline</h1>
+          <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>Track every opportunity across Saved, Evaluated, Applied, Interview, and Offer.</p>
         </div>
+        <span style={{ fontFamily: "var(--font-mono-stack)", fontSize: 11, color: "var(--muted-foreground)" }}>{totalAll} jobs</span>
       </div>
 
       {/* ── Alerts ── */}
@@ -226,49 +219,43 @@ export function PipelinePageContent({
         </p>
       )}
 
-      {/* ── Filter bar ── */}
-      <div
-        className="flex items-center gap-1 overflow-x-auto rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]"
-        style={{ padding: 8 }}
-      >
-        {FILTERS.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className="rounded-[4px] px-3 py-1.5 text-[13px] transition"
-            style={{
-              background: status === f ? "var(--background)" : "transparent",
-              fontWeight: status === f ? 500 : 400,
-              color: status === f ? "var(--foreground)" : "var(--muted-foreground)",
-            }}
-          >
-            {f}{" "}
-            <span style={{ fontFamily: "var(--font-mono-stack)", fontSize: 10, color: "var(--muted-foreground)" }}>
-              {counts[f] ?? 0}
-            </span>
-          </button>
-        ))}
-        <div className="flex-1" />
-        {/* 25/50 toggle */}
-        <div className="flex items-center gap-0.5 mr-2">
-          {[25, 50].map((n) => (
+      {/* ── Filter chips ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        {FILTERS.map((f) => {
+          const active = status === f;
+          return (
             <button
-              key={n}
-              onClick={() => pushParam({ limit: n, page: undefined })}
-              className="rounded-[4px] px-2 py-1 font-mono text-[10px] transition"
+              key={f}
+              onClick={() => setFilter(f)}
               style={{
-                background: limit === n ? "var(--background)" : "transparent",
-                color: limit === n ? "var(--foreground)" : "var(--muted-foreground)",
-                border: limit === n ? "1px solid var(--line-soft)" : "1px solid transparent",
+                display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "5px 14px",
+                borderRadius: 20,
+                border: active ? "none" : "1px solid var(--line-soft)",
+                background: active ? "var(--accent)" : "var(--surface)",
+                color: active ? "#fff" : "var(--muted-foreground)",
+                fontFamily: "var(--font-body)",
+                fontSize: 12, fontWeight: active ? 600 : 400,
+                cursor: "pointer", transition: "all 0.15s",
               }}
             >
-              {n}
+              {f}
+              <span style={{
+                fontSize: 12, fontWeight: 600,
+                color: active ? "rgba(255,255,255,0.8)" : "var(--muted-foreground)",
+              }}>
+                {counts[f] ?? 0}
+              </span>
             </button>
-          ))}
-        </div>
+          );
+        })}
+      </div>
+
+      {/* ── Search + sort row ── */}
+      <div className="flex flex-wrap items-center gap-2">
         <form onSubmit={(e) => { e.preventDefault(); submitSearch(searchInput); }}
-          className="flex items-center gap-2 rounded-[4px] px-2.5 py-1.5"
-          style={{ background: "var(--background)", width: 220 }}
+          className="flex items-center gap-2 rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2"
+          style={{ flex: 1, minWidth: 180, maxWidth: 320 }}
         >
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground)" strokeWidth="1.7" strokeLinecap="round">
             <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
@@ -279,9 +266,40 @@ export function PipelinePageContent({
             onChange={(e) => setSearchInput(e.target.value)}
             onBlur={() => submitSearch(searchInput)}
             placeholder="Search jobs…"
-            className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-[var(--muted-foreground-2)]"
+            className="flex-1 bg-transparent text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground-2)]"
           />
         </form>
+        <select
+          value={`${sort}_${sortAsc ? "asc" : "desc"}`}
+          onChange={(e) => {
+            const [col, dir] = e.target.value.split("_");
+            pushParam({ sort: col, order: dir, page: undefined });
+          }}
+          className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[12px] text-[var(--foreground)] outline-none cursor-pointer"
+          style={{ fontFamily: "var(--font-body)" }}
+        >
+          <option value="created_at_desc">Newest first</option>
+          <option value="created_at_asc">Oldest first</option>
+          <option value="company_asc">Company A–Z</option>
+          <option value="company_desc">Company Z–A</option>
+        </select>
+        <div className="flex items-center gap-0.5">
+          {[25, 50].map((n) => (
+            <button
+              key={n}
+              onClick={() => pushParam({ limit: n, page: undefined })}
+              className="rounded-[6px] px-2.5 py-1.5 text-[12px] transition"
+              style={{
+                background: limit === n ? "var(--surface)" : "transparent",
+                color: limit === n ? "var(--foreground)" : "var(--muted-foreground)",
+                border: limit === n ? "1px solid var(--line-soft)" : "1px solid transparent",
+                fontFamily: "var(--font-body)",
+              }}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Batch toolbar ── */}
@@ -289,14 +307,14 @@ export function PipelinePageContent({
         <div className="flex items-center gap-3 rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-2.5">
           <span className="font-mono text-[11px] text-[var(--muted-foreground)]">{selected.size} selected</span>
           <button type="button" onClick={handleBatchDelete} disabled={batchPending}
-            className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)] hover:underline disabled:opacity-40">
+            className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] hover:underline disabled:opacity-40">
             Delete
           </button>
           <select
             onChange={(e) => { if (e.target.value) handleBatchStatus(e.target.value as JobStatus); e.target.value = ""; }}
             disabled={batchPending}
             defaultValue=""
-            className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--background)] px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.08em] outline-none disabled:opacity-40"
+            className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--background)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] outline-none disabled:opacity-40"
           >
             <option value="" disabled>Move to…</option>
             <option value="applied">Applied</option>
@@ -378,13 +396,13 @@ export function PipelinePageContent({
               <div className="flex justify-center gap-2">
                 <Link
                   href="/connect-extension"
-                  className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[13px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
+                  className="inline-flex items-center gap-1.5 rounded-[6px] bg-[var(--accent)] px-3 py-1.5 text-[12px] font-medium text-[#fffdf8] transition hover:bg-[var(--accent-hover)]"
                 >
                   Install extension
                 </Link>
                 <Link
                   href="/dashboard/explore"
-                  className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--line-soft)] px-3 py-1.5 text-[13px] text-[var(--foreground)] transition hover:border-[var(--line)]"
+                  className="inline-flex items-center gap-1.5 rounded-[6px] border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--foreground)] transition hover:border-[var(--line)]"
                 >
                   Browse community jobs
                 </Link>
@@ -477,8 +495,8 @@ export function PipelinePageContent({
                       name="status"
                       defaultValue={job.status ?? "pending"}
                       onChange={(e) => { const form = e.currentTarget.form; if (form) form.requestSubmit(); }}
-                      className="rounded-[4px] border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-0.5 text-[11px] outline-none cursor-pointer"
-                      style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.06em", color: "var(--foreground)" }}
+                      className="rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-1 text-[12px] outline-none cursor-pointer"
+                      style={{ fontFamily: "var(--font-body)", color: "var(--foreground)" }}
                     >
                       <option value="pending">Pending</option>
                       <option value="applied">Applied</option>

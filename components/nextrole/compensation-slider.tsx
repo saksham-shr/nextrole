@@ -18,7 +18,7 @@ export function useIsIndia(): boolean {
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <div>
-      <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</div>
+      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">{label}</div>
       {children}
       {hint && <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">{hint}</div>}
     </div>
@@ -114,7 +114,7 @@ export function CompensationSlider({
         <div className="flex items-center justify-between mb-3">
           {/* Min value label */}
           <div className="text-center w-16">
-            <div className="text-[10px] text-[var(--muted-foreground)] font-mono uppercase mb-0.5">Min</div>
+            <div className="text-[11px] text-[var(--muted-foreground)] font-semibold uppercase tracking-[0.05em] mb-0.5">Min</div>
             <div className="font-mono text-[14px] font-medium text-[var(--accent)]">{fmt(minVal)}</div>
           </div>
 
@@ -177,7 +177,7 @@ export function CompensationSlider({
 
           {/* Max value label */}
           <div className="text-center w-16">
-            <div className="text-[10px] text-[var(--muted-foreground)] font-mono uppercase mb-0.5">Max</div>
+            <div className="text-[11px] text-[var(--muted-foreground)] font-semibold uppercase tracking-[0.05em] mb-0.5">Max</div>
             <div className="font-mono text-[14px] font-medium text-[var(--accent)]">{fmt(maxVal)}</div>
           </div>
         </div>

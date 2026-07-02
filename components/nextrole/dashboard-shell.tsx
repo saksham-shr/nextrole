@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState, useRef, type ReactNode } from "react";
 import { signOut } from "@/app/actions/auth";
 import type { UserTier } from "@/lib/db/types";
+import { BrandWordmark } from "@/components/nextrole/brand";
 
 function trialDaysLeft(endsAt: string | null): number | null {
   if (!endsAt) return null;
@@ -45,7 +46,7 @@ function useIsDesktop() {
 function useDarkMode() {
   const [dark, setDark] = useState(() => {
     if (typeof window === "undefined") return false;
-    return localStorage.getItem("nextrole-theme") === "dark";
+    return localStorage.getItem("braevity-theme") === "dark";
   });
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
@@ -53,7 +54,7 @@ function useDarkMode() {
   function toggle() {
     const next = !dark;
     setDark(next);
-    localStorage.setItem("nextrole-theme", next ? "dark" : "light");
+    localStorage.setItem("braevity-theme", next ? "dark" : "light");
     document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
   }
   return { dark, toggle };
@@ -87,16 +88,8 @@ function TopBar() {
       background: "var(--surface)",
       borderBottom: "1px solid var(--line-softer)",
     }}>
-      <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-        <div style={{
-          width: 26, height: 26, borderRadius: 7, background: "var(--accent)",
-          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-        }}>
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-          </svg>
-        </div>
-        <span style={{ fontFamily: "var(--font-display)", fontSize: 16, color: "var(--foreground)" }}>NextRole</span>
+      <Link href="/dashboard" style={{ display: "flex", alignItems: "center", textDecoration: "none" }}>
+        <BrandWordmark size={22} />
       </Link>
     </div>
   );
@@ -110,7 +103,7 @@ function InviteModal({ code, onClose }: { code: string; onClose: () => void }) {
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
   const link = origin ? `${origin}/signup?ref=${code}` : "";
-  const shareText = encodeURIComponent("I'm using NextRole to manage my job search — evaluating roles, tailoring resumes, tracking applications. Try it free:");
+  const shareText = encodeURIComponent("I'm using Braevity to manage my job search — evaluating roles, tailoring resumes, tracking applications. Try it free:");
   const shareUrl  = encodeURIComponent(link);
 
   const shares = [
@@ -147,7 +140,7 @@ function InviteModal({ code, onClose }: { code: string; onClose: () => void }) {
     {
       label: "Email",
       color: "#6B7280",
-      href: `mailto:?subject=Join me on NextRole&body=I've been using NextRole to manage my job search and it's great. Try it free: ${link}`,
+      href: `mailto:?subject=Join me on Braevity&body=I've been using Braevity to manage my job search and it's great. Try it free: ${link}`,
       icon: (
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
@@ -222,7 +215,7 @@ function InviteModal({ code, onClose }: { code: string; onClose: () => void }) {
 
         {/* Referral link */}
         <div style={{ marginTop: 20 }}>
-          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-foreground)", fontFamily: "var(--font-mono-stack)" }}>Your referral link</p>
+          <p style={{ margin: "0 0 8px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted-foreground)" }}>Your referral link</p>
           <div style={{ display: "flex", gap: 8 }}>
             <div style={{
               flex: 1, minWidth: 0,
@@ -265,7 +258,7 @@ function InviteModal({ code, onClose }: { code: string; onClose: () => void }) {
 
         {/* Share */}
         <div style={{ marginTop: 20 }}>
-          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.08em", color: "var(--muted-foreground)", fontFamily: "var(--font-mono-stack)" }}>Share via</p>
+          <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--muted-foreground)" }}>Share via</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {shares.map(({ label, color, href, icon }) => (
               <a
@@ -373,36 +366,11 @@ function Sidebar({
     >
       {/* Brand */}
       <div style={{ padding: "20px 16px 16px", borderBottom: "1px solid var(--line-softer)", display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between" }}>
-        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none", minWidth: 0 }}>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 7,
-              background: "var(--accent)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fffdf8" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
-            </svg>
-          </div>
-          {!collapsed && (
-            <span
-              style={{
-                fontFamily: "var(--font-display)",
-                fontSize: 17,
-                letterSpacing: "-0.01em",
-                color: "var(--foreground)",
-                whiteSpace: "nowrap",
-              }}
-            >
-              NextRole
-            </span>
-          )}
+        <Link href="/dashboard" style={{ display: "flex", alignItems: "center", textDecoration: "none", minWidth: 0 }}>
+          {collapsed
+            ? <BrandWordmark size={26} labelClassName="hidden" />
+            : <BrandWordmark size={26} />
+          }
         </Link>
         <button
           onClick={onToggle}
@@ -516,7 +484,7 @@ function Sidebar({
             }}
           >
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-              <span className="nr-small" style={{ fontFamily: "var(--font-mono-stack)", letterSpacing: "0.04em", textTransform: "uppercase", fontSize: 9 }}>
+              <span className="nr-small" style={{ letterSpacing: "0.05em", textTransform: "uppercase", fontSize: 10, fontWeight: 600 }}>
                 Credits
               </span>
               <span className="nr-small" style={{ fontFamily: "var(--font-mono-stack)" }}>
@@ -742,8 +710,8 @@ function MobileNav() {
           >
             <Icon size={20} />
             <span style={{
-              fontFamily: "var(--font-mono-stack)",
-              fontSize: 8, letterSpacing: "0.15em",
+              fontSize: 10, letterSpacing: "0.04em",
+              fontWeight: 500,
               textTransform: "uppercase",
             }}>
               {label}

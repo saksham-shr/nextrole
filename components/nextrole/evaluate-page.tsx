@@ -159,7 +159,7 @@ function DecisionBadge({ decision }: { decision: Decision }) {
   };
   const label: Record<Decision, string> = { apply: "Apply", watch: "Watch", skip: "Skip" };
   return (
-    <span className={`rounded-md px-2.5 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.1em] ${styles[decision]}`}>
+    <span className={`rounded-md px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-[0.05em] ${styles[decision]}`}>
       {label[decision]}
     </span>
   );
@@ -213,7 +213,7 @@ function ResultsPanel({
           <p className="text-[13px]">{blocks.cv_match.summary}</p>
           {blocks.cv_match.strengths?.length > 0 && (
             <div>
-              <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Strengths</div>
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Strengths</div>
               <div className="flex flex-col gap-1.5">
                 {blocks.cv_match.strengths.map((s, i) => <Bullet key={i} kind="pos">{s}</Bullet>)}
               </div>
@@ -221,7 +221,7 @@ function ResultsPanel({
           )}
           {blocks.cv_match.gaps?.length > 0 && (
             <div>
-              <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Gaps to address</div>
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Gaps to address</div>
               <div className="flex flex-col gap-1.5">
                 {blocks.cv_match.gaps.map((g, i) => <Bullet key={i} kind="neg">{g}</Bullet>)}
               </div>
@@ -251,7 +251,7 @@ function ResultsPanel({
           )}
           {blocks.interview_signals.likely_topics?.length > 0 && (
             <div>
-              <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Likely questions</div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Likely questions</div>
               <div className="flex flex-col gap-1.5">
                 {blocks.interview_signals.likely_topics.map((t, i) => (
                   <div key={i} className="rounded-[5px] bg-[var(--surface-soft)] px-3 py-2 text-[13px]">{t}</div>
@@ -261,7 +261,7 @@ function ResultsPanel({
           )}
           {blocks.interview_signals.red_flags?.length > 0 && (
             <div>
-              <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-red-500">Red flags</div>
+              <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-red-500">Red flags</div>
               <div className="flex flex-col gap-1.5">
                 {blocks.interview_signals.red_flags.map((f, i) => <Bullet key={i} kind="neg">{f}</Bullet>)}
               </div>
@@ -378,7 +378,7 @@ function ManualPanel({
           className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-4 py-3 font-mono text-[11px] leading-[1.6] outline-none placeholder:text-[var(--muted-foreground)] focus:border-[var(--accent)]"
         />
         {error && (
-          <p className="mt-2 rounded-lg border border-[var(--bad)] bg-[#faebeb] px-4 py-2.5 font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--bad)]">
+          <p className="mt-2 rounded-lg border border-[var(--bad)] bg-[#faebeb] px-4 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
             {error}
           </p>
         )}
@@ -451,7 +451,7 @@ function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; 
           </div>
         </div>
         <ScorePill score={ev.score} />
-        <span className={`shrink-0 rounded-md px-2 py-0.5 font-mono text-[10px] font-medium uppercase tracking-[0.1em] ${decStyle[dec] ?? ""}`}>
+        <span className={`shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.05em] ${decStyle[dec] ?? ""}`}>
           {dec}
         </span>
         <span className="shrink-0 font-mono text-[11px] text-[var(--muted-foreground)] w-20 text-right">{when}</span>
@@ -505,13 +505,13 @@ function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; 
                 )}
                 {(cvMatch.strengths?.length ?? 0) > 0 && (
                   <div>
-                    <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Strengths</div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Strengths</div>
                     {cvMatch.strengths!.map((s, i) => <Bullet key={i} kind="pos">{s}</Bullet>)}
                   </div>
                 )}
                 {(cvMatch.gaps?.length ?? 0) > 0 && (
                   <div>
-                    <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Gaps</div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Gaps</div>
                     {cvMatch.gaps!.map((g, i) => <Bullet key={i} kind="neg">{g}</Bullet>)}
                   </div>
                 )}
@@ -538,7 +538,7 @@ function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; 
                 {interv.preparation_notes && <p className="text-[13px] text-[var(--muted-foreground)]">{interv.preparation_notes}</p>}
                 {(interv.likely_topics?.length ?? 0) > 0 && (
                   <div>
-                    <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Likely questions</div>
+                    <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Likely questions</div>
                     <div className="flex flex-col gap-1.5">
                       {interv.likely_topics!.map((t, i) => (
                         <div key={i} className="rounded-[5px] bg-[var(--surface)] px-3 py-2 text-[13px]">{t}</div>
@@ -548,7 +548,7 @@ function PastEvalRow({ ev, isOpen, onToggle }: { ev: PastEval; isOpen: boolean; 
                 )}
                 {(interv.red_flags?.length ?? 0) > 0 && (
                   <div>
-                    <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.14em] text-red-500">Red flags</div>
+                    <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-red-500">Red flags</div>
                     {interv.red_flags!.map((f, i) => <Bullet key={i} kind="neg">{f}</Bullet>)}
                   </div>
                 )}
@@ -588,7 +588,7 @@ function PastEvaluationsSection({ evals }: { evals: PastEval[] }) {
       <div className="mb-4 flex items-center gap-3">
         <h2 className="text-[15px] font-semibold">Past evaluations</h2>
         {evals.length > 0 && (
-          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
             {evals.length} saved
           </span>
         )}
@@ -608,10 +608,10 @@ function PastEvaluationsSection({ evals }: { evals: PastEval[] }) {
             style={{ display: "grid", gridTemplateColumns: "30px 1fr 48px 64px 80px 14px", gap: 16 }}
           >
             <div />
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Role</span>
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Score</span>
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Decision</span>
-            <span className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] text-right">When</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Role</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Score</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Decision</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] text-right">When</span>
             <div />
           </div>
           {evals.map((ev) => (
@@ -707,8 +707,8 @@ function JobPickerPanel({
         )}
 
         <div className="mb-4 flex items-center justify-between rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-2.5 text-[12px]">
-          <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Uses</span>
-          <span className="font-mono text-[12px]">5 credits · NextRole AI</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Uses</span>
+          <span className="font-mono text-[12px]">5 credits · Braevity AI</span>
         </div>
 
         <button
@@ -736,7 +736,7 @@ function JobPickerPanel({
             </div>
             {selected.description ? (
               <div className="rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] p-4">
-                <div className="mb-2 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Job description preview</div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Job description preview</div>
                 <p className="text-[12.5px] leading-[1.65] text-[var(--muted-foreground)]" style={{ display: "-webkit-box", WebkitLineClamp: 6, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                   {selected.description.slice(0, 600)}{selected.description.length > 600 ? "…" : ""}
                 </p>
@@ -866,26 +866,26 @@ export function EvaluatePageContent({
             <div className="flex flex-col gap-3 text-[13px]">
               {activeJob.source && (
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Source</span>
+                  <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Source</span>
                   <a href={activeJob.source} target="_blank" rel="noopener noreferrer" className="truncate text-right text-[var(--accent)] hover:underline">
                     {activeJob.source.replace(/^https?:\/\//, "").slice(0, 40)}…
                   </a>
                 </div>
               )}
               <div className="flex items-baseline justify-between gap-3">
-                <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Saved</span>
+                <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Saved</span>
                 <span className="text-[var(--foreground)]">
                   {new Date(activeJob.created_at).toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" })}
                 </span>
               </div>
               {(activeJob as { compensation?: string }).compensation && (
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Comp</span>
+                  <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Comp</span>
                   <span className="text-[var(--foreground)]">{(activeJob as { compensation?: string }).compensation}</span>
                 </div>
               )}
               <div className="mt-1">
-                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Status</div>
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Status</div>
                 <select
                   className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[13px] outline-none focus:border-[var(--accent)]"
                   defaultValue={activeJob.status}
@@ -898,7 +898,7 @@ export function EvaluatePageContent({
                 </select>
               </div>
               <div>
-                <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Notes</div>
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Notes</div>
                 <textarea
                   className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[13px] leading-[1.55] outline-none focus:border-[var(--accent)]"
                   rows={3}
@@ -982,13 +982,13 @@ export function EvaluatePageContent({
                     {/* Cost estimate */}
                     <div className="mb-6 w-full max-w-[360px] rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)] px-4 py-3">
                       <div className="flex justify-between text-[12.5px]">
-                        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Uses</span>
-                        <span className="font-mono text-[12px] text-[var(--foreground)]">5 credits · NextRole AI</span>
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Uses</span>
+                        <span className="font-mono text-[12px] text-[var(--foreground)]">5 credits · Braevity AI</span>
                       </div>
                     </div>
 
                     {error && (
-                      <p className="mb-4 w-full max-w-[380px] rounded-lg border border-[var(--bad)] bg-[#faebeb] px-4 py-2.5 text-center font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--bad)]">
+                      <p className="mb-4 w-full max-w-[380px] rounded-lg border border-[var(--bad)] bg-[#faebeb] px-4 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
                         {error}
                       </p>
                     )}
@@ -996,7 +996,7 @@ export function EvaluatePageContent({
                     {loading ? (
                       <div className="flex flex-col items-center gap-3">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
-                        <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                           Evaluating · usually 20–40 seconds
                         </p>
                       </div>

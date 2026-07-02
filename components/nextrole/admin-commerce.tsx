@@ -76,12 +76,12 @@ export function AdminCommerce({
   return (
     <div className="space-y-6">
       {error && (
-        <div className="rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
+        <div className="rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
           {error}
         </div>
       )}
       {success && (
-        <div className="rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--ok)]">
+        <div className="rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--ok)]">
           {success}
         </div>
       )}
@@ -107,7 +107,7 @@ export function AdminCommerce({
               />
               <span className="text-[13px] text-[var(--foreground)]">{label}</span>
               <span
-                className={`ml-auto font-mono text-[10px] uppercase tracking-[0.14em] ${
+                className={`ml-auto text-[11px] font-semibold uppercase tracking-[0.05em] ${
                   flags[key] ? "text-[var(--ok)]" : "text-[var(--bad)]"
                 }`}
               >
@@ -129,7 +129,7 @@ export function AdminCommerce({
             const isDefault = parseInt(planPrices[key], 10) === defaults.planPricesInr[key];
             return (
               <div key={key}>
-                <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                   {label} {!isDefault && <span className="text-[var(--accent)]">(custom)</span>}
                 </label>
                 <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ export function AdminCommerce({
               </Field>
               <button
                 onClick={() => removePack(idx)}
-                className="rounded-[6px] px-3 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--bad)] hover:bg-[var(--surface-soft)]"
+                className="rounded-[6px] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] hover:bg-[var(--surface-soft)]"
               >
                 Remove
               </button>
@@ -241,7 +241,7 @@ export function AdminCommerce({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+      <label className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
         {label}
       </label>
       {children}

@@ -205,20 +205,12 @@ export function ExplorePageContent({
     <div className="max-w-[960px] mx-auto space-y-5">
       {/* Header */}
       <div>
-        <div
-          className="uppercase text-[var(--muted-foreground)]"
-          style={{ fontFamily: "var(--font-mono-stack)", fontSize: 10, letterSpacing: "0.12em", marginBottom: 6 }}
-        >
-          Explore
-        </div>
-        <h1 style={{ fontSize: 26, letterSpacing: "-0.02em", fontWeight: 600 }}>
-          Community jobs{" "}
-          <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}>· {filtered.length}</span>
-        </h1>
-        <p className="text-[13px] text-[var(--muted-foreground)] mt-1">
+        <h1 className="nr-display" style={{ fontSize: 24, marginBottom: 4 }}>Explore</h1>
+        <p style={{ fontSize: 14, color: "var(--muted-foreground)", marginBottom: 4 }}>Browse roles matched to your profile and add the promising ones to your pipeline.</p>
+        <p className="text-[13px] text-[var(--muted-foreground)]">
           {hasTargetProfile
-            ? `Showing jobs added in the last 10 days, ranked by match to your target roles.`
-            : `Showing jobs added in the last 10 days. Set target roles in your profile to see ranked results.`}
+            ? `Showing ${filtered.length} jobs from the last 10 days, ranked by match to your target roles.`
+            : `Showing ${filtered.length} jobs from the last 10 days. Set target roles in your profile to see ranked results.`}
         </p>
       </div>
 

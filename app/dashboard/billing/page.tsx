@@ -4,7 +4,7 @@ import { BillingPage } from "@/components/nextrole/billing-page";
 import { getCommerceConfig, getCommerceDefaults, CommerceConfigUnavailableError } from "@/lib/commerce/config";
 import type { UserTier, PaymentRecord } from "@/lib/db/types";
 
-export const metadata = { title: "Plan & Credits — NextRole" };
+export const metadata = { title: "Plan & Credits — Braevity" };
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 

@@ -1,41 +1,23 @@
 /**
  * GET /api/extension/profile
- * Auth: Bearer <supabase_jwt>
+ * Auth: Bearer <extension_token>
  *
- * Returns the user's profile data for auto-filling job application forms,
- * plus tier and today's usage counts for gate checking in the extension.
- *
- * All fields are now served directly from the profiles table (migration
- * 20260511000001). The previous fallback that regex-extracted phone /
- * LinkedIn / GitHub from base_cv is kept as a SECONDARY fallback only —
- * primary source is the explicit DB columns.
+ * Returns the full user profile for autofill + tier/credit data for gate checks.
+ * All fields come directly from the profiles table — no regex fallback on base_cv.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { resolveExtensionUser } from "@/lib/extension-auth";
 import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
-const FREE_DAILY_LIMITS = { evaluations: 9999, resumes: 9999 };
 
-function extractContact(cv: string) {
-  const phoneMatch = cv.match(
-    /(?:phone|tel|mobile|cell|contact)[^\n]{0,10}?(\+?1?[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/i,
-  ) ?? cv.match(/(\+\d{1,3}[\s.-]?\(?\d{2,4}\)?[\s.-]?\d{3,4}[\s.-]?\d{4})/);
-  const phone = phoneMatch?.[1]?.trim() ?? null;
-
-  const linkedinMatch = cv.match(/(?:linkedin\.com\/in\/)([\w%-]+)/i);
-  const linkedin = linkedinMatch ? `https://www.linkedin.com/in/${linkedinMatch[1]}` : null;
-
-  const githubMatch = cv.match(/(?:github\.com\/)([\w-]+)/i);
-  const github = githubMatch ? `https://github.com/${githubMatch[1]}` : null;
-
-  const websiteMatch = cv.match(
-    /https?:\/\/(?!(?:www\.)?(?:linkedin|github|twitter|x\.com|facebook|instagram|youtube))([\w-]+\.(?:com|io|dev|co|me|net|org)[\w/?=#%-]*)/i,
-  );
-  const website = websiteMatch?.[0]?.trim() ?? null;
-
-  return { phone, linkedin, github, website };
-}
+const NOTICE_PERIOD_DAYS: Record<string, number> = {
+  immediately: 0,
+  "2_weeks":   14,
+  "1_month":   30,
+  "2_months":  60,
+  "3_months":  90,
+};
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req);
@@ -53,147 +35,169 @@ export async function GET(req: NextRequest) {
   const admin = createAdminClient();
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: profile } = await admin
-    .from("profiles")
-    .select([
-      "full_name", "email", "base_cv",
-      "target_roles", "target_locations", "years_experience", "seniority",
-      "comp_min", "comp_max", "work_mode",
-      "tier", "credits_remaining",
-      // autofill columns (migration 20260511000001)
-      "phone", "linkedin_url", "github_url", "portfolio_url",
-      "country", "city", "state_province", "zip_postal", "street_address",
-      "notice_period", "willing_to_relocate", "sponsorship_needed", "nationality",
-      "gender", "pronouns", "race_ethnicity", "veteran_status", "disability_status",
-      "work_experience", "education", "certifications", "projects", "skills",
-      "dob", "work_authorization", "expected_salary",
-      "middle_name", "phone_country_code",
-      // CTC + notice annotations (migration 20260515000001)
+  const [{ data: profile }, { data: usageRow }] = await Promise.all([
+    admin.from("profiles").select([
+      // identity
+      "full_name", "first_name", "last_name", "middle_name",
+      "preferred_name", "name_prefix", "fathers_name",
+      // contact
+      "email", "phone", "phone_country_code", "alternate_phone",
+      // address
+      "street_address", "address_line2", "city", "state_province",
+      "zip_postal", "country", "nationality",
+      "permanent_address_same", "permanent_address",
+      // online presence
+      "linkedin_url", "github_url", "portfolio_url", "naukri_url",
+      // compensation
+      "salary_currency", "current_ctc",
       "expected_salary_min", "expected_salary_max",
-      "ctc_fixed", "ctc_variable", "ctc_note", "notice_period_note",
-    ].join(", "))
-    .eq("id", userId)
-    .single();
+      // work preferences
+      "years_experience", "seniority", "work_mode",
+      "notice_period", "notice_period_note", "available_from",
+      "willing_to_relocate", "open_to_hybrid",
+      "sponsorship_needed", "work_authorization",
+      "authorized_countries", "target_roles",
+      // demographics
+      "dob", "gender", "pronouns", "marital_status", "category",
+      "race_ethnicity", "veteran_status", "disability_status",
+      "hispanic_or_latino", "lgbtq_member",
+      "accommodation_needed", "indian_army_veteran",
+      "government_ids",
+      // cv
+      "skills", "languages", "work_experience", "education",
+      "certifications", "projects",
+      // autofill helpers
+      "referral_source", "qa_library",
+      // credits + tier
+      "tier", "daily_credits", "topup_credits", "bonus_credits",
+      "daily_credits_reset_at",
+    ].join(", ")).eq("id", userId).single(),
 
-  const { data: usageRow } = await admin
-    .from("daily_usage")
-    .select("evaluations, resumes, autofills, autofill_credits_used")
-    .eq("user_id", userId)
-    .eq("date", today)
-    .maybeSingle();
+    admin.from("daily_usage")
+      .select("evaluations, resumes, autofills, autofill_tailor_sessions, suggest_credits_used")
+      .eq("user_id", userId)
+      .eq("date", today)
+      .maybeSingle(),
+  ]);
 
   const p = (profile ?? {}) as Record<string, unknown>;
 
-  // Fallback contact extraction if direct columns are empty AND base_cv exists.
-  // This keeps existing users without filled profiles working until they
-  // populate the new Profile page.
-  const baseCv = (p.base_cv as string | null) ?? null;
-  const fallback = baseCv && (!p.phone || !p.linkedin_url || !p.github_url || !p.portfolio_url)
-    ? extractContact(baseCv)
-    : { phone: null, linkedin: null, github: null, website: null };
+  // ── Identity ────────────────────────────────────────────────────────────────
+  const fullName   = (p.full_name as string | null) ?? "";
+  const nameParts  = fullName.trim().split(/\s+/);
+  const firstName  = (p.first_name as string | null) ?? nameParts[0] ?? "";
+  const lastName   = (p.last_name  as string | null) ?? nameParts.slice(1).join(" ") ?? "";
 
-  const phone     = (p.phone as string | null)         ?? fallback.phone    ?? null;
-  const linkedin  = (p.linkedin_url as string | null)  ?? fallback.linkedin ?? null;
-  const github    = (p.github_url as string | null)    ?? fallback.github   ?? null;
-  const website   = (p.portfolio_url as string | null) ?? fallback.website  ?? null;
+  // ── Compensation ─────────────────────────────────────────────────────────────
+  // current_ctc is the live unified column. expected_salary_min/max are the range.
 
-  // Location: prefer explicit `city`, fall back to target_locations[0]
-  const locations = (p.target_locations as string[] | null) ?? [];
-  const location  = (p.city as string | null) ?? locations[0] ?? null;
+  // ── Work preferences ─────────────────────────────────────────────────────────
+  const noticePeriod     = (p.notice_period as string | null) ?? null;
+  const noticePeriodDays = noticePeriod !== null ? (NOTICE_PERIOD_DAYS[noticePeriod] ?? null) : null;
 
-  const salary = p.ctc_fixed
-    ? String(p.ctc_fixed)
-    : p.expected_salary_min
-      ? String(p.expected_salary_min)
-      : p.comp_min
-        ? String(p.comp_min)
-        : null;
+  // ── Credits ──────────────────────────────────────────────────────────────────
+  const tier         = (p.tier as string | null) ?? "free";
+  const dailyCredits = (p.daily_credits  as number | null) ?? 0;
+  const topupCredits = (p.topup_credits  as number | null) ?? 0;
+  const bonusCredits = (p.bonus_credits  as number | null) ?? 0;
 
-  const fullName = (p.full_name as string | null) ?? "";
-  const nameParts = fullName.trim().split(/\s+/);
-  const firstName = nameParts[0] ?? "";
-  const lastName  = nameParts.slice(1).join(" ") ?? "";
-
-  const tier = (p.tier as string | null) ?? "free";
-  const creditsRemaining = (p.credits_remaining as number | null) ?? 0;
-
-  const row = usageRow as Record<string, number> | null;
+  // ── Usage ────────────────────────────────────────────────────────────────────
+  const u = (usageRow ?? {}) as Record<string, number>;
   const usage = {
-    evaluations_today:           row?.evaluations           ?? 0,
-    resumes_today:               row?.resumes               ?? 0,
-    autofills_today:             row?.autofills             ?? 0,
-    autofill_credits_used_today: row?.autofill_credits_used ?? 0,
-  };
-
-  const limits = {
-    evaluations_per_day: tier === "free" ? FREE_DAILY_LIMITS.evaluations : -1,
-    resumes_per_day:     tier === "free" ? FREE_DAILY_LIMITS.resumes     : -1,
-    autofills_per_day:   tier === "pro"  ? -1 : 0,
+    evaluations_today:           u.evaluations             ?? 0,
+    resumes_today:               u.resumes                 ?? 0,
+    autofills_today:             u.autofills               ?? 0,
+    autofill_tailor_today:       u.autofill_tailor_sessions ?? 0,
+    suggest_credits_used_today:  u.suggest_credits_used    ?? 0,
   };
 
   return NextResponse.json({
-    // Core identity
+    // ── Identity ──────────────────────────────────────────────────────────────
     full_name:        fullName,
     first_name:       firstName,
     last_name:        lastName,
-    email:            (p.email as string | null) ?? "",
+    middle_name:      (p.middle_name     as string | null) ?? null,
+    preferred_name:   (p.preferred_name  as string | null) ?? null,
+    name_prefix:      (p.name_prefix     as string | null) ?? null,
+    fathers_name:     (p.fathers_name    as string | null) ?? null,
 
-    // Contact / links
-    phone,
-    linkedin,
-    github,
-    website,
+    // ── Contact ───────────────────────────────────────────────────────────────
+    email:              (p.email              as string | null) ?? "",
+    phone:              (p.phone              as string | null) ?? null,
+    phone_country_code: (p.phone_country_code as string | null) ?? null,
+    alternate_phone:    (p.alternate_phone    as string | null) ?? null,
 
-    // Address
-    country:          (p.country as string | null)        ?? null,
-    location,
-    city:             (p.city as string | null)           ?? null,
-    state_province:   (p.state_province as string | null) ?? null,
-    zip_postal:       (p.zip_postal as string | null)     ?? null,
-    street_address:   (p.street_address as string | null) ?? null,
-    nationality:      (p.nationality as string | null)    ?? null,
+    // ── Address ───────────────────────────────────────────────────────────────
+    street_address:         (p.street_address         as string | null)  ?? null,
+    address_line2:          (p.address_line2          as string | null)  ?? null,
+    city:                   (p.city                   as string | null)  ?? null,
+    state_province:         (p.state_province         as string | null)  ?? null,
+    zip_postal:             (p.zip_postal             as string | null)  ?? null,
+    country:                (p.country                as string | null)  ?? null,
+    nationality:            (p.nationality            as string | null)  ?? null,
+    permanent_address_same: (p.permanent_address_same as boolean | null) ?? true,
+    permanent_address:      (p.permanent_address      as string | null)  ?? null,
 
-    // Work preferences
-    salary,
-    years_experience:    (p.years_experience as number | null) ?? null,
-    seniority:           (p.seniority as string | null)        ?? null,
-    work_mode:           (p.work_mode as string | null)        ?? null,
-    notice_period:       (p.notice_period as string | null)    ?? null,
+    // ── Online presence ───────────────────────────────────────────────────────
+    linkedin:   (p.linkedin_url   as string | null) ?? null,
+    github:     (p.github_url     as string | null) ?? null,
+    website:    (p.portfolio_url  as string | null) ?? null,
+    naukri_url: (p.naukri_url     as string | null) ?? null,
+
+    // ── Compensation ──────────────────────────────────────────────────────────
+    salary_currency:      (p.salary_currency      as string | null) ?? "INR",
+    current_ctc:          (p.current_ctc          as number | null) ?? null,
+    expected_salary_min:  (p.expected_salary_min  as number | null) ?? null,
+    expected_salary_max:  (p.expected_salary_max  as number | null) ?? null,
+
+    // ── Work preferences ──────────────────────────────────────────────────────
+    years_experience:    (p.years_experience    as number | null)  ?? null,
+    seniority:           (p.seniority           as string | null)  ?? null,
+    work_mode:           (p.work_mode           as string | null)  ?? null,
+    notice_period:       noticePeriod,
+    notice_period_days:  noticePeriodDays,
+    notice_period_note:  (p.notice_period_note  as string | null)  ?? null,
+    available_from:      (p.available_from      as string | null)  ?? null,
     willing_to_relocate: (p.willing_to_relocate as boolean | null) ?? null,
-    sponsorship_needed:  (p.sponsorship_needed as boolean | null)  ?? null,
-    target_roles:        (p.target_roles as string[] | null)  ?? [],
+    open_to_hybrid:      (p.open_to_hybrid      as boolean)        ?? false,
+    sponsorship_needed:  (p.sponsorship_needed  as boolean | null) ?? null,
+    work_authorization:  (p.work_authorization  as string | null)  ?? null,
+    authorized_countries:(p.authorized_countries as string[])      ?? [],
+    target_roles:        (p.target_roles        as string[])       ?? [],
 
-    // EEO / demographics
-    gender:            (p.gender as string | null)            ?? null,
-    pronouns:          (p.pronouns as string | null)          ?? null,
-    race_ethnicity:    (p.race_ethnicity as string | null)    ?? null,
-    veteran_status:    (p.veteran_status as string | null)    ?? null,
-    disability_status: (p.disability_status as string | null) ?? null,
+    // ── Demographics ──────────────────────────────────────────────────────────
+    dob:                  (p.dob                  as string | null)  ?? null,
+    gender:               (p.gender               as string | null)  ?? null,
+    pronouns:             (p.pronouns             as string | null)  ?? null,
+    marital_status:       (p.marital_status       as string | null)  ?? null,
+    category:             (p.category             as string | null)  ?? null,
+    race_ethnicity:       (p.race_ethnicity       as string | null)  ?? null,
+    veteran_status:       (p.veteran_status       as string | null)  ?? null,
+    disability_status:    (p.disability_status    as string | null)  ?? null,
+    hispanic_or_latino:   (p.hispanic_or_latino   as boolean | null) ?? null,
+    lgbtq_member:         (p.lgbtq_member         as boolean | null) ?? null,
+    accommodation_needed: (p.accommodation_needed as string | null)  ?? null,
+    indian_army_veteran:  (p.indian_army_veteran  as boolean | null) ?? null,
+    government_ids:       (p.government_ids       as Record<string, unknown>) ?? {},
 
-    // Structured CV data
-    work_experience: (p.work_experience as unknown[] | null) ?? [],
-    education:       (p.education as unknown[] | null)       ?? [],
-    certifications:  (p.certifications as unknown[] | null)  ?? [],
-    projects:        (p.projects as unknown[] | null) ?? [],
-    dob:             (p.dob as string | null) ?? null,
-    work_authorization: (p.work_authorization as string | null) ?? null,
-    expected_salary: (p.expected_salary as number | null) ?? null,
-    skills:          (p.skills as string[] | null)           ?? [],
+    // ── CV ────────────────────────────────────────────────────────────────────
+    skills:         (p.skills         as string[])      ?? [],
+    languages:      (p.languages      as string[])      ?? [],
+    work_experience:(p.work_experience as unknown[])    ?? [],
+    education:      (p.education      as unknown[])     ?? [],
+    certifications: (p.certifications as unknown[])     ?? [],
+    projects:       (p.projects       as unknown[])     ?? [],
 
-    // Indian-specific CTC + notice annotations (migration 20260515000001)
-    expected_salary_min: (p.expected_salary_min as number | null) ?? null,
-    expected_salary_max: (p.expected_salary_max as number | null) ?? null,
-    ctc_fixed:           (p.ctc_fixed as number | null)           ?? null,
-    ctc_variable:        (p.ctc_variable as number | null)        ?? null,
-    ctc_note:            (p.ctc_note as string | null)            ?? null,
-    notice_period_note:  (p.notice_period_note as string | null)  ?? null,
-    middle_name:         (p.middle_name as string | null)         ?? null,
-    phone_country_code:  (p.phone_country_code as string | null)  ?? null,
+    // ── Autofill helpers ──────────────────────────────────────────────────────
+    referral_source: (p.referral_source as string | null)    ?? null,
+    qa_library:      (p.qa_library      as unknown[])        ?? [],
 
-    // Tier gating
+    // ── Tier + credits ────────────────────────────────────────────────────────
     tier,
-    credits_remaining: creditsRemaining,
+    daily_credits:          dailyCredits,
+    topup_credits:          topupCredits,
+    bonus_credits:          bonusCredits,
+    daily_credits_reset_at: (p.daily_credits_reset_at as string | null) ?? null,
     usage,
-    limits,
   });
 }

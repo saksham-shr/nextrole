@@ -100,12 +100,13 @@ export function DashboardHome({
   const isEmpty = !hasJobs;
 
   return (
-    <div style={{ maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ maxWidth: 1060, margin: "0 auto" }}>
       {/* Header */}
-      <header style={{ display: "flex", alignItems: "baseline", marginBottom: 24 }}>
-        <h1 className="nr-display" style={{ fontSize: 26 }}>Welcome back, {userName}</h1>
+      <header style={{ display: "flex", alignItems: "baseline", marginBottom: 6 }}>
+        <h1 className="nr-display" style={{ fontSize: 24 }}>Welcome back, {userName}</h1>
         <span className="nr-small" style={{ marginLeft: "auto" }} suppressHydrationWarning>{dateLabel()}</span>
       </header>
+      <p style={{ fontSize: 14, color: "var(--muted-foreground)", marginBottom: 20 }}>Your job search at a glance — and your next best step.</p>
 
       {/* Upgrade banner — free tier only */}
       {tier === "free" && (
@@ -144,7 +145,7 @@ export function DashboardHome({
             </svg>
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Get 10× faster — install the NextRole extension</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>Get 10× faster — install the Braevity extension</div>
             <div className="nr-small">Autofill applications on Greenhouse, Lever, Ashby, Workday, and more.</div>
           </div>
           <Link href="/connect-extension" className="nr-btn nr-btn-ghost nr-btn-sm" style={{ textDecoration: "none" }}>
@@ -155,23 +156,23 @@ export function DashboardHome({
       )}
 
       {/* Stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 32 }}>
-        <div className="nr-card" style={{ padding: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 24 }}>
+        <div className="nr-card" style={{ padding: 18 }}>
           <div className="nr-label" style={{ marginBottom: 8 }}>Jobs evaluated</div>
-          <div className="nr-display" style={{ fontSize: 36, marginBottom: 4 }}>{kpis.active}</div>
+          <div className="nr-display" style={{ fontSize: 38, marginBottom: 4 }}>{kpis.active}</div>
           <div className="nr-small">this month</div>
         </div>
-        <div className="nr-card" style={{ padding: 20 }}>
+        <div className="nr-card" style={{ padding: 18 }}>
           <div className="nr-label" style={{ marginBottom: 8 }}>Applications sent</div>
-          <div className="nr-display" style={{ fontSize: 36, marginBottom: 4 }}>{kpis.offers + kpis.interviews}</div>
+          <div className="nr-display" style={{ fontSize: 38, marginBottom: 4 }}>{kpis.offers + kpis.interviews}</div>
           <div className="nr-small">this month</div>
         </div>
-        <div className="nr-card" style={{ padding: 20 }}>
+        <div className="nr-card" style={{ padding: 18 }}>
           <div className="nr-label" style={{ marginBottom: 8 }}>Credits remaining</div>
           {tier === "free" ? (
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span className="nr-display" style={{ fontSize: 36 }}>{creditsRemaining}</span>
+                <span className="nr-display" style={{ fontSize: 38 }}>{creditsRemaining}</span>
                 <span className="nr-pill nr-pill-soft" style={{ fontSize: 11 }}>Free</span>
               </div>
               <div className="nr-small" style={{ marginBottom: 6 }}>Earn up to 100 cr via actions</div>
@@ -180,7 +181,7 @@ export function DashboardHome({
           ) : (
             <>
               <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 6 }}>
-                <span className="nr-display" style={{ fontSize: 36 }}>{creditsRemaining}</span>
+                <span className="nr-display" style={{ fontSize: 38 }}>{creditsRemaining}</span>
                 <span className="nr-pill nr-pill-accent" style={{ fontSize: 11 }}>{tier === "pro" ? "Pro" : "Starter"}</span>
               </div>
               <div className="nr-progress" style={{ marginBottom: 8 }}>
@@ -193,7 +194,7 @@ export function DashboardHome({
       </div>
 
       {/* Recent evaluations */}
-      <div className="nr-card" style={{ padding: 0, marginBottom: 16 }}>
+      <div className="nr-card" style={{ padding: 0, marginBottom: 14 }}>
         <div style={{ display: "flex", alignItems: "center", padding: "16px 20px" }}>
           <div style={{ fontSize: 15, fontWeight: 600 }}>Recent Activity</div>
           <Link href="/dashboard/pipeline" style={{ marginLeft: "auto", fontSize: 13, color: "var(--accent)", textDecoration: "none" }}>
@@ -305,8 +306,8 @@ export function DashboardHome({
       </div>
 
       {/* Bottom row */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <div className="nr-card" style={{ padding: 20 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div className="nr-card" style={{ padding: 18 }}>
           <div className="nr-label" style={{ marginBottom: 8 }}>Resume</div>
           {hasCV ? (
             <>
@@ -326,7 +327,7 @@ export function DashboardHome({
             </>
           )}
         </div>
-        <div className="nr-card" style={{ padding: 20 }}>
+        <div className="nr-card" style={{ padding: 18 }}>
           <div className="nr-label" style={{ marginBottom: 14 }}>Pipeline</div>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
             {([

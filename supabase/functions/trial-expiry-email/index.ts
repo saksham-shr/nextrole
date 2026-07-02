@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const TRIAL_EMAIL_FROM = Deno.env.get("TRIAL_EMAIL_FROM") ?? "NextRole <billing@nextrole.live>";
+const TRIAL_EMAIL_FROM = Deno.env.get("TRIAL_EMAIL_FROM") ?? "Braevity <billing@braevity.com>";
 
 Deno.serve(async () => {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
@@ -44,8 +44,8 @@ Deno.serve(async () => {
         body: JSON.stringify({
           from: TRIAL_EMAIL_FROM,
           to: [user.email],
-          subject: "Your NextRole trial has ended",
-          html: `<p>Hi there,</p><p>Your NextRole trial has ended. Upgrade anytime to keep running evaluations and pipeline automation.</p><p><a href=\"https://nextrole.live/dashboard/billing\">Open Billing</a></p>`,
+          subject: "Your Braevity trial has ended",
+          html: `<p>Hi there,</p><p>Your Braevity trial has ended. Upgrade anytime to keep running evaluations and pipeline automation.</p><p><a href=\"https://braevity.com/dashboard/billing\">Open Billing</a></p>`,
         }),
       });
 

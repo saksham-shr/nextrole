@@ -64,8 +64,8 @@ function parseResumeData(content: string | null): ResumeData | null {
 
 // ── Resume panel (preview + edit) ────────────────────────────────────────────
 
-const inputCls = "w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[12.5px] outline-none focus:border-[var(--accent)] transition-colors";
-const labelCls = "block font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)] mb-1.5";
+const inputCls = "w-full rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2 text-[12px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--accent)] transition-colors";
+const labelCls = "block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5";
 
 function Lbl({ children }: { children: React.ReactNode }) {
   return <label className={labelCls}>{children}</label>;
@@ -210,7 +210,7 @@ function ResumeEditor({
     }
   }
 
-  const sectionHdr = "mb-3 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]";
+  const sectionHdr = "mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]";
   const removeBtn = "ml-2 text-[11px] text-[var(--muted-foreground)] hover:text-[var(--bad)] transition";
   const addBtn = "mt-2 text-[11px] text-[var(--accent)] hover:underline";
 
@@ -401,7 +401,7 @@ function ResumeEditor({
         type="button"
         onClick={handleSave}
         disabled={saving}
-        className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+        className="w-full rounded-xl bg-[var(--accent)] py-2.5 text-[12px] font-medium text-white transition hover:opacity-90 disabled:opacity-50"
       >
         {saving ? "Saving…" : "Save changes"}
       </button>
@@ -449,7 +449,7 @@ function ResumePanel({
       <div className="flex shrink-0 items-center gap-3 border-b border-[var(--line-soft)] px-4 py-3">
         {company && <CompanyLogo name={company} size={26} />}
         <div className="flex-1 min-w-0">
-          <div className="truncate text-[13px] font-medium">{company ? `${company} — ${title}` : resume.title}</div>
+          <div className="truncate text-[12px] font-medium">{company ? `${company} — ${title}` : resume.title}</div>
           <div className="text-[11.5px] text-[var(--muted-foreground)]">
             {formatRelative(resume.created_at)}
             {resume.coverage !== null ? ` · ${resume.coverage}% match` : ""}
@@ -498,7 +498,7 @@ function ResumePanel({
               sandbox="allow-same-origin"
             />
           ) : (
-            <div className="flex h-48 items-center justify-center text-[13px] text-[var(--muted-foreground)]">
+            <div className="flex h-48 items-center justify-center text-[12px] text-[var(--muted-foreground)]">
               No preview available — try regenerating this resume
             </div>
           )}
@@ -732,7 +732,7 @@ function GeneratePanel({
             key={key}
             type="button"
             onClick={() => { setSource(key); setError(null); }}
-            className="flex-1 rounded-md py-1.5 text-[13px] font-medium transition"
+            className="flex-1 rounded-md py-1.5 text-[12px] font-medium transition"
             style={{
               background: source === key ? "var(--surface)" : "transparent",
               color: source === key ? "var(--foreground)" : "var(--muted-foreground)",
@@ -768,12 +768,12 @@ function GeneratePanel({
               <div className="flex items-center justify-between mb-1.5">
                 <span className="text-[13.5px] font-semibold">{meta.label}</span>
                 {meta.badge && (
-                  <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-white">
+                  <span className="rounded-full bg-[var(--accent)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-white">
                     {meta.badge}
                   </span>
                 )}
                 {locked && (
-                  <span className="rounded-full border border-[var(--line-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+                  <span className="rounded-full border border-[var(--line-soft)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                     Starter+
                   </span>
                 )}
@@ -798,7 +798,7 @@ function GeneratePanel({
       <div className="flex flex-col gap-3">
         {source === "job" ? (
           jobsWithDesc.length === 0 ? (
-            <p className="text-center text-[13px] text-[var(--muted-foreground)]">
+            <p className="text-center text-[12px] text-[var(--muted-foreground)]">
               Add a job with a description first —{" "}
               <Link href="/dashboard/pipeline" className="text-[var(--accent)] hover:underline">go to pipeline</Link>.
             </p>
@@ -806,7 +806,7 @@ function GeneratePanel({
             <select
               value={selectedJobId}
               onChange={(e) => setSelectedJobId(e.target.value)}
-              className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)]"
+              className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[12px] outline-none focus:border-[var(--accent)]"
             >
               <option value="">— choose a job —</option>
               {jobsWithDesc.map((j) => (
@@ -818,7 +818,7 @@ function GeneratePanel({
           <>
             {/* Role combobox */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5">
                 Target role
               </label>
               <div className="relative">
@@ -854,7 +854,7 @@ function GeneratePanel({
                   }}
                   placeholder="e.g. Software Engineer, Product Manager…"
                   autoComplete="off"
-                  className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)] transition-colors"
+                  className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[12px] outline-none focus:border-[var(--accent)] transition-colors"
                 />
 
                 {showSuggestions && suggestions.length > 0 && (
@@ -878,7 +878,7 @@ function GeneratePanel({
                             setHighlightedIdx(-1);
                             roleInputRef.current?.focus();
                           }}
-                          className="flex w-full items-center px-3 py-2 text-left text-[13px] transition-colors"
+                          className="flex w-full items-center px-3 py-2 text-left text-[12px] transition-colors"
                           style={{
                             background: idx === highlightedIdx ? "var(--surface-soft)" : "transparent",
                             color: "var(--foreground)",
@@ -906,7 +906,7 @@ function GeneratePanel({
 
             {/* Company (optional) */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)] mb-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5">
                 Target company <span className="normal-case tracking-normal font-sans text-[11px]">(optional)</span>
               </label>
               <input
@@ -914,7 +914,7 @@ function GeneratePanel({
                 value={targetCompany}
                 onChange={(e) => setTargetCompany(e.target.value)}
                 placeholder="e.g. Google, Stripe, any company name"
-                className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[13px] outline-none focus:border-[var(--accent)] transition-colors"
+                className="w-full rounded-lg border border-[var(--line-soft)] bg-[var(--surface)] px-3 py-2.5 text-[12px] outline-none focus:border-[var(--accent)] transition-colors"
               />
               <p className="mt-1.5 font-mono text-[10px] text-[var(--muted-foreground-2)]">
                 Including a company name adds a targeted angle to the summary
@@ -924,13 +924,13 @@ function GeneratePanel({
         )}
 
         {error && (
-          <p className="rounded-lg border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-center font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
+          <p className="rounded-lg border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-center text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
             {error}
           </p>
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line-soft)] py-3 text-[13px] text-[var(--muted-foreground)]">
+          <div className="flex items-center justify-center gap-2 rounded-xl border border-[var(--line-soft)] py-3 text-[12px] text-[var(--muted-foreground)]">
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-[var(--accent)] border-t-transparent" />
             {mode === "premium" ? "Premium AI tailoring…" : "Generating resume…"}
           </div>
@@ -938,7 +938,7 @@ function GeneratePanel({
           <button
             onClick={generate}
             disabled={!canGenerate}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[12px] font-medium text-white transition hover:opacity-90 disabled:opacity-40"
           >
             <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
@@ -963,7 +963,7 @@ export function ResumesPageContent({
   tier?: UserTier;
 }) {
   const router = useRouter();
-  const [selectedId, setSelectedId] = useState<string | null>(resumes[0]?.id ?? null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showGenerate, setShowGenerate] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -1039,15 +1039,16 @@ export function ResumesPageContent({
       {/* Page header */}
       <div className="flex shrink-0 items-end justify-between pb-5">
         <div>
-          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Resume</div>
-          <h1 className="text-[24px] font-normal tracking-[-0.02em]">
-            Tailored resumes
-            {resumes.length > 0 && <span className="ml-2 text-[var(--muted-foreground)] font-normal">· {resumes.length}</span>}
+          <h1 className="nr-display" style={{ fontSize: 24, marginBottom: 4 }}>
+            Resumes
+            {resumes.length > 0 && <span style={{ color: "var(--muted-foreground)", fontWeight: 400, fontSize: 18 }}> · {resumes.length}</span>}
           </h1>
+          <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>AI-tailored resumes for every role you apply to.</p>
         </div>
         <button
           onClick={() => { setShowGenerate(true); setSelectedId(null); }}
-          className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[13px] font-medium text-white transition hover:opacity-90"
+          className="flex items-center gap-2 rounded-[8px] bg-[var(--accent)] px-4 py-2 text-[12px] font-medium text-white transition hover:opacity-90"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 3c.3 3.5 3.5 6.5 7 7-3.5.3-6.7 3.5-7 7-.3-3.5-3.5-6.7-7-7 3.5-.3 6.7-3.5 7-7Z" />
@@ -1065,7 +1066,8 @@ export function ResumesPageContent({
             <select
               value={filterBy}
               onChange={(e) => { setFilterBy(e.target.value as typeof filterBy); setDisplayCount(25); }}
-              className="flex-1 rounded-md border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-1 text-[11px] outline-none focus:border-[var(--accent)]"
+              className="flex-1 rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-2.5 py-1.5 text-[12px] text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+              style={{ fontFamily: "var(--font-body)" }}
             >
               <option value="all">All resumes</option>
               <option value="ai">Job-tied</option>
@@ -1074,7 +1076,8 @@ export function ResumesPageContent({
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              className="rounded-md border border-[var(--line-soft)] bg-[var(--surface)] px-2 py-1 text-[11px] outline-none focus:border-[var(--accent)]"
+              className="rounded-[6px] border border-[var(--line-soft)] bg-[var(--surface)] px-2.5 py-1.5 text-[12px] text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
+              style={{ fontFamily: "var(--font-body)" }}
             >
               <option value="newest">Newest</option>
               <option value="oldest">Oldest</option>
@@ -1089,7 +1092,7 @@ export function ResumesPageContent({
                 type="button"
                 onClick={handleBatchDelete}
                 disabled={batchPending}
-                className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--bad)] hover:underline disabled:opacity-40"
+                className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] hover:underline disabled:opacity-40"
               >
                 Delete
               </button>
@@ -1100,7 +1103,7 @@ export function ResumesPageContent({
           )}
           <div className="flex-1 overflow-auto p-2">
           {filtered.length === 0 ? (
-            <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[13px] text-[var(--muted-foreground)]">
+            <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[12px] text-[var(--muted-foreground)]">
               {resumes.length === 0 ? (
                 <>
                   <p>No resumes yet</p>
@@ -1139,7 +1142,7 @@ export function ResumesPageContent({
                   >
                     <div className="mb-1 flex items-center gap-2">
                       {company && <CompanyLogo name={company} size={20} />}
-                      <span className="text-[13px] font-medium">{company || r.title}</span>
+                      <span className="text-[12px] font-medium">{company || r.title}</span>
                     </div>
                     <div className="text-[12.5px] text-[var(--muted-foreground)]">
                       {r.jobs?.title ?? r.title}
@@ -1194,9 +1197,11 @@ export function ResumesPageContent({
               <button
                 type="button"
                 onClick={() => setDisplayCount((c) => c + 25)}
-                className="mt-1 w-full rounded-[6px] py-2 text-center font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] hover:bg-[var(--surface-soft)] transition"
+                className="mt-2 w-full rounded-[6px] border border-[var(--line-soft)] py-2 text-center text-[12px] text-[var(--muted-foreground)] hover:text-[var(--foreground)] hover:border-[var(--line)] transition"
+                style={{ fontFamily: "var(--font-body)" }}
               >
-                Show {Math.min(remaining, 25)} more ({remaining} remaining)
+                Load {Math.min(remaining, 25)} more
+                <span style={{ fontSize: 12, color: "var(--muted-foreground-2)" }}> · {remaining} remaining</span>
               </button>
             )}
             </>
@@ -1206,10 +1211,23 @@ export function ResumesPageContent({
 
         {/* Main panel */}
         <div className="min-w-0 min-h-[300px] flex-1">
-          {showGenerate || !resolvedSelected ? (
+          {showGenerate ? (
             <GeneratePanel jobs={jobs} tier={tier} onGenerated={handleGenerated} />
-          ) : (
+          ) : resolvedSelected ? (
             <ResumePanel resume={resolvedSelected} onResumeUpdated={handleResumeUpdated} />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 rounded-[10px] border border-dashed border-[var(--line-soft)]" style={{ minHeight: 300 }}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted-foreground-2)" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+              </svg>
+              <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>Select a resume to preview it</p>
+              <button
+                onClick={() => setShowGenerate(true)}
+                style={{ fontSize: 13, color: "var(--accent)", background: "none", border: "none", cursor: "pointer" }}
+              >
+                or generate a new one →
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -1245,7 +1263,7 @@ export function ResumeDetailPageContent({
           <div>
             <h1 className="text-[22px] font-semibold tracking-[-0.01em]">{resume.title}</h1>
             <div className="mt-1 flex flex-wrap items-center gap-3">
-              <span className={`rounded-md px-2 py-0.5 font-mono text-[11px] font-medium uppercase tracking-[0.1em] ${resume.status === "final" ? "bg-[var(--ok)] text-white" : "border border-[var(--line-soft)] text-[var(--muted-foreground)]"}`}>
+              <span className={`rounded-md px-2 py-0.5 text-[11px] font-medium uppercase tracking-[0.05em] ${resume.status === "final" ? "bg-[var(--ok)] text-white" : "border border-[var(--line-soft)] text-[var(--muted-foreground)]"}`}>
                 {resume.status}
               </span>
               {resume.coverage !== null && (
@@ -1259,7 +1277,7 @@ export function ResumeDetailPageContent({
           {baseCv && (
             <button
               onClick={() => setDiffMode((v) => !v)}
-              className="rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[13px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              className="rounded-lg border border-[var(--line-soft)] px-3 py-1.5 text-[12px] text-[var(--muted-foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
             >
               {diffMode ? "Resume view" : "Compare with CV"}
             </button>
@@ -1268,7 +1286,7 @@ export function ResumeDetailPageContent({
             href={`/api/resume/${resume.id}/html`}
             target="_blank"
             rel="noopener noreferrer"
-            className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-[13px] font-medium text-white transition hover:opacity-90"
+            className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-[12px] font-medium text-white transition hover:opacity-90"
           >
             Download PDF
           </a>
@@ -1278,11 +1296,11 @@ export function ResumeDetailPageContent({
       {diffMode && baseCv && (
         <div className="mb-6 grid gap-4 lg:grid-cols-2">
           <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Base CV</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Base CV</p>
             <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[var(--foreground)]">{baseCv}</pre>
           </div>
           <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-            <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Tailored resume</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Tailored resume</p>
             <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-[var(--foreground)]">{resume.content ?? "No content saved"}</pre>
           </div>
         </div>
@@ -1290,7 +1308,7 @@ export function ResumeDetailPageContent({
 
       {!data && (
         <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-          <p className="text-[13px] text-[var(--muted-foreground)]">Resume content not available.</p>
+          <p className="text-[12px] text-[var(--muted-foreground)]">Resume content not available.</p>
         </div>
       )}
 
@@ -1309,14 +1327,14 @@ export function ResumeDetailPageContent({
 
           {data.summary && (
             <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-              <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Summary</p>
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Summary</p>
               <p className="text-[13.5px] leading-[1.65]">{data.summary}</p>
             </div>
           )}
 
           {data.competencies && data.competencies.length > 0 && (
             <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Core Competencies</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Core Competencies</p>
               <div className="flex flex-wrap gap-2">
                 {data.competencies.map((c, i) => (
                   <Badge key={i} tone="accent">{c}</Badge>
@@ -1327,7 +1345,7 @@ export function ResumeDetailPageContent({
 
           {data.experience && data.experience.length > 0 && (
             <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-              <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Experience</p>
+              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Experience</p>
               <div className="space-y-5">
                 {data.experience.map((e, i) => (
                   <div key={i}>
@@ -1340,7 +1358,7 @@ export function ResumeDetailPageContent({
                         {e.period}{e.location ? ` · ${e.location}` : ""}
                       </span>
                     </div>
-                    <ul className="ml-4 mt-2 space-y-1 text-[13px]">
+                    <ul className="ml-4 mt-2 space-y-1 text-[12px]">
                       {e.bullets.map((b, j) => (
                         <li key={j} className="list-disc text-[var(--muted-foreground)]">{b}</li>
                       ))}
@@ -1353,7 +1371,7 @@ export function ResumeDetailPageContent({
 
           {data.education && data.education.length > 0 && (
             <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Education</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Education</p>
               <div className="space-y-2">
                 {data.education.map((e, i) => (
                   <div key={i} className="text-[13.5px]">
@@ -1369,10 +1387,10 @@ export function ResumeDetailPageContent({
 
           {data.skills && Object.keys(data.skills).length > 0 && (
             <div className="rounded-xl border border-[var(--line-soft)] bg-[var(--surface)] p-5">
-              <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">Skills</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Skills</p>
               <div className="space-y-2">
                 {Object.entries(data.skills).map(([cat, items]) => (
-                  <div key={cat} className="flex gap-3 text-[13px]">
+                  <div key={cat} className="flex gap-3 text-[12px]">
                     <span className="w-28 shrink-0 font-medium text-[var(--muted-foreground)]">{cat}</span>
                     <span>{items.join(", ")}</span>
                   </div>

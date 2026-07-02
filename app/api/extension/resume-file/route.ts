@@ -68,9 +68,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse(html, {
       headers: {
         "Content-Type": "text/html; charset=utf-8",
-        "Content-Disposition": `attachment; filename="nextrole_resume.html"`,
+        "Content-Disposition": `attachment; filename="braevity_resume.html"`,
         "Content-Length": String(Buffer.byteLength(html, "utf8")),
-        "X-File-Name": "nextrole_resume.html",
+        "X-File-Name": "braevity_resume.html",
         "Cache-Control": "private, no-store",
       },
     });
@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse(rtf, {
       headers: {
         "Content-Type": "application/rtf",
-        "Content-Disposition": `attachment; filename="nextrole_resume.rtf"`,
+        "Content-Disposition": `attachment; filename="braevity_resume.rtf"`,
         "Content-Length": String(Buffer.byteLength(rtf, "utf8")),
-        "X-File-Name": "nextrole_resume.rtf",
+        "X-File-Name": "braevity_resume.rtf",
         "Cache-Control": "private, no-store",
       },
     });
@@ -102,9 +102,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse(new Uint8Array(docx), {
       headers: {
         "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        "Content-Disposition": `attachment; filename="nextrole_resume.docx"`,
+        "Content-Disposition": `attachment; filename="braevity_resume.docx"`,
         "Content-Length": String(docx.byteLength),
-        "X-File-Name": "nextrole_resume.docx",
+        "X-File-Name": "braevity_resume.docx",
         "Cache-Control": "private, no-store",
       },
     });
@@ -120,9 +120,9 @@ export async function GET(req: NextRequest) {
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="nextrole_resume.pdf"`,
+      "Content-Disposition": `attachment; filename="braevity_resume.pdf"`,
       "Content-Length": String(pdf.byteLength),
-      "X-File-Name": "nextrole_resume.pdf",
+      "X-File-Name": "braevity_resume.pdf",
       "Cache-Control": "private, no-store",
     },
   });

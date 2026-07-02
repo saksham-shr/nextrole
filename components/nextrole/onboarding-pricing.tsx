@@ -134,7 +134,7 @@ function StepIndicator({ current }: { current: Step }) {
                 {done ? "✓" : n}
               </span>
               <span className={[
-                "font-mono text-[10px] uppercase tracking-[0.14em]",
+                "text-[11px] font-semibold uppercase tracking-[0.05em]",
                 active ? "text-[var(--foreground)]" : "text-[var(--muted-foreground)]",
               ].join(" ")}>
                 {label}
@@ -208,7 +208,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
       const rzp = new window.Razorpay({
         key: data.key_id ?? RZP_KEY,
         subscription_id: data.subscription_id,
-        name: "NextRole", description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
+        name: "Braevity", description: `${tierId.charAt(0).toUpperCase() + tierId.slice(1)} — ${period}`,
         prefill: { email }, theme: { color: "#c84a1f" },
         handler: async (paymentRes) => {
           const verify = await fetch("/api/razorpay/verify-payment", {
@@ -308,7 +308,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
           </div>
 
           <div className="rounded-[20px] border border-[var(--line-soft)] bg-[var(--surface)] p-6">
-            <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
+            <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-2">
               Your CV text
             </label>
             <textarea
@@ -316,7 +316,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
               onChange={e => setCvText(e.target.value)}
               rows={13}
               placeholder={"John Smith\nSoftware Engineer · Bengaluru\n\nEXPERIENCE\n\nSenior Engineer · Acme Corp (2021–present)\n..."}
-              className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] p-3 text-sm text-[var(--foreground)] font-mono resize-y outline-none focus:border-[var(--accent)] transition-colors"
+              className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] p-3 text-[13px] text-[var(--foreground)] font-mono resize-y outline-none focus:border-[var(--accent)] transition-colors"
               style={{ minHeight: 240 }}
             />
             <p className="mt-2 font-mono text-[9px] text-[var(--muted-foreground-2)]">
@@ -328,7 +328,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+              className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
             >
               Skip for now
             </button>
@@ -336,7 +336,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
               type="button"
               onClick={handleCvNext}
               disabled={cvBusy}
-              className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition hover:opacity-90 disabled:opacity-50"
+              className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] transition hover:opacity-90 disabled:opacity-50"
             >
               {cvBusy ? "Saving…" : "Continue →"}
             </button>
@@ -359,7 +359,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
           <div className="mb-8 text-center">
             <h1 className="font-serif text-4xl font-bold text-[var(--foreground)]">Job preferences</h1>
             <p className="mt-2 text-[var(--muted-foreground)] text-sm">
-              Help NextRole match you to the right roles. You can update these anytime.
+              Help Braevity match you to the right roles. You can update these anytime.
             </p>
           </div>
 
@@ -375,7 +375,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
 
             {/* Target roles */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5">
                 Target roles
               </label>
               <input
@@ -383,14 +383,14 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                 value={targetRoles}
                 onChange={e => setTargetRoles(e.target.value)}
                 placeholder="Software Engineer, Product Manager, Data Scientist, ..."
-                className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
+                className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
               />
               <p className="mt-1 font-mono text-[9px] text-[var(--muted-foreground-2)]">Separate multiple roles with commas</p>
             </div>
 
             {/* Preferred locations */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5">
                 Preferred locations
               </label>
               <input
@@ -398,14 +398,14 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                 value={targetLocations}
                 onChange={e => setTargetLocations(e.target.value)}
                 placeholder="Bengaluru, Mumbai, Remote, ..."
-                className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
+                className="w-full bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
               />
               <p className="mt-1 font-mono text-[9px] text-[var(--muted-foreground-2)]">Separate multiple locations with commas</p>
             </div>
 
             {/* Work mode */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-2">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-2">
                 Work mode
               </label>
               <div style={{ display: "flex", gap: 8 }}>
@@ -415,7 +415,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                     type="button"
                     onClick={() => setWorkMode(prev => prev === mode ? null : mode)}
                     className={[
-                      "rounded-full px-4 py-1.5 font-mono text-[10px] uppercase tracking-[0.14em] border transition",
+                      "rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] border transition",
                       workMode === mode
                         ? "bg-[var(--accent)] text-white border-[var(--accent)]"
                         : "border-[var(--line-soft)] text-[var(--muted-foreground)] hover:border-[var(--line)]",
@@ -429,7 +429,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
 
             {/* Salary range */}
             <div>
-              <label className="block font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted-foreground)] mb-1.5">
+              <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] mb-1.5">
                 Expected salary (₹ LPA)
               </label>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -440,7 +440,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                   value={salaryMin}
                   onChange={e => setSalaryMin(e.target.value)}
                   placeholder="Min"
-                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
+                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
                   style={{ width: 110 }}
                 />
                 <span className="font-mono text-[10px] text-[var(--muted-foreground)]">to</span>
@@ -451,7 +451,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                   value={salaryMax}
                   onChange={e => setSalaryMax(e.target.value)}
                   placeholder="Max"
-                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
+                  className="bg-[var(--background)] border border-[var(--line-soft)] rounded-[8px] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none focus:border-[var(--accent)] transition-colors"
                   style={{ width: 110 }}
                 />
                 <span className="font-mono text-[9px] text-[var(--muted-foreground-2)]">lakhs per year</span>
@@ -463,14 +463,14 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
               <button
                 type="button"
                 onClick={skipToEnd}
-                className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
+                className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] hover:text-[var(--foreground)] transition-colors"
               >
                 Skip for now
               </button>
               <button
                 type="submit"
                 disabled={prefsBusy}
-                className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition hover:opacity-90 disabled:opacity-50"
+                className="rounded-full bg-[var(--foreground)] text-[var(--background)] px-6 py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] transition hover:opacity-90 disabled:opacity-50"
               >
                 {prefsBusy ? "Saving…" : "Finish setup →"}
               </button>
@@ -490,7 +490,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
         <div className="mb-10 flex items-center justify-between">
           <BrandWordmark />
           {daysLeft !== null && (
-            <span className="rounded-full border border-[var(--accent)] bg-[#fcefe7] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+            <span className="rounded-full border border-[var(--accent)] bg-[#fcefe7] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">
               {daysLeft}d trial active
             </span>
           )}
@@ -508,7 +508,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
 
           <div className="mt-6 inline-flex items-center gap-1 rounded-xl border border-[var(--line-soft)] bg-[var(--surface-soft)] p-1">
             <button onClick={() => setPeriod("monthly")}
-              className={`rounded-lg px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] font-semibold transition ${
+              className={`rounded-lg px-4 py-1.5 text-[11px] uppercase tracking-[0.05em] font-semibold transition ${
                 period === "monthly"
                   ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm"
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -516,7 +516,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
               Monthly
             </button>
             <button onClick={() => setPeriod("yearly")}
-              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] font-semibold transition ${
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-[11px] uppercase tracking-[0.05em] font-semibold transition ${
                 period === "yearly"
                   ? "bg-[var(--surface)] text-[var(--foreground)] shadow-sm"
                   : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -561,7 +561,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
               >
                 <div className="mb-2 flex min-h-[20px] items-center justify-between gap-1">
                   {tier.badge ? (
-                    <span className="inline-block rounded-full border border-[var(--line-soft)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+                    <span className="inline-block rounded-full border border-[var(--line-soft)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                       {tier.badge}
                     </span>
                   ) : <span />}
@@ -572,7 +572,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                   )}
                 </div>
 
-                <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-[var(--muted-foreground)]">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                   {tier.name}
                 </p>
                 <div className="mt-1">
@@ -600,7 +600,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                 <div className="mt-5">
                   {tier.id === "free" ? (
                     <button onClick={() => handleFreeOrByok("free")} disabled={!!loading}
-                      className="w-full rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50">
+                      className="w-full rounded-full border border-[var(--line-soft)] bg-transparent py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--foreground)] transition hover:border-[var(--line)] disabled:opacity-50">
                       {isLoading ? "Starting…" : tier.cta}
                     </button>
                   ) : isPaid ? (
@@ -608,7 +608,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
                       onClick={() => handlePaidTier(tier.id as "starter" | "pro")}
                       disabled={!!loading}
                       className={[
-                        "w-full rounded-full py-2.5 font-mono text-[11px] uppercase tracking-[0.18em] transition disabled:opacity-50",
+                        "w-full rounded-full py-2.5 text-[11px] font-semibold uppercase tracking-[0.05em] transition disabled:opacity-50",
                         tier.ctaStyle === "primary"
                           ? "bg-[var(--foreground)] text-[var(--background)] hover:opacity-90"
                           : "border border-[var(--line-soft)] text-[var(--foreground)] hover:border-[var(--line)]",
@@ -622,7 +622,7 @@ export function OnboardingPricing({ trialEndsAt, email, currentTier = "free" }: 
           })}
         </div>
 
-        <p className="mt-8 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+        <p className="mt-8 text-center text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
           No credit card required · Cancel anytime
         </p>
       </div>

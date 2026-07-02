@@ -112,7 +112,7 @@ export function PricingCards({ commerce }: { commerce?: PricingCommerce } = {}) 
 
       {/* Free — always shown */}
       <div className="flex flex-col rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-7">
-        <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Free</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Free</p>
         <div className="mt-3 flex items-baseline gap-1.5">
           <span className="text-[38px] font-normal leading-none tracking-[-0.02em]" style={{ fontFamily: "var(--font-display)" }}>$0</span>
           <span className="text-[13px] text-[var(--muted-foreground)]">forever</span>
@@ -132,8 +132,8 @@ export function PricingCards({ commerce }: { commerce?: PricingCommerce } = {}) 
       {flags.starter_enabled ? (
         <div className="flex flex-col rounded-2xl border-2 border-[var(--accent)] bg-[var(--surface)] p-7 shadow-[0_4px_24px_rgba(200,74,31,0.12)]">
           <div className="mb-3 flex items-center justify-between">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--accent)]">Starter</p>
-            <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-white">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">Starter</p>
+            <span className="rounded-full bg-[var(--accent)] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-white">
               Most popular
             </span>
           </div>
@@ -165,8 +165,8 @@ export function PricingCards({ commerce }: { commerce?: PricingCommerce } = {}) 
       {flags.pro_enabled ? (
         <div className="flex flex-col rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-7">
           <div className="mb-3 flex items-center justify-between">
-            <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Pro</p>
-            <span className="rounded-full border border-[var(--line-soft)] bg-[var(--surface-soft)] px-2.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Pro</p>
+            <span className="rounded-full border border-[var(--line-soft)] bg-[var(--surface-soft)] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
               ★ Full power
             </span>
           </div>
@@ -204,7 +204,7 @@ export function PricingCards({ commerce }: { commerce?: PricingCommerce } = {}) 
 function DisabledPlanCard({ name }: { name: string }) {
   return (
     <div className="flex flex-col rounded-2xl border border-dashed border-[var(--line-soft)] bg-[var(--surface)] p-7 opacity-70">
-      <p className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{name}</p>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">{name}</p>
       <div className="mt-3 flex items-baseline gap-1.5">
         <span className="text-[38px] font-normal leading-none tracking-[-0.02em] text-[var(--muted-foreground)]" style={{ fontFamily: "var(--font-display)" }}>—</span>
       </div>

@@ -11,7 +11,7 @@ function DeleteSubmitButton() {
     <button
       type="submit"
       disabled={pending}
-      className="font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--bad)] opacity-70 transition hover:opacity-100 disabled:opacity-30"
+      className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] opacity-70 transition hover:opacity-100 disabled:opacity-30"
     >
       {pending ? "Deleting…" : "Delete"}
     </button>

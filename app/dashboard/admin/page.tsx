@@ -214,7 +214,7 @@ export default async function AdminDashboardPage({
     }`;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" style={{ maxWidth: 1060, margin: "0 auto" }}>
       <Header />
 
       <div className="flex flex-wrap gap-1 border-b border-[var(--line-soft)] pb-0">
@@ -349,10 +349,8 @@ function Header() {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--muted-foreground)]">
-          Admin panel
-        </p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">Workspace control</h1>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 24, fontWeight: 700, letterSpacing: "-0.02em", marginBottom: 4 }}>Admin</h1>
+        <p style={{ fontSize: 14, color: "var(--muted-foreground)" }}>Platform administration.</p>
       </div>
       <Badge tone="accent">Admins only</Badge>
     </div>

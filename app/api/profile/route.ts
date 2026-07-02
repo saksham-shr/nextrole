@@ -32,6 +32,8 @@ const PRONOUNS     = ["he_him", "she_her", "they_them", "prefer_not_to_say"] as 
 const VETERAN      = ["not_veteran", "protected_veteran", "prefer_not_to_say"] as const;
 const DISABILITY   = ["no", "yes", "prefer_not_to_say"] as const;
 const EMP_TYPES    = ["full_time", "part_time", "contract", "internship", "freelance"] as const;
+const MARITAL      = ["single", "married", "divorced", "widowed", "separated"] as const;
+const CURRENCIES   = ["INR", "USD", "GBP", "EUR", "AED", "SGD", "CAD", "AUD"] as const;
 
 function inEnum<T extends readonly string[]>(list: T, v: unknown): v is T[number] {
   return typeof v === "string" && (list as readonly string[]).includes(v);
@@ -124,13 +126,18 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   };
 
   // Identity
-  set("full_name", clampStr(body.full_name, 200));
+  set("full_name",   clampStr(body.full_name, 200));
+  set("first_name",  clampStr(body.first_name, 100));
+  set("last_name",   clampStr(body.last_name, 100));
 
   // Contact
-  set("phone",         clampStr(body.phone, 40));
-  set("linkedin_url",  clampStr(body.linkedin_url, 500));
-  set("github_url",    clampStr(body.github_url, 500));
-  set("portfolio_url", clampStr(body.portfolio_url, 500));
+  set("phone",             clampStr(body.phone, 40));
+  set("phone_country_code", clampStr(body.phone_country_code, 10));
+  set("alternate_phone",   clampStr(body.alternate_phone, 40));
+  set("linkedin_url",      clampStr(body.linkedin_url, 500));
+  set("github_url",        clampStr(body.github_url, 500));
+  set("portfolio_url",     clampStr(body.portfolio_url, 500));
+  set("naukri_url",        clampStr(body.naukri_url, 500));
 
   // Location
   set("country",        clampStr(body.country, 100));
@@ -138,6 +145,11 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   set("state_province", clampStr(body.state_province, 100));
   set("zip_postal",     clampStr(body.zip_postal, 30));
   set("street_address", clampStr(body.street_address, 300));
+  set("address_line2",  clampStr(body.address_line2, 300));
+  if (typeof body.permanent_address_same === "boolean") {
+    set("permanent_address_same", body.permanent_address_same);
+  }
+  set("permanent_address", clampStr(body.permanent_address, 500));
 
   // Work preferences
   if (body.work_mode === null || inEnum(WORK_MODES, body.work_mode)) {
@@ -149,19 +161,32 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   if (body.notice_period === null || inEnum(NOTICE, body.notice_period)) {
     set("notice_period", body.notice_period);
   }
+  set("notice_period_note", clampStr(body.notice_period_note, 300));
+  if (typeof body.open_to_hybrid === "boolean") set("open_to_hybrid", body.open_to_hybrid);
   if (typeof body.years_experience === "number") {
     set("years_experience", Math.max(0, Math.min(50, body.years_experience)));
   }
+  if (typeof body.willing_to_relocate === "boolean") set("willing_to_relocate", body.willing_to_relocate);
+  if (typeof body.sponsorship_needed === "boolean") set("sponsorship_needed", body.sponsorship_needed);
+  if (body.available_from === null || (typeof body.available_from === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.available_from))) {
+    set("available_from", body.available_from || null);
+  }
+  set("nationality", clampStr(body.nationality, 100));
+
+  // Compensation
+  if (typeof body.current_ctc === "number") set("current_ctc", Math.max(0, body.current_ctc));
+  if (body.current_ctc === null) set("current_ctc", null);
+  if (typeof body.expected_salary_min === "number") set("expected_salary_min", Math.max(0, body.expected_salary_min));
+  if (body.expected_salary_min === null) set("expected_salary_min", null);
+  if (typeof body.expected_salary_max === "number") set("expected_salary_max", Math.max(0, body.expected_salary_max));
+  if (body.expected_salary_max === null) set("expected_salary_max", null);
+  if (body.salary_currency === null || inEnum(CURRENCIES, body.salary_currency)) {
+    set("salary_currency", body.salary_currency);
+  }
+  // legacy breakdown columns (Bajaj, Keka)
   if (typeof body.comp_min === "number") set("comp_min", Math.max(0, body.comp_min));
   if (typeof body.comp_max === "number") set("comp_max", Math.max(0, body.comp_max));
   if (typeof body.current_comp === "number") set("current_comp", Math.max(0, body.current_comp));
-  if (typeof body.willing_to_relocate === "boolean") {
-    set("willing_to_relocate", body.willing_to_relocate);
-  }
-  if (typeof body.sponsorship_needed === "boolean") {
-    set("sponsorship_needed", body.sponsorship_needed);
-  }
-  set("nationality", clampStr(body.nationality, 100));
 
   if (Array.isArray(body.target_roles)) {
     set("target_roles", validateSkills(body.target_roles));
@@ -173,12 +198,46 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   // EEO (each is independent — user may fill some, leave others blank)
   if (body.gender === null || inEnum(GENDERS, body.gender)) set("gender", body.gender);
   if (body.pronouns === null || inEnum(PRONOUNS, body.pronouns)) set("pronouns", body.pronouns);
+  if (body.marital_status === null || inEnum(MARITAL, body.marital_status)) set("marital_status", body.marital_status);
   set("race_ethnicity", clampStr(body.race_ethnicity, 100));
   if (body.veteran_status === null || inEnum(VETERAN, body.veteran_status)) {
     set("veteran_status", body.veteran_status);
   }
   if (body.disability_status === null || inEnum(DISABILITY, body.disability_status)) {
     set("disability_status", body.disability_status);
+  }
+  if (typeof body.hispanic_or_latino === "boolean" || body.hispanic_or_latino === null) {
+    set("hispanic_or_latino", body.hispanic_or_latino);
+  }
+  if (typeof body.lgbtq_member === "boolean" || body.lgbtq_member === null) {
+    set("lgbtq_member", body.lgbtq_member);
+  }
+  set("accommodation_needed", clampStr(body.accommodation_needed, 300));
+  if (typeof body.indian_army_veteran === "boolean" || body.indian_army_veteran === null) {
+    set("indian_army_veteran", body.indian_army_veteran);
+  }
+
+  // Work auth compliance
+  if (typeof body.govt_military_member === "boolean") set("govt_military_member", body.govt_military_member);
+  if (typeof body.signed_non_compete === "boolean") set("signed_non_compete", body.signed_non_compete);
+  if (Array.isArray(body.authorized_countries)) {
+    set("authorized_countries", validateSkills(body.authorized_countries));
+  }
+
+  // Government IDs (JSONB — validate as object with string values only)
+  if (body.government_ids !== undefined) {
+    if (body.government_ids === null) {
+      set("government_ids", null);
+    } else if (typeof body.government_ids === "object" && !Array.isArray(body.government_ids)) {
+      const raw = body.government_ids as Record<string, unknown>;
+      const ids: Record<string, string> = {};
+      const allowed = ["pan", "aadhaar", "passport", "voter_id"] as const;
+      for (const k of allowed) {
+        const v = clampStr(raw[k], 20);
+        if (v) ids[k] = v;
+      }
+      set("government_ids", ids);
+    }
   }
 
   // Structured CV data
@@ -200,10 +259,9 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
     set("base_cv", body.base_cv.slice(0, 20000));
   }
 
-  // New ATS autofill fields
+  // ATS autofill extras
   set("middle_name",        clampStr(body.middle_name, 100));
   set("work_authorization", clampStr(body.work_authorization, 100));
-  set("phone_country_code", clampStr(body.phone_country_code, 10));
   if (body.dob === null || (typeof body.dob === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.dob))) {
     set("dob", body.dob || null);
   }
@@ -225,28 +283,16 @@ function buildPatch(body: Record<string, unknown>): ProfileUpdate {
   if (ca !== null) set("custom_archetypes", ca);
 
   // Application Details (Tier 2 — ATS-specific autofill extras)
-  set("name_prefix",         clampStr(body.name_prefix, 20));
-  set("preferred_name",      clampStr(body.preferred_name, 100));
-  set("fathers_name",        clampStr(body.fathers_name, 200));
-  set("local_given_name",    clampStr(body.local_given_name, 100));
-  set("local_family_name",   clampStr(body.local_family_name, 100));
-
-  set("address_line2",       clampStr(body.address_line2, 300));
-  if (typeof body.permanent_address_same === "boolean") {
-    set("permanent_address_same", body.permanent_address_same);
-  }
-  set("permanent_address",   clampStr(body.permanent_address, 500));
-
-  set("notice_period_note",  clampStr(body.notice_period_note, 300));
-  if (typeof body.open_to_hybrid === "boolean") set("open_to_hybrid", body.open_to_hybrid);
-  if (typeof body.govt_military_member === "boolean") set("govt_military_member", body.govt_military_member);
-  if (typeof body.signed_non_compete === "boolean") set("signed_non_compete", body.signed_non_compete);
+  set("name_prefix",       clampStr(body.name_prefix, 20));
+  set("preferred_name",    clampStr(body.preferred_name, 100));
+  set("fathers_name",      clampStr(body.fathers_name, 200));
+  set("local_given_name",  clampStr(body.local_given_name, 100));
+  set("local_family_name", clampStr(body.local_family_name, 100));
 
   set("category", clampStr(body.category, 50));
 
-  set("naukri_url",        clampStr(body.naukri_url, 500));
-  set("publications_url",  clampStr(body.publications_url, 500));
-  set("other_url",         clampStr(body.other_url, 500));
+  set("publications_url", clampStr(body.publications_url, 500));
+  set("other_url",        clampStr(body.other_url, 500));
 
   if (typeof body.ctc_fixed === "number") set("ctc_fixed", Math.max(0, body.ctc_fixed));
   if (typeof body.ctc_variable === "number") set("ctc_variable", Math.max(0, body.ctc_variable));

@@ -3,64 +3,79 @@ export const navGroups: Array<{
   items: Array<{ label: string; href: string }>;
 }> = [
   {
-    title: "Core",
+    title: "Workspace",
     items: [
       { label: "Dashboard", href: "/dashboard" },
       { label: "Pipeline",  href: "/dashboard/pipeline" },
       { label: "Evaluate",  href: "/dashboard/evaluate" },
+      { label: "Explore",   href: "/dashboard/explore" },
     ],
   },
   {
-    title: "Documents",
+    title: "Profile & Documents",
     items: [
+      { label: "Profile", href: "/dashboard/profile" },
       { label: "Resumes", href: "/dashboard/resumes" },
     ],
   },
   {
     title: "Account",
     items: [
-      { label: "Billing",  href: "/dashboard/billing" },
-      { label: "Settings", href: "/dashboard/settings" },
+      { label: "Settings",          href: "/dashboard/settings" },
+      { label: "Billing",           href: "/dashboard/billing" },
+      { label: "Connect Extension", href: "/connect-extension" },
     ],
   },
 ];
 
+// Admin group is appended by DashboardShell only when the user is an admin:
+//   { title: "Admin", items: [{ label: "Admin", href: "/dashboard/admin" }] }
+
 export const quickActions = [
-  { label: "Add Job to Pipeline",     href: "/dashboard/pipeline" },
-  { label: "Evaluate Job",            href: "/dashboard/evaluate" },
-  { label: "Generate Tailored Resume",href: "/dashboard/resumes" },
-  { label: "Edit CV",                 href: "/dashboard/settings" },
+  { label: "Add Job to Pipeline",      href: "/dashboard/pipeline" },
+  { label: "Evaluate a Job",           href: "/dashboard/evaluate" },
+  { label: "Generate Tailored Resume", href: "/dashboard/resumes" },
+  { label: "Edit Profile / CV",        href: "/dashboard/profile" },
+  { label: "Connect Browser Support",  href: "/connect-extension" },
 ] as const;
 
 
 const dashboardRouteInfo = {
   dashboard: {
     title: "Dashboard",
-    subtitle: "Your job search at a glance.",
+    subtitle: "Your job search at a glance — and your next best step.",
   },
   evaluate: {
     title: "Evaluate",
-    subtitle: "Paste a URL or job description and run the full AI scoring flow.",
+    subtitle: "Paste a job URL or description to score fit, surface gaps, and decide your next move.",
   },
   pipeline: {
     title: "Pipeline",
-    subtitle: "Track your job applications across all stages.",
+    subtitle: "Track every opportunity across Saved, Evaluated, Applied, Interview, and Offer.",
+  },
+  explore: {
+    title: "Explore",
+    subtitle: "Browse roles matched to your profile and add the promising ones to your pipeline.",
   },
   resumes: {
     title: "Resumes",
-    subtitle: "Tailored resume library with PDF exports and coverage notes.",
+    subtitle: "Your tailored resume library, with coverage notes and exports.",
   },
   "resumes.detail": {
     title: "Resume Detail",
-    subtitle: "Review one tailored resume and its alignment to the target role.",
+    subtitle: "Review one tailored resume and how well it aligns to the target role.",
+  },
+  profile: {
+    title: "Profile",
+    subtitle: "Your CV and preferences power evaluations, tailoring, and autofill answers.",
   },
   billing: {
-    title: "Billing",
-    subtitle: "Manage your plan, credits, and subscription.",
+    title: "Plan & Credits",
+    subtitle: "Manage your plan, credits, usage, and referrals.",
   },
   settings: {
     title: "Settings",
-    subtitle: "Account preferences, security, and output defaults.",
+    subtitle: "Account, security, connected browser support, and output defaults.",
   },
   admin: {
     title: "Admin",

@@ -27,7 +27,7 @@ function Badge({ children, tone = "default" }: { children: React.ReactNode; tone
     accent:  "bg-[var(--accent-bg)] text-[var(--accent)]",
   };
   return (
-    <span className={`inline-flex items-center rounded-[5px] px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.1em] ${styles[tone]}`}>
+    <span className={`inline-flex items-center rounded-[5px] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] ${styles[tone]}`}>
       {children}
     </span>
   );
@@ -112,18 +112,18 @@ function BillingSection({
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {isPaid && (
             <div className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Renews / Ends</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Renews / Ends</div>
               <div className="mt-1 text-[13px] font-medium">{fmtDate(renewsAt)}</div>
             </div>
           )}
           {isPaid && (
             <div className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5">
-              <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits today</div>
+              <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Credits today</div>
               <div className="mt-1 text-[13px] font-medium">{creditsRemaining}</div>
             </div>
           )}
           <div className="rounded-lg bg-[var(--surface-soft)] px-3 py-2.5 col-span-2 sm:col-span-1">
-            <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Account</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Account</div>
             <div className="mt-1 truncate text-[12px] text-[var(--muted-foreground)]">{email}</div>
           </div>
         </div>
@@ -269,7 +269,7 @@ function ActivitySection({ log }: { log: Array<{ id: string; activity_type: stri
             <thead className="bg-[var(--surface-soft)]">
               <tr>
                 {["Action", "Credits", "Date"].map((h) => (
-                  <th key={h} className="border-b border-[var(--line-soft)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--muted-foreground)]">
+                  <th key={h} className="border-b border-[var(--line-soft)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
                     {h}
                   </th>
                 ))}
@@ -361,7 +361,7 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
     <Card
       id="extension"
       title="Browser extension"
-      subtitle="Active extension installations connected to your NextRole account."
+      subtitle="Active extension installations connected to your Braevity account."
     >
       {loading && (
         <p className="text-[13px] text-[var(--muted-foreground)]">Loading…</p>
@@ -377,7 +377,7 @@ function ExtensionTokensSection({ onToast }: { onToast: (msg: string) => void })
             No extensions connected.
           </p>
           <p className="mt-1 text-[12px] text-[var(--muted-foreground)]">
-            Install the NextRole extension from the Chrome Web Store and click "Connect account".
+            Install the Braevity extension from the Chrome Web Store and click "Connect account".
           </p>
         </div>
       )}
@@ -510,13 +510,13 @@ function AIEvalSection({ initial }: { initial: AiPrefs }) {
       <div className="flex flex-col gap-5">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Output language</div>
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Output language</div>
             <select className={selectCls} value={prefs.preferred_language} onChange={(e) => setPrefs((p) => ({ ...p, preferred_language: e.target.value }))}>
               {LANGS.map((l) => <option key={l} value={l}>{l}</option>)}
             </select>
           </div>
           <div>
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
               Apply threshold <span className="normal-case text-[var(--muted-foreground-2)]">(apply if score ≥)</span>
             </div>
             <input type="number" min={0} max={5} step={0.5} className={inputCls}
@@ -524,7 +524,7 @@ function AIEvalSection({ initial }: { initial: AiPrefs }) {
               onChange={(e) => setPrefs((p) => ({ ...p, eval_score_apply: parseFloat(e.target.value) }))} />
           </div>
           <div>
-            <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">
+            <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
               Watch threshold <span className="normal-case text-[var(--muted-foreground-2)]">(watch if score ≥)</span>
             </div>
             <input type="number" min={0} max={5} step={0.5} className={inputCls}
@@ -533,7 +533,7 @@ function AIEvalSection({ initial }: { initial: AiPrefs }) {
           </div>
         </div>
         <div>
-          <div className="mb-1.5 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Custom eval focus</div>
+          <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Custom eval focus</div>
           <textarea rows={3} className={inputCls} placeholder="e.g. Prioritise roles with ML infra work over pure SWE…"
             value={prefs.custom_eval_focus}
             onChange={(e) => setPrefs((p) => ({ ...p, custom_eval_focus: e.target.value }))} />
@@ -585,13 +585,13 @@ export function SettingsPageContent({
   }
 
   return (
-    <div className="mx-auto pt-4" style={{ maxWidth: 900 }}>
+    <div className="mx-auto pt-4" style={{ maxWidth: 720 }}>
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[180px_1fr]">
 
         {/* Sidebar */}
         <div className="shrink-0">
           <div className="mb-3">
-            <span className="font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Settings</span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Settings</span>
           </div>
           <div className="flex flex-col gap-0.5">
             {NAV.map((item) => (
@@ -614,7 +614,7 @@ export function SettingsPageContent({
 
         {/* Main */}
         <div className="flex flex-col gap-6">
-          <h1 className="text-[24px] font-normal tracking-[-0.02em]">Settings</h1>
+          <h1 className="nr-display" style={{ fontSize: 24 }}>Settings</h1>
 
           <BillingSection
             tier={tier}

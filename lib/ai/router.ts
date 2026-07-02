@@ -20,7 +20,8 @@ const TASK_TO_ACTIVITY: Record<CreditTask, "evaluate" | "tailor_resume" | "autof
   resume_standard: "tailor_resume",
   resume_premium:  "tailor_resume",
   autofill:        "autofill",
-  tailor:          "tailor_resume",
+  autofill_tailor: "autofill",
+  suggest:         "autofill",
 };
 
 // â”€â”€ Primary model â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

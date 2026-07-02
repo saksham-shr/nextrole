@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
     const res = await fetch(parsed.toString(), {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; NextRole/1.0; +https://nextrole.app)",
+        "User-Agent": "Mozilla/5.0 (compatible; Braevity/1.0; +https://nextrole.app)",
         "Accept": "text/html,application/xhtml+xml,*/*",
         "Accept-Language": "en-US,en;q=0.9",
       },

@@ -151,7 +151,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
 
   const SortHeader = ({ col, label }: { col: SortCol; label: string }) => (
     <th
-      className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)] cursor-pointer select-none hover:text-[var(--foreground)]"
+      className="border-b border-[var(--line)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)] cursor-pointer select-none hover:text-[var(--foreground)]"
       onClick={() => toggleSort(col)}
     >
       {label}{" "}
@@ -173,7 +173,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
             onChange={(e) => setEmailInput(e.target.value)}
             placeholder={"jane@example.com\nbob@company.com"}
             rows={3}
-            className="w-full rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-sm text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
+            className="w-full rounded-[8px] border border-[var(--line-soft)] bg-[var(--background)] px-3 py-2 text-[13px] text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground-2)] focus:border-[var(--line)]"
           />
           <div className="flex items-center gap-3 flex-wrap">
             <select
@@ -197,12 +197,12 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
             </span>
           </div>
           {error && (
-            <p className="rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)]">
+            <p className="rounded-[6px] border border-[var(--bad)] bg-[#faebeb] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">
               {error}
             </p>
           )}
           {success && (
-            <p className="rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--ok)]">
+            <p className="rounded-[6px] border border-[var(--ok)] bg-[#eef8f0] px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--ok)]">
               {success}
             </p>
           )}
@@ -237,7 +237,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
               type="button"
               onClick={handleBatchDelete}
               disabled={isPending}
-              className="font-mono text-[11px] uppercase tracking-[0.14em] text-[var(--bad)] hover:underline disabled:opacity-40"
+              className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] hover:underline disabled:opacity-40"
             >
               Delete selected
             </button>
@@ -268,8 +268,8 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
                     />
                   </th>
                   <SortHeader col="email" label="Email" />
-                  <th className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Tier</th>
-                  <th className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Code</th>
+                  <th className="border-b border-[var(--line)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Tier</th>
+                  <th className="border-b border-[var(--line)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Code</th>
                   <SortHeader col="expires" label="Expires" />
                   <SortHeader col="status" label="Used" />
                   <th className="border-b border-[var(--line)] px-4 py-2.5" />
@@ -298,7 +298,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
                       <td className="px-4 py-3 text-[13px] font-medium text-[var(--foreground)]">{inv.email}</td>
                       <td className="px-4 py-3">
                         <span
-                          className="inline-flex items-center rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em]"
+                          className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em]"
                           style={{
                             background: "rgba(200,74,31,0.08)",
                             border: "1px solid rgba(200,74,31,0.2)",
@@ -316,7 +316,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
                           <button
                             type="button"
                             onClick={() => handleCopyLink(inv)}
-                            className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--accent)] hover:underline"
+                            className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)] hover:underline"
                           >
                             {copiedId === inv.id ? "Copied!" : "Copy link"}
                           </button>
@@ -324,23 +324,23 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
                       </td>
                       <td className="px-4 py-3 text-[12px] text-[var(--muted-foreground)]">
                         {expired ? (
-                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--bad)]">Expired</span>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)]">Expired</span>
                         ) : (
                           formatDate(inv.expires_at)
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {used ? (
-                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--ok)]">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--ok)]">
                             ✓ {formatDate(inv.used_at)}
                           </span>
                         ) : (
-                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Pending</span>
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Pending</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {used ? (
-                          <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground-2)]" title="Cannot remove a used invite">
+                          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]" title="Cannot remove a used invite">
                             —
                           </span>
                         ) : (
@@ -348,7 +348,7 @@ export function AdminInvites({ initial }: { initial: InviteRow[] }) {
                             type="button"
                             onClick={() => handleDelete(inv.email)}
                             disabled={isPending}
-                            className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--bad)] hover:underline disabled:opacity-40"
+                            className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--bad)] hover:underline disabled:opacity-40"
                           >
                             Remove
                           </button>

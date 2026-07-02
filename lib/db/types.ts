@@ -100,12 +100,14 @@ export type ProfileRow = {
   work_mode: "remote" | "hybrid" | "onsite" | null;
   seniority: "junior" | "mid" | "senior" | "staff" | "principal" | null;
   // Compensation
+  current_ctc: number | null;
+  expected_salary_min: number | null;
+  expected_salary_max: number | null;
+  // legacy / breakdown columns kept for Application Details CTC breakdown
   comp_min: number | null;
   comp_max: number | null;
   current_comp: number | null;
   expected_salary: number | null;
-  expected_salary_min: number | null;
-  expected_salary_max: number | null;
   ctc_fixed: number | null;
   ctc_variable: number | null;
   ctc_note: string | null;

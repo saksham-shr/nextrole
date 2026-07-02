@@ -100,7 +100,6 @@ export function CreditsEarnTracker({
                     href={action.href}
                     style={{
                       fontSize: 12, color: "var(--accent)", textDecoration: "none",
-                      fontFamily: "var(--font-mono-stack)",
                     }}
                   >
                     {action.cta}

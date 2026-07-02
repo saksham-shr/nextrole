@@ -1,4 +1,4 @@
-﻿/**
+/**
  * POST /api/extension/resume
  * Auth: Bearer <supabase_jwt>
  *
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
       .from("daily_usage").select("resumes").eq("user_id", userId).eq("date", today).maybeSingle();
     const resumesToday = (usageRow as { resumes?: number } | null)?.resumes ?? 0;
     if (resumesToday >= FREE_DAILY_LIMITS.resumes) {
-      return NextResponse.json({ error: "Daily resume limit reached â€” upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
+      return NextResponse.json({ error: "Daily resume limit reached - upgrade for more", upgrade: true, limit_reached: true }, { status: 402 });
     }
   } else {
     const creditsLeft = (profile?.credits_remaining as number | null) ?? 0;
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!profile?.base_cv) {
-    return NextResponse.json({ error: "No CV in your profile â€” add it in NextRole â†’ CV first" }, { status: 400 });
+    return NextResponse.json({ error: "No CV in your profile - add it in Braevity > Profile first" }, { status: 400 });
   }
 
   if (jobId) {
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     const msg = err instanceof Error ? err.message : "Could not reserve credits";
     return NextResponse.json(
       { error: msg === "INSUFFICIENT_CREDITS" ? "No credits remaining" :
-               msg === "DAILY_LIMIT" ? "Daily resume limit reached â€” upgrade for more" :
+               msg === "DAILY_LIMIT" ? "Daily resume limit reached - upgrade for more" :
                msg, upgrade: true, limit_reached: msg === "DAILY_LIMIT" },
       { status: 402 },
     );
@@ -172,3 +172,4 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ resume_id: resume?.id ?? null, html, coverage, job_title: jobTitle, company });
 }
+

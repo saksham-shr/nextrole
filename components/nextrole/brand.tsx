@@ -4,43 +4,42 @@ function joinClasses(...classes: Array<string | undefined | null | false>) {
   return classes.filter(Boolean).join(" ");
 }
 
+/**
+ * Braevity symbol — the outline "B" mark.
+ * Served from /braevity-icon.png (orange) and /braevity-icon-white.png (reverse).
+ */
 export function BrandMark({
   className,
   size = 22,
+  tone = "orange",
 }: {
   className?: string;
   size?: number;
+  tone?: "orange" | "white";
 }) {
-  const radius = Math.round(size * 0.18);
+  const src = tone === "white" ? "/braevity-icon-white.png" : "/braevity-icon.png";
   return (
-    <span
+    <img
+      src={src}
+      alt=""
       aria-hidden="true"
-      className={joinClasses("inline-flex shrink-0 items-center justify-center bg-[var(--accent)]", className)}
-      style={{ width: size, height: size, borderRadius: radius }}
-    >
-      <svg
-        width={size * 0.55}
-        height={size * 0.55}
-        viewBox="0 0 24 24"
-        fill="none"
-      >
-        <path
-          d="M8 5L17 12L8 19"
-          stroke="#fffdf8"
-          strokeWidth="3.2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    </span>
+      width={size}
+      height={size}
+      className={joinClasses("inline-block shrink-0 object-contain", className)}
+      style={{ width: size, height: size }}
+    />
   );
 }
 
+/**
+ * Braevity wordmark — symbol + "Braevity" set in Archivo Expanded.
+ */
 export function BrandWordmark({
   className,
   labelClassName,
   markClassName,
   size = 22,
+  tone = "orange",
   suffix,
 }: {
   className?: string;
@@ -48,16 +47,17 @@ export function BrandWordmark({
   markClassName?: string;
   markToneClassName?: string;
   size?: number;
+  tone?: "orange" | "white";
   suffix?: ReactNode;
 }) {
   return (
     <span className={joinClasses("inline-flex items-center gap-2", className)}>
-      <BrandMark className={markClassName} size={size} />
+      <BrandMark className={markClassName} size={size} tone={tone} />
       <span
-        className={joinClasses("font-[var(--font-mono-stack)] font-medium leading-none tracking-[-0.01em]", labelClassName)}
-        style={{ fontSize: Math.round(size * 0.68) }}
+        className={joinClasses("nr-wordmark leading-none", labelClassName)}
+        style={{ fontSize: Math.round(size * 0.82) }}
       >
-        nextrole
+        Braevity
       </span>
       {suffix}
     </span>

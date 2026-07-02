@@ -37,7 +37,7 @@ export function OpenSourceNoticesPage() {
         <section className="mt-12 rounded-3xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-2xl font-semibold text-white">Career Ops attribution</h2>
           <p className="mt-4 text-base leading-8 text-zinc-300">
-            NextRole includes ideas and adaptations derived from Career Ops by Santiago
+            Braevity includes ideas and adaptations derived from Career Ops by Santiago
             Fernandez de Valderrama. Career Ops is distributed under the MIT license.
           </p>
           <pre className="mt-6 overflow-x-auto whitespace-pre-wrap rounded-2xl border border-white/10 bg-black/30 p-4 text-sm leading-7 text-zinc-200">

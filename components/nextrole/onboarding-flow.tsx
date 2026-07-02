@@ -126,10 +126,10 @@ function ScoreBar({ applyThreshold, watchThreshold }: { applyThreshold: number; 
   return (
     <div style={{ display: "flex", height: 32, borderRadius: 8, overflow: "hidden" }}>
       <div style={{ width: `${skipPct}%`, background: "var(--bad)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {skipPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>SKIP</span>}
+        {skipPct > 15 && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.05em", color: "var(--surface)" }}>SKIP</span>}
       </div>
       <div style={{ width: `${watchPct}%`, background: "var(--warn)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        {watchPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>WATCH</span>}
+        {watchPct > 15 && <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.05em", color: "var(--surface)" }}>WATCH</span>}
       </div>
       <div style={{ width: `${applyPct}%`, background: "var(--ok)", display: "flex", alignItems: "center", justifyContent: "center", flex: 1 }}>
         {applyPct > 15 && <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, letterSpacing: "0.12em", color: "var(--surface)" }}>APPLY</span>}
@@ -150,7 +150,7 @@ function PageShell({ children, daysLeft }: { children: ReactNode; daysLeft: numb
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-5 py-10" style={dotGrid}>
       {daysLeft !== null && (
-        <span className="mb-5 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--accent)]">
+        <span className="mb-5 rounded-full border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">
           {daysLeft}d trial active
         </span>
       )}
@@ -163,7 +163,7 @@ function BrandRow({ displayStep }: { displayStep: number }) {
   return (
     <div className="flex items-center justify-between mb-3.5">
       <BrandWordmark size={24} />
-      <span className="font-mono text-[11px] tracking-[0.04em] text-[var(--muted-foreground-2)]">Step {displayStep} of 6</span>
+      <span className="text-[12px] text-[var(--muted-foreground-2)]">Step {displayStep} of 6</span>
     </div>
   );
 }
@@ -221,7 +221,7 @@ function TypeA({ ghost, leftBody, rightLabel, children, cta, daysLeft }: {
         </div>
         <div className="flex-1 flex flex-col p-9 md:p-11" style={dotGrid}>
           {rightLabel && (
-            <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-5" style={{ color: "var(--muted-foreground)" }}>{rightLabel}</div>
+            <div className="text-[11px] tracking-[0.05em] font-semibold uppercase mb-5" style={{ color: "var(--muted-foreground)" }}>{rightLabel}</div>
           )}
           <div className="flex-1 flex flex-col justify-center">
             {children}
@@ -242,7 +242,7 @@ function TextInput({ value, onChange, placeholder, type = "text" }: {
   return (
     <input
       type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-      className="w-full h-[38px] px-3 text-sm rounded-[6px] outline-none transition-colors"
+      className="w-full h-[38px] px-3 text-[13px] rounded-[8px] outline-none transition-colors"
       style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }}
       onFocus={e => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.boxShadow = "0 0 0 3px var(--accent-soft)"; }}
       onBlur={e => { e.currentTarget.style.borderColor = "rgba(42,38,32,0.18)"; e.currentTarget.style.boxShadow = "none"; }}
@@ -453,7 +453,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
   function TextButton({ children, onClick }: { children: ReactNode; onClick?: () => void }) {
     return (
       <button type="button" onClick={onClick}
-        className="font-mono text-[11px] uppercase tracking-[0.14em] transition hover:opacity-70"
+        className="text-[11px] font-semibold uppercase tracking-[0.05em] transition hover:opacity-70"
         style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
         {children}
       </button>
@@ -471,7 +471,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
 
   function FieldLabel({ children }: { children: ReactNode }) {
     return (
-      <label className="block font-mono text-[10px] uppercase tracking-[0.2em] mb-2" style={{ color: "var(--muted-foreground)" }}>
+      <label className="block text-[11px] font-semibold uppercase tracking-[0.05em] mb-2" style={{ color: "var(--muted-foreground)" }}>
         {children}
       </label>
     );
@@ -503,7 +503,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
                   background: "#252019", border: "1px solid rgba(255,255,255,0.08)",
                   borderRadius: 10, padding: "11px 12px",
                 }}>
-                  <div style={{ fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.16em", color: "rgba(255,255,255,0.4)", marginBottom: 7 }}>{c.label}</div>
+                  <div style={{ fontSize: 9, fontWeight: 600, letterSpacing: "0.05em", color: "rgba(255,255,255,0.4)", marginBottom: 7 }}>{c.label}</div>
                   <div style={{ display: "flex", gap: 3 }}>
                     {Array.from({ length: 5 }).map((_, i) => (
                       <div key={i} style={{ height: 6, flex: 1, borderRadius: 2, background: i < c.fill ? "var(--accent)" : "rgba(255,255,255,0.12)" }} />
@@ -512,7 +512,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
                 </div>
               ))}
             </div>
-            <h1 className="nr-display text-[34px] leading-[1.1] mb-3">Welcome to NextRole</h1>
+            <h1 className="nr-display text-[34px] leading-[1.1] mb-3">Welcome to Braevity</h1>
             <p className="text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>Your AI-powered job search co-pilot.</p>
           </>
         }
@@ -597,7 +597,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
             </div>
             <div className="text-center mt-4">
               <button type="button" onClick={() => setCvStage("paste")}
-                className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
+                className="text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
                 Paste text instead
               </button>
             </div>
@@ -616,7 +616,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
             />
             <div className="flex items-center justify-between mt-3">
               <button type="button" onClick={() => setCvStage("upload")}
-                className="font-mono text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
+                className="text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--muted-foreground)", background: "none", border: "none" }}>
                 Back to upload
               </button>
               <button type="button" onClick={submitPastedCv} disabled={!cvPasteText.trim()}
@@ -640,20 +640,20 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
 
         {cvStage === "review" && (
           <>
-            <div className="font-mono text-[10px] tracking-[0.2em] uppercase mb-4" style={{ color: "var(--muted-foreground)" }}>We found this in your CV</div>
+            <div className="text-[11px] tracking-[0.05em] font-semibold uppercase mb-4" style={{ color: "var(--muted-foreground)" }}>We found this in your CV</div>
             <div className="flex flex-col">
               {extractedRows.map(row => (
                 <div key={row.label} className="grid items-center gap-3 py-2.5 border-b" style={{ gridTemplateColumns: "120px 1fr auto", borderColor: "rgba(42,38,32,0.06)" }}>
-                  <span className="font-mono text-[10px] tracking-[0.12em] uppercase" style={{ color: "var(--muted-foreground)" }}>{row.label}</span>
+                  <span className="text-[11px] tracking-[0.05em] font-semibold uppercase" style={{ color: "var(--muted-foreground)" }}>{row.label}</span>
                   <span className="text-[13px]" style={{ color: row.found ? "var(--foreground)" : "var(--muted-foreground-2)" }}>{row.value ?? "—"}</span>
-                  <span className="font-mono text-[9px] tracking-[0.1em] uppercase rounded-full px-2.5 py-1"
+                  <span className="text-[11px] tracking-[0.05em] font-semibold uppercase rounded-full px-2.5 py-1"
                     style={row.found ? { background: "var(--ok-bg)", color: "var(--ok)" } : { color: "var(--muted-foreground-2)" }}>
                     {row.found ? "Found" : "Not found"}
                   </span>
                 </div>
               ))}
               <div className="grid items-start gap-3 py-2.5" style={{ gridTemplateColumns: "120px 1fr" }}>
-                <span className="font-mono text-[10px] tracking-[0.12em] uppercase mt-1" style={{ color: "var(--muted-foreground)" }}>Skills</span>
+                <span className="text-[11px] tracking-[0.05em] font-semibold uppercase mt-1" style={{ color: "var(--muted-foreground)" }}>Skills</span>
                 <div className="flex flex-wrap gap-1.5">
                   {(cvExtracted?.skills ?? []).length === 0 ? (
                     <span className="text-[13px]" style={{ color: "var(--muted-foreground-2)" }}>—</span>
@@ -731,10 +731,10 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
             <FieldLabel>Expected salary</FieldLabel>
             <div className="flex items-center gap-2.5">
               <input type="number" min={0} max={9999} value={salaryMin} onChange={e => setSalaryMin(e.target.value)} placeholder="Min"
-                className="h-[38px] w-full px-3 text-sm rounded-[6px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
+                className="h-[38px] w-full px-3 text-[13px] rounded-[8px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
               <span className="text-[13px]" style={{ color: "var(--muted-foreground)" }}>to</span>
               <input type="number" min={0} max={9999} value={salaryMax} onChange={e => setSalaryMax(e.target.value)} placeholder="Max"
-                className="h-[38px] w-full px-3 text-sm rounded-[6px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
+                className="h-[38px] w-full px-3 text-[13px] rounded-[8px] outline-none" style={{ background: "var(--surface)", border: "1px solid rgba(42,38,32,0.18)", color: "var(--foreground)" }} />
               <span className="font-mono text-[11px] tracking-[0.1em]" style={{ color: "var(--muted-foreground)" }}>LPA</span>
             </div>
           </div>
@@ -802,7 +802,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
         </div>
 
         <div className="mt-6 pt-5 border-t" style={{ borderColor: "var(--line-softer)" }}>
-          <p className="font-mono text-[10px] tracking-[0.2em] uppercase mb-4.5" style={{ color: "var(--muted-foreground)" }}>Set your thresholds</p>
+          <p className="text-[11px] tracking-[0.05em] font-semibold uppercase mb-4.5" style={{ color: "var(--muted-foreground)" }}>Set your thresholds</p>
 
           <div className="mb-5">
             <div className="flex items-center justify-between mb-2">
@@ -889,7 +889,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
             </div>
           ))}
           <div className="rounded-[10px] px-4 py-3.5 mt-1" style={{ background: "var(--surface-soft)", border: "1px solid var(--line-soft)" }}>
-            <div className="font-mono text-[10px] tracking-[0.16em] uppercase mb-1.5" style={{ color: "var(--muted-foreground)" }}>Credits</div>
+            <div className="text-[11px] tracking-[0.05em] font-semibold uppercase mb-1.5" style={{ color: "var(--muted-foreground)" }}>Credits</div>
             <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Earn up to 100 free credits · Starter: 100 credits/day · Pro: 300 credits/day</div>
           </div>
         </div>
@@ -947,7 +947,7 @@ export function OnboardingFlow({ trialEndsAt, email: _email, currentTier = "free
             )}
             <span className="text-sm" style={{ color: item.done ? "var(--foreground)" : "var(--muted-foreground)" }}>{item.label}</span>
             {item.skippedTag && (
-              <span className="font-mono text-[9px] tracking-[0.12em] uppercase ml-auto" style={{ color: "var(--muted-foreground-2)" }}>Skipped</span>
+              <span className="text-[11px] tracking-[0.05em] font-semibold uppercase ml-auto" style={{ color: "var(--muted-foreground-2)" }}>Skipped</span>
             )}
           </div>
         ))}

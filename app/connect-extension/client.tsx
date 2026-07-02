@@ -23,8 +23,8 @@ function Shell({ children }: { children: React.ReactNode }) {
         <div className="flex flex-col items-center mb-7">
           <BrandMark size={34} />
           <div className="mt-2.5 font-medium text-[var(--fg)]"
-               style={{ fontFamily: "var(--font-mono-stack)", fontSize: 15 }}>
-            nextrole
+               style={{ fontFamily: "var(--font-display)", fontSize: 15 }}>
+            Braevity
           </div>
         </div>
         <div className="rounded-[8px] border border-[var(--line-soft)] bg-[var(--surface)]"
@@ -90,10 +90,10 @@ export function ConnectExtensionLoginClient({
   return (
     <Shell>
       <h2 className="font-semibold text-[15px] text-center mb-1 text-[var(--fg)]">
-        Connect NextRole Extension
+        Connect Braevity Extension
       </h2>
       <p className="text-xs text-[var(--muted)] text-center mb-5 leading-relaxed">
-        Sign in to link your extension to your NextRole account.
+        Sign in to link your extension to your Braevity account.
       </p>
 
       <button
@@ -186,11 +186,11 @@ export function InstallExtensionPage() {
     },
     {
       n: 2, title: "Open",
-      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click the NextRole icon in your browser toolbar.</div>,
+      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click the Braevity icon in your browser toolbar.</div>,
     },
     {
       n: 3, title: "Sign in",
-      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click <strong>Connect to NextRole</strong> in the extension popup.</div>,
+      content: <div style={{ fontSize: 13, color: "var(--muted-foreground)", marginTop: 8 }}>Click <strong>Connect to Braevity</strong> in the extension popup.</div>,
     },
     {
       n: 4, title: "Done",
@@ -212,7 +212,7 @@ export function InstallExtensionPage() {
       <div style={{ marginBottom: 16 }}>
         <BrandMark size={32} />
       </div>
-      <h1 className="nr-display" style={{ fontSize: 26, marginBottom: 8 }}>Connect the NextRole Extension</h1>
+      <h1 className="nr-display" style={{ fontSize: 26, marginBottom: 8 }}>Connect the Braevity Extension</h1>
       <p style={{ fontSize: 14, color: "var(--muted-foreground)", marginBottom: 32 }}>
         The extension autofills job applications and evaluates jobs from any site.
       </p>

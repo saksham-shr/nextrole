@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { SettingsPageContent } from "@/components/nextrole/settings-page";
 import type { UserTier } from "@/lib/db/types";
 
-export const metadata = { title: "Settings — NextRole" };
+export const metadata = { title: "Settings — Braevity" };
 
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL ?? "").toLowerCase();
 

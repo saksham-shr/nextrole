@@ -1,31 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Serif+Display&family=DM+Mono:ital,wght@0,400;0,500;1,400&display=swap');
 @import "tailwindcss";
 
 :root {
-  --font-body: "Inter", "Trebuchet MS", "Segoe UI", sans-serif;
-  --font-display: "DM Serif Display", Georgia, "Times New Roman", serif;
-  --font-mono-stack: "DM Mono", Consolas, "Courier New", monospace;
+  --font-display: var(--font-body);
+  --font-mono-stack: "DM Mono", Consolas, monospace;
   --font-mono: var(--font-mono-stack);
   --font-kalam: var(--font-body);
   --font-caveat: var(--font-display);
   --font-jetbrains-mono: var(--font-mono-stack);
 
   /* Core palette */
-  --background: #f7f3ec;
-  --foreground: #1a1814;
-  --muted-foreground: #6b6358;
-  --muted-foreground-2: #9a9286;
-  --surface: #fffdf8;
-  --surface-soft: #efe9df;
-  --surface-ink: #241f19;
-  --line: #2a2620;
-  --line-hard: #1a1814;
-  --line-soft: rgba(42, 38, 32, 0.12);
-  --line-softer: rgba(42, 38, 32, 0.06);
-  --accent: #c84a1f;
-  --accent-hover: #a83d18;
-  --accent-soft: rgba(200, 74, 31, 0.08);
-  --accent-bg: rgba(200, 74, 31, 0.08);
+  --background: #f7f5f3;
+  --foreground: #211c19;
+  --muted-foreground: #6b615b;
+  --muted-foreground-2: #8a7f78;
+  --surface: #ffffff;
+  --surface-soft: #f1ece7;
+  --surface-ink: #211c19;
+  --line: #211c19;
+  --line-hard: #211c19;
+  --line-soft: rgba(33, 28, 25, 0.12);
+  --line-softer: rgba(33, 28, 25, 0.06);
+  --accent: #e94e1b;
+  --accent-hover: #c23a12;
+  --accent-soft: rgba(233, 78, 27, 0.08);
+  --accent-bg: rgba(233, 78, 27, 0.08);
   --ok: #2f7a3a;
   --ok-bg: rgba(47, 122, 58, 0.08);
   --warn: #b07a18;
@@ -33,7 +31,7 @@
   --bad: #b53a3a;
   --bad-bg: rgba(181, 58, 58, 0.08);
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06);
   --radius: 8px;
   --sidebar-w: 220px;
 
@@ -47,7 +45,7 @@
   --border-soft: var(--line-softer);
   --border-input: rgba(42, 38, 32, 0.18);
   --accent-subtle: var(--accent-soft);
-  --accent-border: rgba(200, 74, 31, 0.2);
+  --accent-border: rgba(233, 78, 27, 0.2);
   --success: var(--ok);
   --success-bg: var(--ok-bg);
   --success-surface: #eef8f0;
@@ -92,6 +90,7 @@ body {
   background: transparent;
   color: var(--foreground);
   font-family: var(--font-body);
+  font-size: 14px;
 }
 
 a {
@@ -107,7 +106,7 @@ select {
 }
 
 ::selection {
-  background: rgba(200, 74, 31, 0.18);
+  background: rgba(233, 78, 27, 0.18);
 }
 
 [data-theme="dark"] {
@@ -122,10 +121,10 @@ select {
   --line-hard:          #e6edf3;
   --line-soft:          rgba(240, 246, 252, 0.12);
   --line-softer:        rgba(240, 246, 252, 0.06);
-  --accent:             #e05a28;
-  --accent-hover:       #c84a1f;
-  --accent-soft:        rgba(224, 90, 40, 0.15);
-  --accent-bg:          rgba(224, 90, 40, 0.12);
+  --accent:             #f0633a;
+  --accent-hover:       #e94e1b;
+  --accent-soft:        rgba(240, 99, 58, 0.15);
+  --accent-bg:          rgba(240, 99, 58, 0.12);
   --ok:                 #3fb950;
   --ok-bg:              rgba(63, 185, 80, 0.1);
   --warn:               #d29922;
@@ -220,14 +219,14 @@ select {
 /* ─── nr-* design system ─────────────────────────────────── */
 
 /* Typography */
-.nr-display { font-family: var(--font-display); font-weight: 400; letter-spacing: -0.01em; line-height: 1.1; }
+.nr-display { font-family: var(--font-body); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
 .nr-mono { font-family: var(--font-mono-stack); }
-.nr-label { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); }
+.nr-label { font-family: var(--font-body); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground); }
 .nr-small { font-size: 12px; color: var(--muted-foreground-2); }
 .nr-muted { color: var(--muted-foreground-2); }
 .nr-secondary { color: var(--muted-foreground); }
-.nr-section-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted-foreground-2); font-weight: 500; }
-.nr-field-label { display: block; font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; font-weight: 500; }
+.nr-section-label { font-family: var(--font-body); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted-foreground-2); font-weight: 600; }
+.nr-field-label { font-family: var(--font-body); display: block; font-size: 12px; color: var(--muted-foreground); margin-bottom: 6px; font-weight: 600; }
 
 /* Card */
 .nr-card {
@@ -246,7 +245,7 @@ select {
   height: 36px;
   padding: 0 16px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
   user-select: none;
@@ -295,10 +294,10 @@ select {
 .nr-input {
   background: var(--surface);
   border: 1px solid var(--border-input);
-  border-radius: 6px;
+  border-radius: 8px;
   height: 38px;
   padding: 0 12px;
-  font-size: 14px;
+  font-size: 12px;
   width: 100%;
   transition: border-color 0.12s, box-shadow 0.12s;
   font-family: var(--font-body);
@@ -309,13 +308,13 @@ select {
 .nr-textarea {
   background: var(--surface);
   border: 1px solid var(--border-input);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 12px;
   font-family: var(--font-body);
   resize: vertical;
   width: 100%;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--foreground);
 }
 .nr-textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); outline: none; }
@@ -522,3 +521,21 @@ select {
   from { opacity: 0; transform: scale(0.95); }
   to   { opacity: 1; transform: scale(1); }
 }
+
+
+/* --- Braevity typography standardization ------------------------------
+   One scale for every page. Adopt these instead of ad-hoc inline sizes so
+   page / section / card titles, body, and helper text match across the app.
+   Mono is reserved for true technical values only (scores, IDs, timestamps,
+   codes, shortcuts) via .nr-mono.
+   -------------------------------------------------------------------- */
+.nr-wordmark      { font-family: var(--font-display); font-weight: 700; letter-spacing: -0.02em; }
+.nr-page-title    { font-family: var(--font-display); font-weight: 700; font-size: 26px; line-height: 1.12; letter-spacing: -0.02em; color: var(--foreground); }
+.nr-section-title { font-family: var(--font-body); font-weight: 700; font-size: 15px; line-height: 1.3; letter-spacing: -0.01em; color: var(--foreground); }
+.nr-card-title    { font-family: var(--font-body); font-weight: 600; font-size: 14px; line-height: 1.35; color: var(--foreground); }
+.nr-body          { font-family: var(--font-body); font-weight: 400; font-size: 14px; line-height: 1.55; color: var(--foreground); }
+.nr-helper        { font-family: var(--font-body); font-weight: 400; font-size: 13px; line-height: 1.5; color: var(--muted-foreground); }
+.nr-error-text    { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--bad); }
+.nr-success-text  { font-family: var(--font-body); font-weight: 500; font-size: 13px; color: var(--ok); }
+/* Table headers: sentence-case body weight, not mono/uppercase-mono */
+.nr-table th      { font-family: var(--font-body); font-weight: 600; color: var(--muted-foreground); }

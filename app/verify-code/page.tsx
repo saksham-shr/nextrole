@@ -1,6 +1,6 @@
 import { VerifyCodePage } from "@/components/nextrole/auth-pages";
 
-export const metadata = { title: "Verify code — NextRole" };
+export const metadata = { title: "Verify code — Braevity" };
 
 export default async function Page({
   searchParams,

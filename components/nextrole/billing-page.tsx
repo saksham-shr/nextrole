@@ -255,10 +255,10 @@ function PaymentHistory({ records }: { records: PaymentRecord[] }) {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-[var(--line-soft)] bg-[var(--surface-soft)]">
-              <th className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Description</th>
-              <th className="px-4 py-2.5 text-right font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Amount</th>
-              <th className="px-4 py-2.5 text-right font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Date</th>
-              <th className="px-4 py-2.5 text-right font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Status</th>
+              <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Description</th>
+              <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Amount</th>
+              <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Date</th>
+              <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Status</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--line-soft)]">
@@ -316,9 +316,9 @@ function CreditLog({ entries }: { entries: CreditLogEntry[] }) {
         <table className="w-full text-[13px]">
           <thead>
             <tr className="border-b border-[var(--line-soft)] bg-[var(--surface-soft)]">
-              <th className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Action</th>
-              <th className="px-4 py-2.5 text-right font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits</th>
-              <th className="px-4 py-2.5 text-right font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">When</th>
+              <th className="px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Action</th>
+              <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Credits</th>
+              <th className="px-4 py-2.5 text-right text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">When</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-[var(--line-soft)]">
@@ -383,7 +383,7 @@ function ReferralSection({ code, referredBy, stats }: {
       });
       const data = await res.json() as { ok?: boolean; error?: string };
       if (data.ok) {
-        setApplyMsg({ ok: true, text: "Referral applied! You'll earn bonus credits as you use NextRole." });
+        setApplyMsg({ ok: true, text: "Referral applied! You'll earn bonus credits as you use Braevity." });
         setApplyCode("");
       } else {
         setApplyMsg({ ok: false, text: data.error ?? "Could not apply referral code" });
@@ -406,7 +406,7 @@ function ReferralSection({ code, referredBy, stats }: {
 
       {/* Referral link */}
       <div className="mb-4">
-        <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Your referral link</div>
+        <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Your referral link</div>
         <div className="flex items-center gap-2">
           <div className="flex-1 min-w-0 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 font-mono text-[13px] text-[var(--foreground)] truncate">
             {referralLink}
@@ -445,12 +445,12 @@ function ReferralSection({ code, referredBy, stats }: {
       {/* Apply a referral code (only if not already referred) */}
       {!referredBy && (
         <div className="border-t border-[var(--line-soft)] pt-4">
-          <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Have a referral code?</div>
+          <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Have a referral code?</div>
           <div className="flex gap-2">
             <input
               type="text" value={applyCode} onChange={(e) => setApplyCode(e.target.value.toUpperCase())}
               placeholder="Enter code" maxLength={12}
-              className="flex-1 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 font-mono text-[13px] uppercase tracking-[0.06em] placeholder:normal-case placeholder:tracking-normal outline-none focus:border-[var(--accent)]"
+              className="flex-1 rounded-lg border border-[var(--line-soft)] bg-[var(--surface-soft)] px-3 py-1.5 text-[13px] font-semibold uppercase tracking-[0.05em] placeholder:normal-case placeholder:tracking-normal outline-none focus:border-[var(--accent)]"
             />
             <button onClick={handleApply} disabled={applying || !applyCode.trim()}
               className="rounded-lg bg-[var(--accent)] px-4 py-1.5 text-[12px] font-medium text-white transition hover:opacity-90 disabled:opacity-50">
@@ -539,8 +539,8 @@ export function BillingPage({
       new window.Razorpay({
         key: data.key_id ?? RZP_KEY,
         subscription_id: data.subscription_id,
-        name: "NextRole",
-        description: `NextRole ${plan.charAt(0).toUpperCase() + plan.slice(1)} — ${checkoutPeriod}`,
+        name: "Braevity",
+        description: `Braevity ${plan.charAt(0).toUpperCase() + plan.slice(1)} — ${checkoutPeriod}`,
         prefill: { email },
         theme: { color: "#c84a1f" },
         handler: async (paymentRes) => {
@@ -575,8 +575,8 @@ export function BillingPage({
         amount: data.amount!,
         currency: data.currency!,
         order_id: data.order_id,
-        name: "NextRole",
-        description: `NextRole Credits — ${pack?.credits ?? ""} credits`,
+        name: "Braevity",
+        description: `Braevity Credits — ${pack?.credits ?? ""} credits`,
         prefill: { email },
         theme: { color: "#c84a1f" },
         handler: async (paymentRes) => {
@@ -621,7 +621,7 @@ export function BillingPage({
 
   return (
     <div className="mx-auto max-w-[860px] px-4 sm:px-6 py-6 sm:py-8">
-      <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]">Plan</div>
+      <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Plan</div>
       <h1 className="mb-8 text-[24px] font-normal tracking-[-0.02em]">Plan & credits</h1>
 
       {/* ── Status banners ── */}
@@ -644,9 +644,9 @@ export function BillingPage({
       <div className="mb-6 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
           <div>
-            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">Current plan</div>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Current plan</div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className={`rounded-md px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] font-medium ${
+              <span className={`rounded-md px-2.5 py-1 text-[11px] uppercase tracking-[0.05em] font-medium ${
                 tier === "pro"     ? "bg-[var(--accent)] text-white" :
                 tier === "starter" ? "bg-[var(--surface-soft)] border border-[var(--line-soft)] text-[var(--foreground)]" :
                 "bg-[var(--accent)]/10 text-[var(--accent)]"
@@ -686,7 +686,7 @@ export function BillingPage({
               const pct = Math.min(100, (usage.bonusCredits / bonusMax) * 100);
               return (
                 <div className="col-span-2 sm:col-span-1 rounded-xl border border-[var(--line-soft)] p-4">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credits remaining</div>
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Credits remaining</div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-mono text-[22px] font-medium leading-none">{usage.bonusCredits}</span>
                     <span className="text-[13px] text-[var(--muted-foreground)]">bonus</span>
@@ -708,7 +708,7 @@ export function BillingPage({
               const pct = dailyBase > 0 ? Math.min(100, (usage.dailyCredits / dailyBase) * 100) : 0;
               return (
                 <div className="rounded-xl border border-[var(--line-soft)] p-4">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Daily</div>
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Daily</div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-mono text-[22px] font-medium leading-none">{usage.dailyCredits}</span>
                     <span className="text-[13px] text-[var(--muted-foreground)]">/ {dailyBase}</span>
@@ -726,7 +726,7 @@ export function BillingPage({
               const pct = Math.min(100, (usage.bonusCredits / bonusMax) * 100);
               return (
                 <div className="rounded-xl border border-[var(--line-soft)] p-4">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Bonus</div>
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Bonus</div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-mono text-[22px] font-medium leading-none">{usage.bonusCredits}</span>
                     <span className="text-[13px] text-[var(--muted-foreground)]">earned</span>
@@ -744,7 +744,7 @@ export function BillingPage({
               const pct = topupCap > 0 ? Math.min(100, (usage.topupCredits / topupCap) * 100) : 0;
               return (
                 <div className="rounded-xl border border-[var(--line-soft)] p-4">
-                  <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Top-up</div>
+                  <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Top-up</div>
                   <div className="flex items-baseline gap-1.5">
                     <span className="font-mono text-[22px] font-medium leading-none">{usage.topupCredits}</span>
                     <span className="text-[13px] text-[var(--muted-foreground)]">purchased</span>
@@ -787,7 +787,7 @@ export function BillingPage({
         <div id="topup" className="mb-6 rounded-2xl border border-[var(--line-soft)] bg-[var(--surface)] p-6">
           <div className="mb-1 flex flex-wrap items-center gap-2 justify-between">
             <h2 className="text-[15px] font-semibold">Buy extra credits</h2>
-            <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--muted-foreground)]">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
               {tier === "starter" ? "100cr pack · max 500cr balance" : "Valid until renewal"}
             </span>
           </div>
@@ -900,7 +900,7 @@ export function BillingPage({
             <p>Top-up credits stack on top of daily credits and expire at renewal.</p>
           </div>
           <div className="rounded-xl bg-[var(--surface-soft)] p-4">
-            <div className="mb-2 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Credit costs per action</div>
+            <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Credit costs per action</div>
             <table className="w-full text-[13px]">
               <tbody className="divide-y divide-[var(--line-soft)]">
                 {[["Job evaluation","5 cr"],["Standard resume","10 cr"],["Premium resume","25 cr"],["Autofill AI","2 cr"],["Tailor answers","8 cr"]].map(([a, c]) => (
@@ -922,7 +922,7 @@ function UsageCell({ label, value, sub, warn, locked }: {
 }) {
   return (
     <div className="rounded-xl border border-[var(--line-soft)] p-4">
-      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">{label}</div>
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">{label}</div>
       <div className={`font-mono text-[20px] font-medium leading-none ${warn ? "text-red-500" : locked ? "text-[var(--muted-foreground)] opacity-40" : ""}`}>{value}</div>
       <div className="mt-1 text-[11px] text-[var(--muted-foreground)]">{sub}</div>
     </div>
@@ -939,8 +939,8 @@ function PlanCard({ name, price, priceSub, highlight, badge, current, features, 
       highlight ? "border-2 border-[var(--accent)] shadow-[0_4px_20px_rgba(200,74,31,0.10)]" : "border border-[var(--line-soft)]"
     } ${current ? "bg-[var(--accent)]/3" : "bg-[var(--surface)]"}`}>
       <div className="mb-3 flex items-start justify-between gap-2 flex-wrap">
-        <span className={`font-mono text-[10px] uppercase tracking-[0.16em] ${highlight ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{name}</span>
-        {badge && <span className={`rounded-full px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.14em] ${highlight ? "bg-[var(--accent)] text-white" : "border border-[var(--line-soft)] text-[var(--muted-foreground)]"}`}>{badge}</span>}
+        <span className={`text-[11px] font-semibold uppercase tracking-[0.05em] ${highlight ? "text-[var(--accent)]" : "text-[var(--muted-foreground)]"}`}>{name}</span>
+        {badge && <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] ${highlight ? "bg-[var(--accent)] text-white" : "border border-[var(--line-soft)] text-[var(--muted-foreground)]"}`}>{badge}</span>}
       </div>
       <div className="mb-1 flex items-baseline gap-1.5 flex-wrap">
         <span className="text-[24px] sm:text-[28px] font-normal leading-none tracking-[-0.02em] break-all">{price}</span>

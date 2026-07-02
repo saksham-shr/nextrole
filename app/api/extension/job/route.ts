@@ -3,7 +3,7 @@
  * Auth: Bearer <extension_token>
  *
  * Creates a job in the pipeline from the browser extension.
- * Respects job slot limits and trial/tier gating.
+ * No slot limits — all tiers get unlimited saved jobs.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -13,8 +13,6 @@ import { getClientIp, rateLimit } from "@/lib/security/rate-limit";
 import { canonicalizeJobUrl, deriveAtsFamilyFromUrl } from "@/lib/jobs";
 import { awardActionCredit } from "@/lib/credits/grant";
 
-// Job slot limits per tier (-1 = unlimited)
-const JOB_SLOT_LIMITS: Record<string, number> = { free: 5, starter: 25, pro: -1 };
 
 export async function GET(request: NextRequest) {
   const ip = getClientIp(request);
@@ -78,7 +76,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { userId, tier } = resolved;
+  const { userId } = resolved;
 
   const body = await request.json().catch(() => ({})) as {
     title?: string;
@@ -137,23 +135,6 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, job_id: updated.id, created: false, existing: true, canonical_url: canonicalUrl, ats_family: atsFamily });
-  }
-
-  // Check job slot limit only for genuinely new jobs. Existing pipeline rows
-  // must remain usable for Save & Apply, evaluation, and resume actions.
-  const limit = JOB_SLOT_LIMITS[tier as string] ?? 5;
-  if (limit !== -1) {
-    const { count } = await supabase
-      .from("jobs")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-
-    if ((count ?? 0) >= limit) {
-      return NextResponse.json(
-        { error: "JOB_LIMIT_REACHED", limit, currentTier: tier },
-        { status: 403 },
-      );
-    }
   }
 
   const { data: job, error } = await supabase

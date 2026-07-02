@@ -142,8 +142,8 @@ async function callOpenRouterOnce(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://nextrole.live",
-      "X-Title": "NextRole",
+      "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL ?? "https://braevity.com",
+      "X-Title": "Braevity",
     },
     body: JSON.stringify(body),
   }, `OpenRouter(${model})`);

@@ -45,7 +45,7 @@ export function AdminAuditLog({ rows }: { rows: AdminAuditLogRow[] }) {
           <button
             key={a}
             onClick={() => setFilter(a)}
-            className={`rounded-[6px] px-3 py-1.5 font-mono text-[11px] uppercase tracking-[0.14em] transition ${
+            className={`rounded-[6px] px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.05em] transition ${
               filter === a
                 ? "bg-[var(--surface)] border border-[var(--line)] text-[var(--foreground)]"
                 : "text-[var(--muted-foreground)] hover:text-[var(--foreground)]"
@@ -66,7 +66,7 @@ export function AdminAuditLog({ rows }: { rows: AdminAuditLogRow[] }) {
               {["When", "Actor", "Action", "Target", ""].map((h) => (
                 <th
                   key={h}
-                  className="border-b border-[var(--line)] px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-[0.22em] text-[var(--muted-foreground)]"
+                  className="border-b border-[var(--line)] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]"
                 >
                   {h}
                 </th>
@@ -93,7 +93,7 @@ export function AdminAuditLog({ rows }: { rows: AdminAuditLogRow[] }) {
                     <td className="px-4 py-3 text-[13px] font-medium">{r.actor_email}</td>
                     <td className="px-4 py-3">
                       <span
-                        className="font-mono text-[11px] uppercase tracking-[0.14em]"
+                        className="text-[11px] font-semibold uppercase tracking-[0.05em]"
                         style={{ color: ACTION_TONE[r.action] ?? "var(--foreground)" }}
                       >
                         {ACTION_LABEL[r.action] ?? r.action}
@@ -134,7 +134,7 @@ export function AdminAuditLog({ rows }: { rows: AdminAuditLogRow[] }) {
 function DetailBlock({ label, data, className = "" }: { label: string; data: unknown; className?: string }) {
   return (
     <div className={className}>
-      <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
         {label}
       </div>
       <pre className="overflow-auto rounded-[6px] border border-[var(--line-soft)] bg-[var(--background)] p-3 font-mono text-[11px] text-[var(--foreground)]">

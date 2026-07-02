@@ -143,14 +143,14 @@ function LauncherModal({
         {/* Results list */}
         <div ref={listRef} className="max-h-[420px] overflow-y-auto py-2">
           {results.length === 0 && (
-            <p className="px-4 py-6 text-center font-mono text-[11px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">
+            <p className="px-4 py-6 text-center text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">
               No results for &quot;{query}&quot;
             </p>
           )}
 
           {grouped.map(({ group, items }) => (
             <div key={group}>
-              <p className="px-4 pb-1 pt-3 font-mono text-[9px] uppercase tracking-[0.24em] text-[var(--muted-foreground-2)]">
+              <p className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
                 {group}
               </p>
               {items.map(({ label, href, index }) => (
@@ -182,16 +182,16 @@ function LauncherModal({
 
         {/* Footer hint */}
         <div className="flex items-center gap-4 border-t border-[var(--line)] px-4 py-2">
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
             ↑↓ navigate
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
             ↵ open
           </span>
-          <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
             ESC close
           </span>
-          <span className="ml-auto font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--muted-foreground-2)]">
+          <span className="ml-auto text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground-2)]">
             {results.length} results
           </span>
         </div>

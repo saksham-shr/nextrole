@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
       method: "GET",
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (compatible; NextRole-LivenessBot/1.0; +https://nextrole.app)",
+          "Mozilla/5.0 (compatible; Braevity-LivenessBot/1.0; +https://nextrole.app)",
         Accept: "text/html,application/xhtml+xml,*/*;q=0.8",
       },
       signal: AbortSignal.timeout(12_000),

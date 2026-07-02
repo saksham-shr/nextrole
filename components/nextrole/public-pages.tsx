@@ -91,7 +91,7 @@ const workspaceRows = [
   ],
   [
     "Evaluate",
-    "Run a single job through the full evaluation workflow powered by NextRole AI.",
+    "Run a single job through the full evaluation workflow powered by Braevity AI.",
   ],
   [
     "Compare",
@@ -157,8 +157,8 @@ const workspaceRows = [
 
 const aiModeRows = [
   [
-    "NextRole AI",
-    "All evaluations, resume generation, and autofill run on NextRole's hosted AI — no API keys needed.",
+    "Braevity AI",
+    "All evaluations, resume generation, and autofill run on Braevity's hosted AI — no API keys needed.",
   ],
   [
     "Job evaluation",
@@ -186,12 +186,12 @@ const faqItems = [
   {
     title: "Do I need to provide my own API keys?",
     body:
-      "No. NextRole AI is fully hosted — just sign up and start evaluating. No API keys or third-party accounts required.",
+      "No. Braevity AI is fully hosted — just sign up and start evaluating. No API keys or third-party accounts required.",
   },
   {
-    title: "Does NextRole auto-submit applications?",
+    title: "Does Braevity auto-submit applications?",
     body:
-      "No. NextRole helps you evaluate roles, prepare documents, and draft answers, but final submission always stays with you.",
+      "No. Braevity helps you evaluate roles, prepare documents, and draft answers, but final submission always stays with you.",
   },
   {
     title: "What should I set up first?",
@@ -228,7 +228,7 @@ export function PublicHeader({ activePage }: { activePage?: "pricing" | "docs" }
       className="flex items-center px-4 py-4 sm:px-8 lg:px-14 lg:py-5"
       style={{ borderBottom: "1px solid var(--line-soft)" }}
     >
-      <Link href="/" aria-label="NextRole home">
+      <Link href="/" aria-label="Braevity home">
         <BrandWordmark size={22} />
       </Link>
       <nav className="hidden flex-1 items-center justify-center gap-7 text-[13.5px] text-[var(--muted-foreground)] md:flex">
@@ -278,7 +278,7 @@ function SiteFooter() {
           </div>
           <div className="grid grid-cols-2 gap-8 text-[13px] sm:flex sm:gap-14">
             <div>
-              <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Product</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Product</p>
               <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
                 <Link href="/#how-it-works" className="transition hover:text-[var(--foreground)]">How it works</Link>
                 <Link href="/#features" className="transition hover:text-[var(--foreground)]">Features</Link>
@@ -286,7 +286,7 @@ function SiteFooter() {
               </div>
             </div>
             <div>
-              <p className="mb-3 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Legal</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Legal</p>
               <div className="flex flex-col gap-2 text-[var(--muted-foreground)]">
                 <Link href="/privacy" className="transition hover:text-[var(--foreground)]">Privacy</Link>
                 <Link href="/terms" className="transition hover:text-[var(--foreground)]">Terms</Link>
@@ -297,7 +297,7 @@ function SiteFooter() {
         <div
           className="mt-8 flex flex-col items-center gap-1 border-t border-[var(--line-soft)] pt-5 text-[12px] text-[var(--muted-foreground)] sm:flex-row sm:justify-between"
         >
-          <span>© 2026 NextRole</span>
+          <span>© 2026 Braevity</span>
           <span className="font-['DM_Mono']">v1.0.0 · made for the next role</span>
         </div>
       </div>
@@ -410,7 +410,7 @@ function LandingFitPill({ fit, tone }: { fit: number; tone: "ok" | "warn" }) {
   const isOk = tone === "ok";
   return (
     <span
-      className="inline-flex items-center rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.18em]"
+      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em]"
       style={{
         background: isOk ? "rgba(47,122,58,0.08)" : "rgba(176,122,24,0.08)",
         border: `1px solid ${isOk ? "var(--ok)" : "var(--warn)"}`,
@@ -450,7 +450,7 @@ function ScoreRing({ value = 4.2, size = 110 }: { value?: number; size?: number 
       </svg>
       <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <div className="font-['DM_Mono']" style={{ fontSize: 28, fontWeight: 500, lineHeight: 1 }}>{value}</div>
-        <div className="font-['DM_Mono'] text-[9px] uppercase tracking-[0.12em]" style={{ marginTop: 4, color: "var(--muted-foreground)" }}>FIT / 5</div>
+        <div className="text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ marginTop: 4, color: "var(--muted-foreground)" }}>FIT / 5</div>
       </div>
     </div>
   );
@@ -464,7 +464,7 @@ export function LandingPage() {
 
       {/* ── Hero ── */}
       <section className="mx-auto max-w-[1100px] px-4 pb-10 pt-12 sm:px-8 sm:pt-16 lg:px-14 lg:pb-14 lg:pt-[88px]">
-        <p className="mb-5 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">
+        <p className="mb-5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">
           · AI Job Search Assistant
         </p>
 
@@ -530,7 +530,7 @@ export function LandingPage() {
             <div className="flex flex-col justify-center bg-[var(--surface)] p-6 sm:p-8">
               <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-lg" style={{ border: "1px solid var(--line-soft)", boxShadow: "0 8px 24px rgba(42,38,32,0.08)" }}>
                 <div className="flex items-center justify-between px-3.5 py-2.5" style={{ background: "var(--accent)", color: "var(--surface)" }}>
-                  <div className="flex items-center gap-2 font-['DM_Mono'] text-[12px] uppercase tracking-[0.06em]">
+                  <div className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.05em]">
                     <BrandMark size={16} />
                     Job Detected
                   </div>
@@ -563,7 +563,7 @@ export function LandingPage() {
       <section id="how-it-works" className="mx-auto max-w-[1100px] px-4 py-12 sm:px-8 lg:px-14 lg:py-16">
         <div className="mb-4 flex items-center gap-2.5">
           <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">01</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">How it works</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">How it works</span>
           <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
         <h2 className="mb-10 max-w-[600px] text-[26px] font-semibold leading-[1.2] tracking-[-0.02em] sm:text-[32px] lg:mb-12">
@@ -571,7 +571,7 @@ export function LandingPage() {
         </h2>
         <div className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[var(--line-soft)] bg-[var(--line-soft)] sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { n: "01", icon: "M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z", t: "Install extension", d: "Add NextRole to Chrome in one click." },
+            { n: "01", icon: "M5 5h6V3a2 2 0 0 1 4 0v2h4a2 2 0 0 1 2 2v4h-2a2 2 0 0 0 0 4h2v4a2 2 0 0 1-2 2h-4v-2a2 2 0 0 0-4 0v2H5a2 2 0 0 1-2-2v-4h2a2 2 0 0 0 0-4H3V7a2 2 0 0 1 2-2z", t: "Install extension", d: "Add Braevity to Chrome in one click." },
             { n: "02", icon: "M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36M21 3l-3 3m0 0l-3-3m3 3v7", t: "Browse normally", d: "A card pops up the moment we detect a job posting." },
             { n: "03", icon: "M12 4v4M12 16v4M4 12h4M16 12h4M6.3 6.3l2.8 2.8M14.9 14.9l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8", t: "AI scores fit", d: "Get a 1—5 fit score with reasoning before you apply." },
             { n: "04", icon: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13h6M9 17h4", t: "Tailor & apply", d: "Generate a tailored resume and autofill in seconds." },
@@ -596,7 +596,7 @@ export function LandingPage() {
       <section id="features" className="mx-auto max-w-[1100px] px-4 pb-14 sm:px-8 lg:px-14 lg:pb-20">
         <div className="mb-7 flex items-center gap-2.5">
           <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">02</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Features</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Features</span>
           <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -606,7 +606,7 @@ export function LandingPage() {
                 <div className="p-3">
                   <div className="mb-2 flex items-center gap-2">
                     <BrandMark size={14} />
-                    <span className="font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em] text-[var(--accent)]">Job detected</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">Job detected</span>
                   </div>
                   <div className="text-[12px] font-semibold">Product Designer</div>
                   <div className="text-[11px] text-[var(--muted-foreground)]">Linear · San Francisco</div>
@@ -656,7 +656,7 @@ export function LandingPage() {
       {/* ── Social proof ── */}
       <div className="border-b border-t border-[var(--line-soft)] px-4 py-8 sm:px-8 lg:px-14">
         <div className="mx-auto flex max-w-[1100px] flex-wrap items-center justify-center gap-x-6 gap-y-3">
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Works on</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Works on</span>
           {["LinkedIn", "Indeed", "Naukri", "Greenhouse", "Lever", "Wellfound", "Ashby", "YC Work"].map((b) => (
             <span key={b} className="font-['DM_Mono'] text-[14px] text-[var(--muted-foreground)]">{b}</span>
           ))}
@@ -667,7 +667,7 @@ export function LandingPage() {
       <section className="mx-auto max-w-[1100px] px-4 py-12 sm:px-8 lg:px-14 lg:py-20">
         <div className="mb-4 flex items-center gap-2.5">
           <span className="font-['DM_Mono'] text-[11px] text-[var(--muted-foreground)]">03</span>
-          <span className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">Pricing</span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Pricing</span>
           <div className="h-px flex-1 bg-[var(--line-soft)]" />
         </div>
         <h2 className="mb-8 text-[26px] font-semibold tracking-[-0.02em] sm:text-[32px]">Three plans. Pay for what you use.</h2>
@@ -679,11 +679,11 @@ export function LandingPage() {
           ].map((p) => (
             <div key={p.name} className="relative rounded-lg p-6 lg:p-7" style={{ border: `1px solid ${p.recommended ? "var(--line)" : "var(--line-soft)"}`, background: "var(--surface)" }}>
               {p.recommended && (
-                <div className="absolute -top-2.5 right-4 rounded px-2.5 py-0.5 font-['DM_Mono'] text-[10px] uppercase tracking-[0.08em] text-[var(--surface)]" style={{ background: "var(--accent)" }}>
+                <div className="absolute -top-2.5 right-4 rounded px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--surface)]" style={{ background: "var(--accent)" }}>
                   Recommended
                 </div>
               )}
-              <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em]" style={{ color: p.recommended ? "var(--accent)" : "var(--muted-foreground)" }}>{p.name}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.05em]" style={{ color: p.recommended ? "var(--accent)" : "var(--muted-foreground)" }}>{p.name}</p>
               <div className="my-3 font-['DM_Mono'] text-[32px] font-medium">{p.price}</div>
               <div className="mb-5 text-[13px] text-[var(--muted-foreground)]">{p.sub}</div>
               <div className="flex flex-col gap-2.5 text-[13.5px]">
@@ -718,7 +718,7 @@ export function DocumentationPage() {
         <Badge tone="accent" className="mb-5">
           Product documentation
         </Badge>
-        <Display>Everything NextRole can do.</Display>
+        <Display>Everything Braevity can do.</Display>
         <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
           This guide covers setup, everyday workflows, AI execution modes,
           workspace pages, outputs, and the open-source attribution used in the
@@ -789,7 +789,7 @@ export function DocumentationPage() {
       <section className="grid gap-6 border-y border-[var(--line)] bg-[var(--surface-soft)] px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
           <SectionTitle
-            title="What you can do inside NextRole"
+            title="What you can do inside Braevity"
             subtitle="Full candidate workflow coverage"
           />
           <div className="flex flex-wrap gap-2">
@@ -833,7 +833,7 @@ export function DocumentationPage() {
         />
         <Surface className="p-5">
           <p className="text-sm leading-7 text-[var(--muted-foreground)]">
-            NextRole incorporates ideas and adapted software derived from the
+            Braevity incorporates ideas and adapted software derived from the
             MIT-licensed Career Ops project. The following notice is included to
             satisfy the license requirement for copies or substantial portions of
             that software.
@@ -852,9 +852,9 @@ export function PrivacyPage() {
     <MarketingShell>
       <section className="border-b border-[var(--line)] px-6 py-8 lg:px-10 lg:py-12">
         <Badge tone="accent" className="mb-5">Privacy policy</Badge>
-        <Display>How NextRole handles your data.</Display>
+        <Display>How Braevity handles your data.</Display>
         <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
-          Last updated May 2026. This page explains what information NextRole stores,
+          Last updated May 2026. This page explains what information Braevity stores,
           how it is used, and what controls you have over your data.
         </p>
       </section>
@@ -867,13 +867,13 @@ export function PrivacyPage() {
             <p>CV or resume text you upload or paste, used solely to power AI evaluations and tailored resume generation.</p>
             <p>Jobs you save, application statuses, AI evaluation outputs, and generated resume content.</p>
             <p>Usage metadata — credit consumption, feature usage counts — for billing and quota enforcement.</p>
-            <p>Payment information is processed entirely by Lemon Squeezy. NextRole never sees or stores card details.</p>
+            <p>Payment information is processed entirely by Lemon Squeezy. Braevity never sees or stores card details.</p>
           </div>
         </Surface>
         <Surface tone="accent" className="p-5">
           <SectionTitle title="How we use your data" subtitle="To run the product, nothing else" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>To run AI job evaluations, generate tailored resumes, and power autofill — your CV and job text are processed by NextRole AI on your behalf.</p>
+            <p>To run AI job evaluations, generate tailored resumes, and power autofill — your CV and job text are processed by Braevity AI on your behalf.</p>
             <p>To track your daily credit usage and enforce plan limits.</p>
             <p>To send transactional emails related to billing (via Resend). We do not send marketing emails without consent.</p>
             <p>We do not sell, rent, or share your personal data or job search data with third parties for advertising.</p>
@@ -894,7 +894,7 @@ export function PrivacyPage() {
           <Surface className="p-5">
             <h3 className="text-lg font-bold">OpenRouter</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Powers NextRole AI. When you run an evaluation or generate a resume,
+              Powers Braevity AI. When you run an evaluation or generate a resume,
               your CV context and job text are routed through OpenRouter&apos;s API to
               process your request. No data is stored by OpenRouter beyond the request.
             </p>
@@ -902,7 +902,7 @@ export function PrivacyPage() {
           <Surface className="p-5">
             <h3 className="text-lg font-bold">Lemon Squeezy</h3>
             <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">
-              Handles all subscription billing and payment processing. NextRole
+              Handles all subscription billing and payment processing. Braevity
               receives only subscription status and email — never card details.
             </p>
           </Surface>
@@ -923,7 +923,7 @@ export function PrivacyPage() {
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
             <p>All data is encrypted in transit via HTTPS. Supabase encrypts data at rest.</p>
             <p>API keys and sensitive credentials are stored encrypted and only used server-side.</p>
-            <p>No internet-facing system can guarantee absolute security. Please don&apos;t store information in NextRole you wouldn&apos;t want processed by the above services.</p>
+            <p>No internet-facing system can guarantee absolute security. Please don&apos;t store information in Braevity you wouldn&apos;t want processed by the above services.</p>
           </div>
         </Surface>
       </section>
@@ -936,26 +936,26 @@ export function TermsPage() {
     <MarketingShell>
       <section className="border-b border-[var(--line)] px-6 py-8 lg:px-10 lg:py-12">
         <Badge tone="accent" className="mb-5">Terms of use</Badge>
-        <Display>The rules for using NextRole.</Display>
+        <Display>The rules for using Braevity.</Display>
         <p className="mt-6 max-w-3xl text-base leading-8 text-[var(--muted-foreground)] sm:text-lg">
-          Last updated May 2026. By using NextRole you agree to these terms.
+          Last updated May 2026. By using Braevity you agree to these terms.
           Please read them before creating an account.
         </p>
       </section>
 
       <section className="grid gap-6 px-6 py-8 lg:grid-cols-2 lg:px-10">
         <Surface className="p-5">
-          <SectionTitle title="What NextRole is" subtitle="An AI-powered job search assistant" />
+          <SectionTitle title="What Braevity is" subtitle="An AI-powered job search assistant" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>NextRole helps you evaluate job postings, generate tailored resumes, track applications, and autofill application forms — all powered by AI.</p>
+            <p>Braevity helps you evaluate job postings, generate tailored resumes, track applications, and autofill application forms — all powered by AI.</p>
             <p>The product provides AI-generated recommendations and content. You remain responsible for reviewing everything before submitting it to employers.</p>
           </div>
         </Surface>
         <Surface tone="accent" className="p-5">
           <SectionTitle title="Acceptable use" subtitle="Use the tool responsibly" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>You must be 18 or older to use NextRole. You&apos;re responsible for keeping your login credentials secure.</p>
-            <p>Don&apos;t use NextRole to submit false or misleading information to employers, scrape third-party job platforms in violation of their terms, or abuse the credit system.</p>
+            <p>You must be 18 or older to use Braevity. You&apos;re responsible for keeping your login credentials secure.</p>
+            <p>Don&apos;t use Braevity to submit false or misleading information to employers, scrape third-party job platforms in violation of their terms, or abuse the credit system.</p>
             <p>One account per person. Sharing accounts or reselling access is not permitted.</p>
           </div>
         </Surface>
@@ -995,15 +995,15 @@ export function TermsPage() {
         <Surface className="p-5">
           <SectionTitle title="AI output disclaimer" subtitle="Review before you use" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>NextRole does not guarantee the accuracy, completeness, or fitness of any AI-generated output — including resumes, evaluations, and autofill suggestions.</p>
-            <p>Always review generated content before submitting it. NextRole is not liable for outcomes resulting from reliance on AI outputs.</p>
+            <p>Braevity does not guarantee the accuracy, completeness, or fitness of any AI-generated output — including resumes, evaluations, and autofill suggestions.</p>
+            <p>Always review generated content before submitting it. Braevity is not liable for outcomes resulting from reliance on AI outputs.</p>
           </div>
         </Surface>
         <Surface className="p-5">
           <SectionTitle title="Warranty and liability" subtitle="Service provided as-is" />
           <div className="space-y-4 text-sm leading-7 text-[var(--muted-foreground)]">
-            <p>NextRole is provided on an as-available basis. We do not guarantee uninterrupted service, and we may update or discontinue features with reasonable notice.</p>
-            <p>To the fullest extent permitted by law, NextRole&apos;s liability is limited to the amount you paid in the 3 months prior to any claim.</p>
+            <p>Braevity is provided on an as-available basis. We do not guarantee uninterrupted service, and we may update or discontinue features with reasonable notice.</p>
+            <p>To the fullest extent permitted by law, Braevity&apos;s liability is limited to the amount you paid in the 3 months prior to any claim.</p>
           </div>
         </Surface>
       </section>
@@ -1051,7 +1051,7 @@ export async function PricingPage() {
 
       {/* Hero */}
       <section className="mx-auto max-w-[1100px] px-4 pb-12 pt-14 text-center sm:px-8 sm:pt-16 lg:px-14 lg:pb-16 lg:pt-[72px]">
-        <p className="mb-4 font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--accent)]">· Pricing</p>
+        <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--accent)]">· Pricing</p>
         <h1 className="mx-auto max-w-[720px] text-[36px] font-semibold leading-[1.05] tracking-[-0.025em] sm:text-[42px] lg:text-[48px]">
           Three plans.<br />One that fits your search.
         </h1>
@@ -1068,7 +1068,7 @@ export async function PricingPage() {
         <div className="mt-10 rounded-lg bg-[var(--surface)] px-8 py-7" style={{ border: "1px solid var(--line-soft)" }}>
           <div className="grid gap-6 md:grid-cols-[1fr_2fr]">
             <div>
-              <p className="font-['DM_Mono'] text-[11px] uppercase tracking-[0.12em] text-[var(--muted-foreground)]">How credits work</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">How credits work</p>
               <p className="mt-2 text-[22px] font-semibold leading-[1.2] tracking-[-0.01em]">Daily credits, reset every night</p>
             </div>
             <div className="space-y-3 text-[14px] leading-[1.65] text-[var(--muted-foreground)]">
@@ -1087,9 +1087,9 @@ export async function PricingPage() {
           <table className="w-full min-w-[480px] text-[13px]">
             <thead>
               <tr className="border-b border-[var(--line-soft)] bg-[var(--surface)]">
-                <th className="px-6 py-4 text-left font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">Feature</th>
+                <th className="px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">Feature</th>
                 {(["Free", "Starter", "Pro"] as const).map((p) => (
-                  <th key={p} className="px-4 py-4 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--muted-foreground)]">{p}</th>
+                  <th key={p} className="px-4 py-4 text-center text-[11px] font-semibold uppercase tracking-[0.05em] text-[var(--muted-foreground)]">{p}</th>
                 ))}
               </tr>
             </thead>
